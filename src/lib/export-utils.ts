@@ -1,21 +1,13 @@
 import { jsPDF } from 'jspdf'
 import * as XLSX from 'xlsx'
-import type { ArtistRevenue, LabelInfo } from './types'
 import type { ProcessedArtistData } from './data-processor'
+import type { LabelInfo } from './types'
 
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency: 'EUR',
   }).format(value)
-}
-
-export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('de-DE', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(date)
 }
 
 export function generatePDF(
@@ -25,15 +17,9 @@ export function generatePDF(
   periodEnd?: string
 ): Blob {
   const doc = new jsPDF()
-  const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 20
-  let yPos = 20
+  let yPos = margin
 
-  doc.setFontSize(22)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Statement of Sales', margin, yPos)
-  
-  yPos += 15
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   
@@ -51,115 +37,99 @@ export function generatePDF(
   }
   
   yPos += 5
-  doc.text(`Generated: ${formatDate(new Date())}`, margin, yPos)
-  yPos += 5
-  
+
   if (periodStart && periodEnd) {
+    doc.setFontSize(10)
     doc.text(`Period: ${periodStart} - ${periodEnd}`, margin, yPos)
     yPos += 10
-  } else {
-    yPos += 5
   }
 
-  doc.setDrawColor(100, 60, 200)
   doc.setLineWidth(0.5)
-  doc.line(margin, yPos, pageWidth - margin, yPos)
+  doc.line(margin, yPos, 190, yPos)
   yPos += 15
 
   doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
+  doc.text('Statement of Sales', margin, yPos)
+  yPos += 10
+
+  doc.setFontSize(12)
   doc.text(`Artist: ${artistData.artist}`, margin, yPos)
-  yPos += 15
+  yPos += 10
 
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Revenue Summary', margin, yPos)
-  yPos += 8
-
-  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  
+  doc.setFontSize(10)
+
   const summaryData = [
     ['Digital Revenue', formatCurrency(artistData.totalDigitalRevenue)],
     ['Physical Revenue', formatCurrency(artistData.totalPhysicalRevenue)],
     ['Manual Revenue', formatCurrency(artistData.manualRevenue)],
     ['Gross Revenue', formatCurrency(artistData.grossRevenue)],
     ['Split Percentage', `${artistData.splitPercentage}%`],
+    ['Final Payout', formatCurrency(artistData.finalPayout)],
   ]
 
   summaryData.forEach(([label, value]) => {
-    doc.text(label, margin + 5, yPos)
-    doc.text(value, pageWidth - margin - 40, yPos, { align: 'right' })
-    yPos += 7
+    doc.text(label + ':', margin, yPos)
+    doc.text(value, margin + 80, yPos)
+    yPos += 6
   })
 
-  yPos += 3
-  doc.setDrawColor(100, 60, 200)
-  doc.setLineWidth(0.3)
-  doc.line(margin, yPos, pageWidth - margin, yPos)
-  yPos += 7
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.text('Final Payout', margin + 5, yPos)
-  doc.text(formatCurrency(artistData.finalPayout), pageWidth - margin - 40, yPos, { align: 'right' })
+  doc.setLineWidth(0.5)
+  doc.line(margin, yPos, 190, yPos)
   yPos += 10
 
-  doc.setDrawColor(100, 60, 200)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Transactions', margin, yPos)
+  yPos += 6
+
   doc.setLineWidth(0.3)
-  doc.line(margin, yPos, pageWidth - margin, yPos)
-  yPos += 15
+  yPos += 5
 
   if (artistData.transactions.length > 0) {
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Transaction Details', margin, yPos)
-    yPos += 8
-
     doc.setFontSize(8)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('helvetica', 'bold')
 
-    const headers = ['Month', 'Release', 'Track', 'Platform', 'Qty', 'Revenue']
-    const colWidths = [20, 45, 45, 30, 15, 25]
+    const headers = ['Platform', 'Release', 'Track', 'Quantity', 'Revenue', 'Type']
+    const colWidths = [30, 50, 50, 20, 25, 20]
     let xPos = margin
 
-    doc.setFont('helvetica', 'bold')
     headers.forEach((header, i) => {
       doc.text(header, xPos, yPos)
-      xPos += colWidths[i]
+      xPos += colWidths[i] || 20
     })
+
     yPos += 6
-
     doc.setFont('helvetica', 'normal')
-
     const maxTransactions = 25
-    const displayTransactions = artistData.transactions.slice(0, maxTransactions)
 
-    displayTransactions.forEach((transaction) => {
+    for (let i = 0; i < Math.min(artistData.transactions.length, maxTransactions); i++) {
+      const transaction = artistData.transactions[i]
+      
       if (yPos > 270) {
         doc.addPage()
         yPos = 20
       }
 
-      xPos = margin
       const rowData = [
-        transaction.sales_month || 'N/A',
-        transaction.release_title.substring(0, 20),
-        transaction.track_title.substring(0, 20),
-        transaction.platform.substring(0, 12),
-        transaction.quantity.toString(),
-        formatCurrency(transaction.net_revenue),
+        transaction.platform || '-',
+        transaction.release_title?.substring(0, 20) || '-',
+        transaction.track_title?.substring(0, 20) || '-',
+        String(transaction.quantity || 0),
+        formatCurrency(transaction.net_revenue || 0),
+        transaction.is_physical ? 'Physical' : 'Digital'
       ]
 
-      rowData.forEach((cell, i) => {
-        doc.text(cell, xPos, yPos, { maxWidth: colWidths[i] - 2 })
-        xPos += colWidths[i]
+      xPos = margin
+      rowData.forEach((cell, idx) => {
+        doc.text(cell, xPos, yPos)
+        xPos += colWidths[idx] || 20
       })
+
       yPos += 5
-    })
+    }
 
     if (artistData.transactions.length > maxTransactions) {
-      yPos += 5
       doc.setFont('helvetica', 'italic')
       doc.text(
         `... and ${artistData.transactions.length - maxTransactions} more transactions`,
@@ -169,11 +139,10 @@ export function generatePDF(
     }
   }
 
-  yPos = doc.internal.pageSize.getHeight() - 15
+  yPos = 280
   doc.setFontSize(8)
-  doc.setFont('helvetica', 'italic')
   doc.setTextColor(150, 150, 150)
-  doc.text('Generated by SOS Generator', pageWidth / 2, yPos, { align: 'center' })
+  doc.text('Generated by Statement of Sales Generator', margin, yPos)
 
   return doc.output('blob')
 }
@@ -189,30 +158,27 @@ export function generateExcel(
   const summaryData = [
     ['Statement of Sales'],
     [],
-    ['Label', labelInfo.name || 'N/A'],
-    ['Address', labelInfo.address || 'N/A'],
-    ['Generated', formatDate(new Date())],
-    ['Period', periodStart && periodEnd ? `${periodStart} - ${periodEnd}` : 'N/A'],
+    ['Label', labelInfo.name || ''],
+    ['Address', labelInfo.address || ''],
     [],
     ['Artist', artistData.artist],
+    ['Period', periodStart && periodEnd ? `${periodStart} - ${periodEnd}` : ''],
     [],
     ['Revenue Summary'],
-    ['Category', 'Amount'],
     ['Digital Revenue', artistData.totalDigitalRevenue],
     ['Physical Revenue', artistData.totalPhysicalRevenue],
     ['Manual Revenue', artistData.manualRevenue],
     ['Gross Revenue', artistData.grossRevenue],
-    ['Split Percentage', `${artistData.splitPercentage}%`],
+    ['Split Percentage', artistData.splitPercentage / 100],
     ['Final Payout', artistData.finalPayout],
   ]
 
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
+  summarySheet['!cols'] = [{ wch: 25 }, { wch: 25 }]
   
-  summarySheet['!cols'] = [{ wch: 25 }, { wch: 30 }]
-
   if (summarySheet['A1']) {
     summarySheet['A1'].s = {
-      font: { bold: true, sz: 16 },
+      font: { bold: true, sz: 14 }
     }
   }
 
@@ -235,17 +201,17 @@ export function generateExcel(
     ]
 
     const transactionRows = artistData.transactions.map((t) => [
-      t.sales_month,
-      t.platform,
-      t.country,
-      t.release_title,
-      t.track_title,
-      t.upc_ean,
-      t.isrc,
-      t.catalog_number,
-      t.quantity,
-      t.net_revenue,
-      t.currency,
+      t.sales_month || '',
+      t.platform || '',
+      t.country || '',
+      t.release_title || '',
+      t.track_title || '',
+      t.upc_ean || '',
+      t.isrc || '',
+      t.catalog_number || '',
+      t.quantity || 0,
+      t.net_revenue || 0,
+      t.currency || 'EUR',
       t.is_physical ? 'Physical' : 'Digital',
     ])
 
@@ -271,7 +237,9 @@ export function generateExcel(
   }
 
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
-  return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  return new Blob([excelBuffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  })
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {
@@ -288,6 +256,8 @@ export function downloadBlob(blob: Blob, filename: string): void {
 export async function generateZipOfAllStatements(
   artistsData: ProcessedArtistData[],
   labelInfo: LabelInfo,
+  periodStart?: string,
+  periodEnd?: string,
   format: 'pdf' | 'excel' | 'both' = 'both'
 ): Promise<Blob> {
   const JSZip = (await import('jszip')).default
@@ -297,12 +267,12 @@ export async function generateZipOfAllStatements(
     const safeArtistName = artistData.artist.replace(/[^a-z0-9]/gi, '_')
 
     if (format === 'pdf' || format === 'both') {
-      const pdfBlob = generatePDF(artistData, labelInfo)
+      const pdfBlob = generatePDF(artistData, labelInfo, periodStart, periodEnd)
       zip.file(`${safeArtistName}_statement.pdf`, pdfBlob)
     }
 
     if (format === 'excel' || format === 'both') {
-      const excelBlob = generateExcel(artistData, labelInfo)
+      const excelBlob = generateExcel(artistData, labelInfo, periodStart, periodEnd)
       zip.file(`${safeArtistName}_statement.xlsx`, excelBlob)
     }
   }
