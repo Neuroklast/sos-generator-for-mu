@@ -12,6 +12,9 @@ import { LabelBranding } from '@/components/LabelBranding'
 import { RevenueDashboard } from '@/components/RevenueDashboard'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
+import { parseCSVContent, suggestArtistMappings } from '@/lib/csv-parser'
+import { processTransactions } from '@/lib/data-processor'
+import type { SalesTransaction } from '@/lib/csv-parser'
 import type {
   UploadedFile,
   CompilationFilter,
@@ -31,12 +34,15 @@ function App() {
   const [manualRevenues, setManualRevenues] = useKV<ManualRevenue[]>('manual-revenues', [])
   const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', { name: '', address: '' })
   
+  const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
   const [artistRevenues, setArtistRevenues] = useState<ArtistRevenue[]>([])
 
   const generateId = () => crypto.randomUUID()
 
   const handleBelieveFilesAdded = async (files: File[]) => {
     const newFiles: UploadedFile[] = []
+    let totalNewArtists = 0
+    let totalNewMappings = 0
     
     for (const file of files) {
       const text = await file.text()
@@ -48,14 +54,47 @@ function App() {
         data: text,
         uploadedAt: new Date(),
       })
+
+      const parsed = parseCSVContent(text, 'believe')
+      
+      if (parsed.errors.length > 0) {
+        console.warn(`${parsed.errors.length} errors in ${file.name}:`, parsed.errors)
+      }
+
+      const mappingSuggestions = suggestArtistMappings(parsed.uniqueArtists)
+      
+      setArtistMappings((currentMappings) => {
+        const curr = currentMappings || []
+        const existingFeaturingNames = new Set(
+          curr.map(m => m.featuringName.toLowerCase())
+        )
+        
+        const newMappings = mappingSuggestions
+          .filter(s => !existingFeaturingNames.has(s.featuringName.toLowerCase()))
+          .map(s => ({
+            id: generateId(),
+            featuringName: s.featuringName,
+            primaryArtist: s.primaryArtist
+          }))
+        
+        totalNewMappings += newMappings.length
+        return [...curr, ...newMappings]
+      })
+
+      totalNewArtists += parsed.uniqueArtists.length
     }
     
     setBelieveFiles((current) => [...(current || []), ...newFiles])
-    toast.success(`Added ${files.length} Believe file(s)`)
+    
+    toast.success(
+      `Added ${files.length} Believe file(s) - Found ${totalNewArtists} artists${totalNewMappings > 0 ? ` and ${totalNewMappings} featuring mappings` : ''}`
+    )
   }
 
   const handleBandcampFilesAdded = async (files: File[]) => {
     const newFiles: UploadedFile[] = []
+    let totalNewArtists = 0
+    let totalNewMappings = 0
     
     for (const file of files) {
       const text = await file.text()
@@ -67,10 +106,41 @@ function App() {
         data: text,
         uploadedAt: new Date(),
       })
+
+      const parsed = parseCSVContent(text, 'bandcamp')
+      
+      if (parsed.errors.length > 0) {
+        console.warn(`${parsed.errors.length} errors in ${file.name}:`, parsed.errors)
+      }
+
+      const mappingSuggestions = suggestArtistMappings(parsed.uniqueArtists)
+      
+      setArtistMappings((currentMappings) => {
+        const curr = currentMappings || []
+        const existingFeaturingNames = new Set(
+          curr.map(m => m.featuringName.toLowerCase())
+        )
+        
+        const newMappings = mappingSuggestions
+          .filter(s => !existingFeaturingNames.has(s.featuringName.toLowerCase()))
+          .map(s => ({
+            id: generateId(),
+            featuringName: s.featuringName,
+            primaryArtist: s.primaryArtist
+          }))
+        
+        totalNewMappings += newMappings.length
+        return [...curr, ...newMappings]
+      })
+
+      totalNewArtists += parsed.uniqueArtists.length
     }
     
     setBandcampFiles((current) => [...(current || []), ...newFiles])
-    toast.success(`Added ${files.length} Bandcamp file(s)`)
+    
+    toast.success(
+      `Added ${files.length} Bandcamp file(s) - Found ${totalNewArtists} artists${totalNewMappings > 0 ? ` and ${totalNewMappings} featuring mappings` : ''}`
+    )
   }
 
   const handleBelieveFileRemoved = (id: string) => {
@@ -120,39 +190,41 @@ function App() {
   }
 
   useEffect(() => {
-    const artistSet = new Set<string>()
+    const allTrans: SalesTransaction[] = []
     
-    if ((believeFiles || []).length > 0) {
-      artistSet.add('Sample Artist A')
-      artistSet.add('Sample Artist B')
+    for (const file of (believeFiles || [])) {
+      const parsed = parseCSVContent(file.data, 'believe')
+      allTrans.push(...parsed.transactions)
     }
     
-    if ((bandcampFiles || []).length > 0) {
-      artistSet.add('Sample Artist A')
-      artistSet.add('Sample Artist C')
+    for (const file of (bandcampFiles || [])) {
+      const parsed = parseCSVContent(file.data, 'bandcamp')
+      allTrans.push(...parsed.transactions)
     }
 
-    const revenues: ArtistRevenue[] = Array.from(artistSet).map((artist) => {
-      const believeRev = Math.random() * 5000
-      const bandcampRev = Math.random() * 2000
-      const manualRev = (manualRevenues || [])
-        .filter((r) => r.artist === artist)
-        .reduce((sum, r) => sum + r.amount, 0)
-      
-      const total = believeRev + bandcampRev + manualRev
-      const split = (splitFees || []).find((s) => s.artist === artist)?.percentage || 100
-      const final = total * (split / 100)
+    setAllTransactions(allTrans)
 
-      return {
-        artist,
-        believeRevenue: believeRev,
-        bandcampRevenue: bandcampRev,
-        manualRevenue: manualRev,
-        totalRevenue: total,
-        splitPercentage: split,
-        finalAmount: final,
-      }
+    if (allTrans.length === 0) {
+      setArtistRevenues([])
+      return
+    }
+
+    const processed = processTransactions(allTrans, {
+      compilationFilters: compilationFilters || [],
+      artistMappings: artistMappings || [],
+      splitFees: splitFees || [],
+      manualRevenues: manualRevenues || []
     })
+
+    const revenues: ArtistRevenue[] = processed.map(p => ({
+      artist: p.artist,
+      believeRevenue: p.totalDigitalRevenue + p.totalPhysicalRevenue,
+      bandcampRevenue: 0,
+      manualRevenue: p.manualRevenue,
+      totalRevenue: p.grossRevenue,
+      splitPercentage: p.splitPercentage,
+      finalAmount: p.finalPayout
+    }))
 
     setArtistRevenues(revenues)
 
@@ -162,7 +234,7 @@ function App() {
         setSplitFees((current) => [...(current || []), { artist: rev.artist, percentage: 100 }])
       }
     })
-  }, [believeFiles, bandcampFiles, manualRevenues, splitFees, setSplitFees])
+  }, [believeFiles, bandcampFiles, compilationFilters, artistMappings, splitFees, manualRevenues, setSplitFees])
 
   const handleDownloadAll = () => {
     console.log('Downloading all statements as ZIP')
