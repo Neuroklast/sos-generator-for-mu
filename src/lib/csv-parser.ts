@@ -120,14 +120,14 @@ export function parseCSVContent(
     return { transactions, uniqueArtists: [], errors }
   }
 
-  const delimiter = csvContent.includes(';') ? ';' : ','
-  const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''))
+  const delim = csvContent.includes(';') ? ';' : ','
+  const headers = lines[0].split(delim).map(h => h.trim().replace(/^"|"$/g, ''))
   
   const mapping = columnMapping || mapCSVHeadersToModel(headers)
 
   for (let i = 1; i < lines.length; i++) {
     try {
-      const values = parseCSVLine(lines[i], delimiter)
+      const values = parseCSVLine(lines[i], delim)
       
       if (values.length !== headers.length && values.length > 0) {
         errors.push({
