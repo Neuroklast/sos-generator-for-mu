@@ -1,16 +1,305 @@
+import { useState, useMemo, useEffect } from 'react'
+import { useKV } from '@github/spark/hooks'
 import { Card } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Toaster } from '@/components/ui/sonner'
+import { FileUploadZone } from '@/components/FileUploadZone'
+import { CompilationFilterManager } from '@/components/CompilationFilterManager'
+import { ArtistMappingManager } from '@/components/ArtistMappingManager'
+import { SplitFeeManager } from '@/components/SplitFeeManager'
+import { ManualRevenueManager } from '@/components/ManualRevenueManager'
+import { LabelBranding } from '@/components/LabelBranding'
+import { RevenueDashboard } from '@/components/RevenueDashboard'
+import { parseCSVContent } from '@/lib/csv-parser'
+import { processTransactions, getUniqueArtistsFromTransactions } from '@/lib/data-processor'
+import { generatePDF, generateExcel, downloadBlob, generateZipOfAllStatements } from '@/lib/export-utils'
+import { MusicNotes } from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import type { UploadedFile, CompilationFilter, ArtistMapping, SplitFee, ManualRevenue, LabelInfo, ArtistRevenue } from '@/lib/types'
+import type { SalesTransaction } from '@/lib/csv-parser'
 
 function App() {
+  const [believeFiles = [], setBelieveFiles] = useKV<UploadedFile[]>('believe-files', [])
+  const [bandcampFiles = [], setBandcampFiles] = useKV<UploadedFile[]>('bandcamp-files', [])
+  const [compilationFilters = [], setCompilationFilters] = useKV<CompilationFilter[]>('compilation-filters', [])
+  const [artistMappings = [], setArtistMappings] = useKV<ArtistMapping[]>('artist-mappings', [])
+  const [splitFees = [], setSplitFees] = useKV<SplitFee[]>('split-fees', [])
+  const [manualRevenues = [], setManualRevenues] = useKV<ManualRevenue[]>('manual-revenues', [])
+  const [labelInfo = { name: '', address: '' }, setLabelInfo] = useKV<LabelInfo>('label-info', {
+    name: '',
+    address: '',
+  })
+
+  const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
+
+  const handleFilesAdded = async (files: File[], type: 'believe' | 'bandcamp') => {
+    const newFiles: UploadedFile[] = []
+    
+    for (const file of files) {
+      const content = await file.text()
+      const uploadedFile: UploadedFile = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        type,
+        data: content,
+        uploadedAt: new Date(),
+      }
+      newFiles.push(uploadedFile)
+    }
+
+    if (type === 'believe') {
+      setBelieveFiles((current = []) => [...current, ...newFiles])
+    } else {
+      setBandcampFiles((current = []) => [...current, ...newFiles])
+    }
+
+    toast.success(`${newFiles.length} file(s) uploaded successfully`)
+    processAllFiles([...believeFiles, ...bandcampFiles, ...newFiles])
+  }
+
+  const handleFileRemoved = (id: string, type: 'believe' | 'bandcamp') => {
+    if (type === 'believe') {
+      setBelieveFiles((current = []) => current.filter((f) => f.id !== id))
+    } else {
+      setBandcampFiles((current = []) => current.filter((f) => f.id !== id))
+    }
+    toast.info('File removed')
+  }
+
+  const processAllFiles = (files: UploadedFile[]) => {
+    const transactions: SalesTransaction[] = []
+
+    files.forEach((file) => {
+      const parsed = parseCSVContent(file.data, file.type)
+      transactions.push(...parsed.transactions)
+      
+      if (parsed.errors.length > 0) {
+        console.warn(`Errors parsing ${file.name}:`, parsed.errors)
+      }
+    })
+
+    setAllTransactions(transactions)
+  }
+
+  useMemo(() => {
+    processAllFiles([...believeFiles, ...bandcampFiles])
+  }, [believeFiles, bandcampFiles])
+
+  const uniqueArtists = useMemo(() => {
+    return getUniqueArtistsFromTransactions(allTransactions, artistMappings)
+  }, [allTransactions, artistMappings])
+
+  useEffect(() => {
+    const currentArtists = new Set(splitFees.map((sf) => sf.artist))
+    const newArtists = uniqueArtists.filter((artist) => !currentArtists.has(artist))
+    
+    if (newArtists.length > 0) {
+      setSplitFees((current = []) => [
+        ...current,
+        ...newArtists.map((artist) => ({ artist, percentage: 100 })),
+      ])
+    }
+  }, [uniqueArtists])
+
+  const processedData = useMemo(() => {
+    return processTransactions(allTransactions, {
+      compilationFilters,
+      artistMappings,
+      splitFees,
+      manualRevenues,
+    })
+  }, [allTransactions, compilationFilters, artistMappings, splitFees, manualRevenues])
+
+  const revenues: ArtistRevenue[] = useMemo(() => {
+    return processedData.map((data) => ({
+      artist: data.artist,
+      believeRevenue: data.transactions
+        .filter((t) => t.source === 'believe')
+        .reduce((sum, t) => sum + t.net_revenue, 0),
+      bandcampRevenue: data.transactions
+        .filter((t) => t.source === 'bandcamp')
+        .reduce((sum, t) => sum + t.net_revenue, 0),
+      manualRevenue: data.manualRevenue,
+      totalRevenue: data.grossRevenue,
+      splitPercentage: data.splitPercentage,
+      finalAmount: data.finalPayout,
+    }))
+  }, [processedData])
+
+  const handleAddCompilationFilter = (filter: Omit<CompilationFilter, 'id'>) => {
+    setCompilationFilters((current = []) => [
+      ...current,
+      { ...filter, id: crypto.randomUUID() },
+    ])
+    toast.success('Compilation filter added')
+  }
+
+  const handleRemoveCompilationFilter = (id: string) => {
+    setCompilationFilters((current = []) => current.filter((f) => f.id !== id))
+    toast.info('Filter removed')
+  }
+
+  const handleAddArtistMapping = (mapping: Omit<ArtistMapping, 'id'>) => {
+    setArtistMappings((current = []) => [
+      ...current,
+      { ...mapping, id: crypto.randomUUID() },
+    ])
+    toast.success('Artist mapping added')
+  }
+
+  const handleRemoveArtistMapping = (id: string) => {
+    setArtistMappings((current = []) => current.filter((m) => m.id !== id))
+    toast.info('Mapping removed')
+  }
+
+  const handleUpdateSplitFee = (artist: string, percentage: number) => {
+    setSplitFees((current = []) =>
+      current.map((sf) =>
+        sf.artist === artist ? { ...sf, percentage } : sf
+      )
+    )
+  }
+
+  const handleAddManualRevenue = (revenue: Omit<ManualRevenue, 'id'>) => {
+    setManualRevenues((current = []) => [
+      ...current,
+      { ...revenue, id: crypto.randomUUID() },
+    ])
+    toast.success('Manual revenue added')
+  }
+
+  const handleRemoveManualRevenue = (id: string) => {
+    setManualRevenues((current = []) => current.filter((r) => r.id !== id))
+    toast.info('Revenue entry removed')
+  }
+
+  const handleDownloadPDF = (artist: string) => {
+    const artistData = processedData.find((d) => d.artist === artist)
+    if (artistData) {
+      const blob = generatePDF(artistData, labelInfo)
+      downloadBlob(blob, `${artist.replace(/[^a-z0-9]/gi, '_')}_statement.pdf`)
+    }
+  }
+
+  const handleDownloadExcel = (artist: string) => {
+    const artistData = processedData.find((d) => d.artist === artist)
+    if (artistData) {
+      const blob = generateExcel(artistData, labelInfo)
+      downloadBlob(blob, `${artist.replace(/[^a-z0-9]/gi, '_')}_statement.xlsx`)
+    }
+  }
+
+  const handleDownloadAll = async () => {
+    const blob = await generateZipOfAllStatements(processedData, labelInfo)
+    downloadBlob(blob, 'all_artist_statements.zip')
+  }
+
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-4xl mx-auto">
-        <Card className="p-8">
-          <h1 className="text-4xl font-bold mb-4">Welcome to Spark</h1>
+    <div className="min-h-screen bg-background">
+      <Toaster />
+      
+      <div className="border-b bg-card">
+        <div className="max-w-7xl mx-auto px-8 py-6">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-primary/10 rounded-lg">
+              <MusicNotes size={32} weight="bold" className="text-primary" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold font-['Space_Grotesk']">Statement of Sales Generator</h1>
+              <p className="text-sm text-muted-foreground">Import revenue data and generate artist statements</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
+      <div className="max-w-7xl mx-auto px-8 py-8">
+        <Tabs defaultValue="import" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+            <TabsTrigger value="import">Import</TabsTrigger>
+            <TabsTrigger value="configure">Configure</TabsTrigger>
+            <TabsTrigger value="branding">Branding</TabsTrigger>
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          </TabsList>
 
+          <TabsContent value="import" className="space-y-6">
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4 font-['Space_Grotesk']">Believe Revenue Files</h2>
+              <FileUploadZone
+                type="believe"
+                files={believeFiles}
+                onFilesAdded={(files) => handleFilesAdded(files, 'believe')}
+                onFileRemoved={(id) => handleFileRemoved(id, 'believe')}
+              />
+            </Card>
 
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4 font-['Space_Grotesk']">Bandcamp Revenue Files</h2>
+              <FileUploadZone
+                type="bandcamp"
+                files={bandcampFiles}
+                onFilesAdded={(files) => handleFilesAdded(files, 'bandcamp')}
+                onFileRemoved={(id) => handleFileRemoved(id, 'bandcamp')}
+              />
+            </Card>
+          </TabsContent>
 
+          <TabsContent value="configure" className="space-y-6">
+            <Card className="p-6">
+              <CompilationFilterManager
+                filters={compilationFilters}
+                onAddFilter={handleAddCompilationFilter}
+                onRemoveFilter={handleRemoveCompilationFilter}
+              />
+            </Card>
 
+            <Card className="p-6">
+              <ArtistMappingManager
+                mappings={artistMappings}
+                onAddMapping={handleAddArtistMapping}
+                onRemoveMapping={handleRemoveArtistMapping}
+              />
+            </Card>
+
+            <Card className="p-6">
+              <SplitFeeManager
+                splitFees={splitFees}
+                onUpdateSplitFee={handleUpdateSplitFee}
+              />
+            </Card>
+
+            <Card className="p-6">
+              <ManualRevenueManager
+                revenues={manualRevenues}
+                artists={uniqueArtists}
+                onAddRevenue={handleAddManualRevenue}
+                onRemoveRevenue={handleRemoveManualRevenue}
+              />
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="branding">
+            <LabelBranding
+              labelInfo={labelInfo}
+              onUpdate={setLabelInfo}
+            />
+          </TabsContent>
+
+          <TabsContent value="dashboard">
+            <RevenueDashboard
+              revenues={revenues}
+              onDownloadAll={handleDownloadAll}
+              onDownloadPDF={handleDownloadPDF}
+              onDownloadExcel={handleDownloadExcel}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  )
+}
+
+export default App
 
 
 
