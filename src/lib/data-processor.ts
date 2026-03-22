@@ -73,12 +73,16 @@ export function processTransactions(
 
   const artistGroups = new Map<string, SalesTransaction[]>()
   
-  for (const transaction of transactionsWithResolvedArtists) {
+  for (let i = 0; i < transactionsWithResolvedArtists.length; i++) {
+    const transaction = transactionsWithResolvedArtists[i]
     const artist = transaction.main_artist
     if (!artistGroups.has(artist)) {
       artistGroups.set(artist, [])
     }
-    artistGroups.get(artist)!.push(transaction)
+    const group = artistGroups.get(artist)
+    if (group) {
+       group.push(transaction)
+    }
   }
 
   const results: ProcessedArtistData[] = []
