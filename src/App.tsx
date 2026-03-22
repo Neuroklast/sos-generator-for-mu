@@ -6,14 +6,14 @@ function App() {
       <div className="max-w-4xl mx-auto">
         <Card className="p-8">
           <h1 className="text-4xl font-bold mb-4">Welcome to Spark</h1>
+          <p className="text-muted-foreground">Your Spark app is ready to build.</p>
         </Card>
       </div>
     </div>
   )
 }
 
-
-
-
-
 export default App
+
+
+
