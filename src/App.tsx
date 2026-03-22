@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { parseCSVContent, suggestArtistMappings } from '@/lib/csv-parser'
 import { processTransactions } from '@/lib/data-processor'
 import type { SalesTransaction } from '@/lib/csv-parser'
+import type { ProcessedArtistData } from '@/lib/data-processor'
 import type {
   UploadedFile,
   CompilationFilter,
@@ -24,6 +25,12 @@ import type {
   LabelInfo,
   ArtistRevenue,
 } from '@/lib/types'
+import {
+  generatePDF,
+  generateExcel,
+  downloadBlob,
+  generateZipOfAllStatements,
+} from '@/lib/export-utils'
 
 function App() {
   const [believeFiles, setBelieveFiles] = useKV<UploadedFile[]>('believe-files', [])
@@ -36,6 +43,7 @@ function App() {
   
   const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
   const [artistRevenues, setArtistRevenues] = useState<ArtistRevenue[]>([])
+  const [processedData, setProcessedData] = useState<ProcessedArtistData[]>([])
 
   const generateId = () => crypto.randomUUID()
 
@@ -206,6 +214,7 @@ function App() {
 
     if (allTrans.length === 0) {
       setArtistRevenues([])
+      setProcessedData([])
       return
     }
 
@@ -215,6 +224,8 @@ function App() {
       splitFees: splitFees || [],
       manualRevenues: manualRevenues || []
     })
+
+    setProcessedData(processed)
 
     const revenues: ArtistRevenue[] = processed.map(p => ({
       artist: p.artist,
@@ -241,16 +252,52 @@ function App() {
     }
   }, [believeFiles, bandcampFiles, compilationFilters, artistMappings, manualRevenues])
 
-  const handleDownloadAll = () => {
-    console.log('Downloading all statements as ZIP')
+  const handleDownloadAll = async () => {
+    try {
+      const zipBlob = await generateZipOfAllStatements(processedData, labelInfo || { name: '', address: '' }, 'both')
+      const timestamp = new Date().toISOString().split('T')[0]
+      downloadBlob(zipBlob, `artist_statements_${timestamp}.zip`)
+      toast.success('All statements downloaded successfully')
+    } catch (error) {
+      console.error('Error generating ZIP:', error)
+      toast.error('Failed to generate ZIP file')
+    }
   }
 
   const handleDownloadPDF = (artist: string) => {
-    console.log(`Downloading PDF for ${artist}`)
+    try {
+      const artistData = processedData.find(d => d.artist === artist)
+      if (!artistData) {
+        toast.error(`No data found for ${artist}`)
+        return
+      }
+      
+      const pdfBlob = generatePDF(artistData, labelInfo || { name: '', address: '' })
+      const safeArtistName = artist.replace(/[^a-z0-9]/gi, '_')
+      downloadBlob(pdfBlob, `${safeArtistName}_statement.pdf`)
+      toast.success(`PDF generated for ${artist}`)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      toast.error('Failed to generate PDF')
+    }
   }
 
   const handleDownloadExcel = (artist: string) => {
-    console.log(`Downloading Excel for ${artist}`)
+    try {
+      const artistData = processedData.find(d => d.artist === artist)
+      if (!artistData) {
+        toast.error(`No data found for ${artist}`)
+        return
+      }
+      
+      const excelBlob = generateExcel(artistData, labelInfo || { name: '', address: '' })
+      const safeArtistName = artist.replace(/[^a-z0-9]/gi, '_')
+      downloadBlob(excelBlob, `${safeArtistName}_statement.xlsx`)
+      toast.success(`Excel generated for ${artist}`)
+    } catch (error) {
+      console.error('Error generating Excel:', error)
+      toast.error('Failed to generate Excel file')
+    }
   }
 
   const artistList = Array.from(new Set(artistRevenues.map((r) => r.artist)))

@@ -67,6 +67,11 @@ This tool manages multi-source data imports, complex filtering rules, artist map
 - **Trigger**: User clicks "Download All" or individual artist download buttons
 - **Progression**: Click download → Processing indicator → ZIP file generated (bulk) or file downloaded (individual) → Success notification
 - **Success criteria**: PDF and Excel files contain accurate data, proper formatting, and label branding
+- **Implementation**: 
+  - PDF export: Uses jsPDF to generate professional artist statements with label branding, revenue summary, and transaction details
+  - Excel export: Uses XLSX to create comprehensive spreadsheets with Summary and Transaction sheets
+  - Bulk export: Uses JSZip to package all statements (both PDF and Excel) into a single downloadable ZIP file
+  - All exports include label information, artist details, revenue breakdowns, and complete transaction listings
 
 ## Edge Case Handling
 - **Empty CSV files**: Display warning message and prevent processing until valid data provided
