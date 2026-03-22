@@ -228,13 +228,18 @@ function App() {
 
     setArtistRevenues(revenues)
 
-    revenues.forEach((rev) => {
+    const newArtistsWithoutSplits = revenues.filter((rev) => {
       const existingSplit = (splitFees || []).find((s) => s.artist === rev.artist)
-      if (!existingSplit) {
-        setSplitFees((current) => [...(current || []), { artist: rev.artist, percentage: 100 }])
-      }
+      return !existingSplit
     })
-  }, [believeFiles, bandcampFiles, compilationFilters, artistMappings, splitFees, manualRevenues, setSplitFees])
+
+    if (newArtistsWithoutSplits.length > 0) {
+      setSplitFees((current) => [
+        ...(current || []),
+        ...newArtistsWithoutSplits.map(rev => ({ artist: rev.artist, percentage: 100 }))
+      ])
+    }
+  }, [believeFiles, bandcampFiles, compilationFilters, artistMappings, manualRevenues])
 
   const handleDownloadAll = () => {
     console.log('Downloading all statements as ZIP')
