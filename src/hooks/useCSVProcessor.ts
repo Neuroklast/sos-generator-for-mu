@@ -166,6 +166,19 @@ export function useCSVProcessor(
     [processedData]
   )
 
+  /**
+   * Automatically detected period boundaries derived from the `sales_month`
+   * field across all parsed transactions. Format: "YYYY-MM" (the native value
+   * of an <input type="month">). Empty string when no transactions are loaded.
+   */
+  const sortedMonths = useMemo(
+    () => allTransactions.map(t => t.sales_month).filter(Boolean).sort(),
+    [allTransactions]
+  )
+
+  const detectedPeriodStart = sortedMonths[0] ?? ''
+  const detectedPeriodEnd = sortedMonths[sortedMonths.length - 1] ?? ''
+
   return {
     allTransactions,
     isProcessing,
@@ -173,5 +186,7 @@ export function useCSVProcessor(
     processedData,
     filteredCompilations,
     revenues,
+    detectedPeriodStart,
+    detectedPeriodEnd,
   }
 }
