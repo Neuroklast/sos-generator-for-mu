@@ -1,5 +1,5 @@
 import type { SalesTransaction } from './csv-parser'
-import { mapCSVHeadersToModel } from './csv-parser'
+import { mapCSVHeadersToModel, parseCSVLine } from './csv-parser'
 
 export interface ParseProgress {
   processedRows: number
@@ -15,34 +15,6 @@ export interface StreamingParseResult {
 }
 
 const CHUNK_SIZE = 1000
-
-function parseCSVLine(line: string, delimiter: string): string[] {
-  const result: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]
-    const nextChar = line[i + 1]
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        current += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === delimiter && !inQuotes) {
-      result.push(current.trim())
-      current = ''
-    } else {
-      current += char
-    }
-  }
-
-  result.push(current.trim())
-  return result.map(v => v.replace(/^"|"$/g, ''))
-}
 
 function processChunk(
   lines: string[],

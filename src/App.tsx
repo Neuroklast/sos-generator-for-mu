@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useCallback } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
@@ -12,248 +12,124 @@ import { SplitFeeManager } from '@/components/SplitFeeManager'
 import { ManualRevenueManager } from '@/components/ManualRevenueManager'
 import { LabelBranding } from '@/components/LabelBranding'
 import { RevenueDashboard } from '@/components/RevenueDashboard'
-import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
-import type { ParseProgress } from '@/lib/streaming-csv-parser'
-import { processTransactions, getUniqueArtistsFromTransactions } from '@/lib/data-processor'
-import { generatePDF, generateExcel, downloadBlob, generateZipOfAllStatements } from '@/lib/export-utils'
 import { MusicNotes } from '@phosphor-icons/react'
+import { useFileManager } from '@/hooks/useFileManager'
+import { useCSVProcessor } from '@/hooks/useCSVProcessor'
+import { useExports } from '@/hooks/useExports'
+import { useSplitFeeSync } from '@/hooks/useSplitFeeSync'
+import type { CompilationFilter, ArtistMapping, SplitFee, ManualRevenue, LabelInfo } from '@/lib/types'
 import { toast } from 'sonner'
-import type { UploadedFile, CompilationFilter, ArtistMapping, SplitFee, ManualRevenue, LabelInfo, ArtistRevenue } from '@/lib/types'
-import type { SalesTransaction } from '@/lib/csv-parser'
 
 function App() {
-  const [believeFiles, setBelieveFiles] = useKV<UploadedFile[]>('believe-files', [])
-  const [bandcampFiles, setBandcampFiles] = useKV<UploadedFile[]>('bandcamp-files', [])
+  // ── Persistent settings ────────────────────────────────────────────────────
   const [compilationFilters, setCompilationFilters] = useKV<CompilationFilter[]>('compilation-filters', [])
   const [artistMappings, setArtistMappings] = useKV<ArtistMapping[]>('artist-mappings', [])
   const [splitFees, setSplitFees] = useKV<SplitFee[]>('split-fees', [])
   const [manualRevenues, setManualRevenues] = useKV<ManualRevenue[]>('manual-revenues', [])
-  const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', {
-    name: '',
-    address: '',
-  })
+  const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', { name: '', address: '' })
   const [excludePhysical, setExcludePhysical] = useKV<boolean>('exclude-physical', false)
   const [periodStart, setPeriodStart] = useKV<string>('period-start', '')
   const [periodEnd, setPeriodEnd] = useKV<string>('period-end', '')
 
-  const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
+  // ── File management ────────────────────────────────────────────────────────
+  const believeManager = useFileManager('believe')
+  const bandcampManager = useFileManager('bandcamp')
 
-  const handleFilesAdded = async (files: File[], type: 'believe' | 'bandcamp') => {
-    setIsProcessing(true)
-    setUploadProgress(0)
-
-    try {
-      const newFiles: UploadedFile[] = []
-      
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const content = await file.text()
-        
-        const uploadedFile: UploadedFile = {
-          id: crypto.randomUUID(),
-          name: file.name,
-          size: file.size,
-          type,
-          data: content,
-          uploadedAt: new Date(),
-        }
-        newFiles.push(uploadedFile)
-        
-        setUploadProgress(Math.round(((i + 1) / files.length) * 50))
-      }
-
-      if (type === 'believe') {
-        setBelieveFiles((current = []) => [...current, ...newFiles])
-      } else {
-        setBandcampFiles((current = []) => [...current, ...newFiles])
-      }
-
-      toast.success(`${newFiles.length} file(s) uploaded successfully`)
-    } catch (error) {
-      toast.error('Error uploading files')
-      console.error(error)
-    } finally {
-      setIsProcessing(false)
-      setUploadProgress(0)
+  // ── CSV processing pipeline ────────────────────────────────────────────────
+  const { uniqueArtists, processedData, revenues } = useCSVProcessor(
+    believeManager.files,
+    bandcampManager.files,
+    {
+      compilationFilters: compilationFilters ?? [],
+      artistMappings: artistMappings ?? [],
+      splitFees: splitFees ?? [],
+      manualRevenues: manualRevenues ?? [],
+      excludePhysical: excludePhysical ?? false,
     }
-  }
+  )
 
-  const handleFileRemoved = (id: string, type: 'believe' | 'bandcamp') => {
-    if (type === 'believe') {
-      setBelieveFiles((current = []) => current.filter((f) => f.id !== id))
-    } else {
-      setBandcampFiles((current = []) => current.filter((f) => f.id !== id))
-    }
-    toast.info('File removed')
-  }
+  // Auto-register newly discovered artists in split fees
+  useSplitFeeSync(uniqueArtists, splitFees ?? [], setSplitFees)
 
-  const processAllFiles = async (files: UploadedFile[]) => {
-    if (files.length === 0) {
-      setAllTransactions([])
-      return
-    }
+  // ── Exports ────────────────────────────────────────────────────────────────
+  const { handleDownloadPDF, handleDownloadExcel, handleDownloadAll } = useExports(
+    processedData,
+    labelInfo ?? { name: '', address: '' },
+    periodStart ?? '',
+    periodEnd ?? ''
+  )
 
-    setIsProcessing(true)
-    setUploadProgress(0)
-
-    try {
-      const transactions: SalesTransaction[] = []
-      let totalProgress = 0
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        
-        const parsed = await parseCSVContentStreaming(
-          file.data,
-          file.type,
-          (progress: ParseProgress) => {
-            const fileProgress = progress.percentage
-            const overallProgress = Math.round(
-              (totalProgress + fileProgress / files.length)
-            )
-            setUploadProgress(Math.min(overallProgress, 100))
-          }
-        )
-        
-        transactions.push(...parsed.transactions)
-        
-        if (parsed.errors.length > 0) {
-          console.warn(`Errors parsing ${file.name}:`, parsed.errors)
-          toast.warning(`${parsed.errors.length} row(s) skipped in ${file.name}`)
-        }
-
-        totalProgress += (100 / files.length)
-      }
-
-      setAllTransactions(transactions)
-    } catch (error) {
-      toast.error('Error processing files')
-      console.error(error)
-    } finally {
-      setIsProcessing(false)
-      setUploadProgress(0)
-    }
-  }
-
-  useEffect(() => {
-    const allFiles = [...(believeFiles || []), ...(bandcampFiles || [])]
-    processAllFiles(allFiles)
-  }, [believeFiles, bandcampFiles])
-
-  const uniqueArtists = useMemo(() => {
-    return getUniqueArtistsFromTransactions(allTransactions, artistMappings || [])
-  }, [allTransactions, artistMappings])
-
-  useEffect(() => {
-    const currentArtists = new Set((splitFees || []).map((sf) => sf.artist))
-    const newArtists = uniqueArtists.filter((artist) => !currentArtists.has(artist))
-    
-    if (newArtists.length > 0) {
-      setSplitFees((current = []) => [
-        ...current,
-        ...newArtists.map((artist) => ({ artist, percentage: 100 })),
+  // ── Compilation filter handlers ────────────────────────────────────────────
+  const handleAddCompilationFilter = useCallback(
+    (filter: Omit<CompilationFilter, 'id'>) => {
+      setCompilationFilters(current => [
+        ...(current ?? []),
+        { ...filter, id: crypto.randomUUID() },
       ])
-    }
-  }, [uniqueArtists, setSplitFees])
+      toast.success('Compilation exclusion added')
+    },
+    [setCompilationFilters]
+  )
 
-  const processedData = useMemo(() => {
-    return processTransactions(allTransactions, {
-      compilationFilters: compilationFilters || [],
-      artistMappings: artistMappings || [],
-      splitFees: splitFees || [],
-      manualRevenues: manualRevenues || [],
-      excludePhysical: excludePhysical || false,
-    })
-  }, [allTransactions, compilationFilters, artistMappings, splitFees, manualRevenues, excludePhysical])
+  const handleRemoveCompilationFilter = useCallback(
+    (id: string) => {
+      setCompilationFilters(current => (current ?? []).filter(f => f.id !== id))
+      toast.info('Compilation exclusion removed')
+    },
+    [setCompilationFilters]
+  )
 
-  const revenues: ArtistRevenue[] = useMemo(() => {
-    return processedData.map((data) => ({
-      artist: data.artist,
-      believeRevenue: data.transactions
-        .filter((t) => t.source === 'believe')
-        .reduce((sum, t) => sum + t.net_revenue, 0),
-      bandcampRevenue: data.transactions
-        .filter((t) => t.source === 'bandcamp')
-        .reduce((sum, t) => sum + t.net_revenue, 0),
-      manualRevenue: data.manualRevenue,
-      totalRevenue: data.grossRevenue,
-      splitPercentage: data.splitPercentage,
-      finalAmount: data.finalPayout,
-    }))
-  }, [processedData])
+  // ── Artist mapping handlers ────────────────────────────────────────────────
+  const handleAddArtistMapping = useCallback(
+    (mapping: Omit<ArtistMapping, 'id'>) => {
+      setArtistMappings(current => [
+        ...(current ?? []),
+        { ...mapping, id: crypto.randomUUID() },
+      ])
+      toast.success('Artist mapping added')
+    },
+    [setArtistMappings]
+  )
 
-  const handleAddCompilationFilter = (filter: Omit<CompilationFilter, 'id'>) => {
-    setCompilationFilters((current = []) => [
-      ...current,
-      { ...filter, id: crypto.randomUUID() },
-    ])
-    toast.success('Compilation exclusion added')
-  }
+  const handleRemoveArtistMapping = useCallback(
+    (id: string) => {
+      setArtistMappings(current => (current ?? []).filter(m => m.id !== id))
+      toast.info('Artist mapping removed')
+    },
+    [setArtistMappings]
+  )
 
-  const handleRemoveCompilationFilter = (id: string) => {
-    setCompilationFilters((current = []) => current.filter((f) => f.id !== id))
-    toast.info('Compilation exclusion removed')
-  }
-
-  const handleAddArtistMapping = (mapping: Omit<ArtistMapping, 'id'>) => {
-    setArtistMappings((current = []) => [
-      ...current,
-      { ...mapping, id: crypto.randomUUID() },
-    ])
-    toast.success('Artist mapping added')
-  }
-
-  const handleRemoveArtistMapping = (id: string) => {
-    setArtistMappings((current = []) => current.filter((m) => m.id !== id))
-    toast.info('Artist mapping removed')
-  }
-
-  const handleUpdateSplitFee = (artist: string, percentage: number) => {
-    setSplitFees((current = []) =>
-      current.map((sf) =>
-        sf.artist === artist ? { ...sf, percentage } : sf
+  // ── Split fee handlers ─────────────────────────────────────────────────────
+  const handleUpdateSplitFee = useCallback(
+    (artist: string, percentage: number) => {
+      setSplitFees(current =>
+        (current ?? []).map(sf => (sf.artist === artist ? { ...sf, percentage } : sf))
       )
-    )
-  }
+    },
+    [setSplitFees]
+  )
 
-  const handleAddManualRevenue = (revenue: Omit<ManualRevenue, 'id'>) => {
-    setManualRevenues((current = []) => [
-      ...current,
-      { ...revenue, id: crypto.randomUUID() },
-    ])
-    toast.success('Manual revenue added')
-  }
+  // ── Manual revenue handlers ────────────────────────────────────────────────
+  const handleAddManualRevenue = useCallback(
+    (revenue: Omit<ManualRevenue, 'id'>) => {
+      setManualRevenues(current => [
+        ...(current ?? []),
+        { ...revenue, id: crypto.randomUUID() },
+      ])
+      toast.success('Manual revenue added')
+    },
+    [setManualRevenues]
+  )
 
-  const handleRemoveManualRevenue = (id: string) => {
-    setManualRevenues((current = []) => current.filter((r) => r.id !== id))
-    toast.info('Manual revenue removed')
-  }
+  const handleRemoveManualRevenue = useCallback(
+    (id: string) => {
+      setManualRevenues(current => (current ?? []).filter(r => r.id !== id))
+      toast.info('Manual revenue removed')
+    },
+    [setManualRevenues]
+  )
 
-  const handleDownloadPDF = (artist: string) => {
-    const artistData = processedData.find((d) => d.artist === artist)
-    if (artistData && labelInfo) {
-      const blob = generatePDF(artistData, labelInfo, periodStart || undefined, periodEnd || undefined)
-      downloadBlob(blob, `${artist.replace(/[^a-z0-9]/gi, '_')}_statement.pdf`)
-    }
-  }
-
-  const handleDownloadExcel = (artist: string) => {
-    const artistData = processedData.find((d) => d.artist === artist)
-    if (artistData && labelInfo) {
-      const blob = generateExcel(artistData, labelInfo, periodStart || undefined, periodEnd || undefined)
-      downloadBlob(blob, `${artist.replace(/[^a-z0-9]/gi, '_')}_statement.xlsx`)
-    }
-  }
-
-  const handleDownloadAll = async () => {
-    if (labelInfo) {
-      const blob = await generateZipOfAllStatements(processedData, labelInfo, periodStart || undefined, periodEnd || undefined)
-      downloadBlob(blob, 'artist_statements.zip')
-    }
-  }
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -280,31 +156,31 @@ function App() {
           <TabsContent value="upload" className="space-y-6">
             <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-                <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-accent rounded-full"></span>
+                <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
                 Believe CSV Files
               </h2>
               <FileUploadZone
                 type="believe"
-                files={believeFiles || []}
-                onFilesAdded={(files) => handleFilesAdded(files, 'believe')}
-                onFileRemoved={(id) => handleFileRemoved(id, 'believe')}
-                isProcessing={isProcessing}
-                uploadProgress={uploadProgress}
+                files={believeManager.files}
+                fileStates={believeManager.fileStates}
+                onFilesAdded={believeManager.addFiles}
+                onFileRemoved={believeManager.removeFile}
+                onFileReplaced={believeManager.replaceFile}
               />
             </Card>
 
             <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-                <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-accent rounded-full"></span>
+                <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
                 Bandcamp CSV Files
               </h2>
               <FileUploadZone
                 type="bandcamp"
-                files={bandcampFiles || []}
-                onFilesAdded={(files) => handleFilesAdded(files, 'bandcamp')}
-                onFileRemoved={(id) => handleFileRemoved(id, 'bandcamp')}
-                isProcessing={isProcessing}
-                uploadProgress={uploadProgress}
+                files={bandcampManager.files}
+                fileStates={bandcampManager.fileStates}
+                onFilesAdded={bandcampManager.addFiles}
+                onFileRemoved={bandcampManager.removeFile}
+                onFileReplaced={bandcampManager.replaceFile}
               />
             </Card>
 
@@ -319,8 +195,8 @@ function App() {
                   <Input
                     id="period-start"
                     type="month"
-                    value={periodStart || ''}
-                    onChange={(e) => setPeriodStart(e.target.value)}
+                    value={periodStart ?? ''}
+                    onChange={e => setPeriodStart(e.target.value)}
                     placeholder="YYYY-MM"
                   />
                 </div>
@@ -329,8 +205,8 @@ function App() {
                   <Input
                     id="period-end"
                     type="month"
-                    value={periodEnd || ''}
-                    onChange={(e) => setPeriodEnd(e.target.value)}
+                    value={periodEnd ?? ''}
+                    onChange={e => setPeriodEnd(e.target.value)}
                     placeholder="YYYY-MM"
                   />
                 </div>
@@ -341,7 +217,7 @@ function App() {
           <TabsContent value="settings" className="space-y-6">
             <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <CompilationFilterManager
-                filters={compilationFilters || []}
+                filters={compilationFilters ?? []}
                 onAddFilter={handleAddCompilationFilter}
                 onRemoveFilter={handleRemoveCompilationFilter}
               />
@@ -349,7 +225,7 @@ function App() {
 
             <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <ArtistMappingManager
-                mappings={artistMappings || []}
+                mappings={artistMappings ?? []}
                 onAddMapping={handleAddArtistMapping}
                 onRemoveMapping={handleRemoveArtistMapping}
               />
@@ -357,14 +233,14 @@ function App() {
 
             <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <SplitFeeManager
-                splitFees={splitFees || []}
+                splitFees={splitFees ?? []}
                 onUpdateSplitFee={handleUpdateSplitFee}
               />
             </Card>
 
             <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <ManualRevenueManager
-                revenues={manualRevenues || []}
+                revenues={manualRevenues ?? []}
                 artists={uniqueArtists}
                 onAddRevenue={handleAddManualRevenue}
                 onRemoveRevenue={handleRemoveManualRevenue}
@@ -380,8 +256,8 @@ function App() {
                   </p>
                 </div>
                 <Switch
-                  checked={excludePhysical || false}
-                  onCheckedChange={(checked) => setExcludePhysical(checked)}
+                  checked={excludePhysical ?? false}
+                  onCheckedChange={checked => setExcludePhysical(checked)}
                 />
               </div>
             </Card>
@@ -390,7 +266,7 @@ function App() {
           <TabsContent value="branding">
             <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <LabelBranding
-                labelInfo={labelInfo || { name: '', address: '' }}
+                labelInfo={labelInfo ?? { name: '', address: '' }}
                 onUpdate={setLabelInfo}
               />
             </Card>

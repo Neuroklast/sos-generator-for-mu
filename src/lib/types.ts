@@ -1,10 +1,20 @@
+/** Raw file record persisted in KV storage. uploadedAt is stored as ISO string. */
 export interface UploadedFile {
   id: string
   name: string
   size: number
   type: 'believe' | 'bandcamp'
   data: string
-  uploadedAt: Date
+  uploadedAt: string
+}
+
+/** Transient per-file processing state (not persisted). */
+export type FileStatus = 'idle' | 'uploading' | 'processing' | 'done' | 'error'
+
+export interface FileProcessingState {
+  status: FileStatus
+  progress: number
+  error?: string
 }
 
 export interface CompilationFilter {
