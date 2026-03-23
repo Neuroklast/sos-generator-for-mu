@@ -277,3 +277,76 @@ export function getUniqueArtistsFromTransactions(
   }
   return Array.from(artistSet).sort()
 }
+
+// ── Tree view builder ──────────────────────────────────────────────────────────
+
+import type { ArtistTreeNode, ReleaseWithTracks, TrackData } from './types'
+
+/**
+ * Builds a full artist → release → track hierarchy from processed data.
+ * Used by the ArtistTreeView component.
+ */
+export function buildArtistTree(
+  artistData: ProcessedArtistData[]
+): ArtistTreeNode[] {
+  return artistData.map(data => {
+    // Group transactions by release key
+    const releaseMap = new Map<string, { meta: Omit<ReleaseWithTracks, 'tracks'>; trackMap: Map<string, TrackData> }>()
+
+    for (const t of data.transactions) {
+      const releaseKey = t.upc_ean || t.catalog_number || t.release_title || 'Unknown'
+      let release = releaseMap.get(releaseKey)
+      if (!release) {
+        release = {
+          meta: {
+            releaseTitle: t.release_title || 'Unknown',
+            upcEan: t.upc_ean || '',
+            catalogNumber: t.catalog_number || '',
+            isPhysical: t.is_physical,
+            revenue: 0,
+            quantity: 0,
+          },
+          trackMap: new Map(),
+        }
+        releaseMap.set(releaseKey, release)
+      }
+      release.meta.revenue += t.net_revenue
+      release.meta.quantity += t.quantity
+
+      // Group by track
+      const trackKey = t.isrc || t.track_title || 'Unknown Track'
+      const existingTrack = release.trackMap.get(trackKey)
+      if (existingTrack) {
+        existingTrack.revenue += t.net_revenue
+        existingTrack.quantity += t.quantity
+        if (t.platform && !existingTrack.platforms.includes(t.platform)) {
+          existingTrack.platforms.push(t.platform)
+        }
+      } else {
+        release.trackMap.set(trackKey, {
+          trackTitle: t.track_title || 'Unknown Track',
+          isrc: t.isrc || '',
+          revenue: t.net_revenue,
+          quantity: t.quantity,
+          platforms: t.platform ? [t.platform] : [],
+        })
+      }
+    }
+
+    const releases: ReleaseWithTracks[] = Array.from(releaseMap.values())
+      .map(({ meta, trackMap }) => ({
+        ...meta,
+        tracks: Array.from(trackMap.values()).sort((a, b) => b.revenue - a.revenue),
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+
+    return {
+      artist: data.artist,
+      totalRevenue: data.grossRevenue,
+      finalPayout: data.finalPayout,
+      splitPercentage: data.splitPercentage,
+      quantity: data.totalQuantity,
+      releases,
+    }
+  })
+}

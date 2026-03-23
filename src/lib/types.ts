@@ -102,3 +102,82 @@ export interface ArtistRevenue {
   monthlyBreakdown: MonthlyRevenue[]
   releaseBreakdown: ReleaseRevenue[]
 }
+
+// ── History ────────────────────────────────────────────────────────────────────
+
+/** One upload event recorded in KV for the history panel. */
+export interface HistoryEntry {
+  id: string
+  /** ISO 8601 timestamp */
+  timestamp: string
+  filename: string
+  source: 'believe' | 'bandcamp'
+  sizeBytes: number
+  rowsParsed: number
+  rowsSkipped: number
+  uniqueArtists: number
+  /** ISO 8601 timestamp the file was removed, if applicable */
+  removedAt?: string
+}
+
+// ── CSV column customisation ───────────────────────────────────────────────────
+
+/**
+ * User-defined additional synonym for a semantic CSV field.
+ * These are merged with the built-in semanticDictionary at parse time.
+ */
+export interface CSVColumnAlias {
+  id: string
+  fieldName: string
+  synonym: string
+}
+
+// ── Dashboard filter / sort state ─────────────────────────────────────────────
+
+export type DashboardSortField =
+  | 'artist'
+  | 'believeRevenue'
+  | 'bandcampRevenue'
+  | 'totalRevenue'
+  | 'finalAmount'
+  | 'totalQuantity'
+  | 'splitPercentage'
+
+export type SortDirection = 'asc' | 'desc'
+
+export interface DashboardFilter {
+  searchQuery: string
+  minRevenue: number
+  maxRevenue: number
+  sortField: DashboardSortField
+  sortDirection: SortDirection
+}
+
+// ── Track-level data (for tree view) ──────────────────────────────────────────
+
+export interface TrackData {
+  trackTitle: string
+  isrc: string
+  revenue: number
+  quantity: number
+  platforms: string[]
+}
+
+export interface ReleaseWithTracks {
+  releaseTitle: string
+  upcEan: string
+  catalogNumber: string
+  isPhysical: boolean
+  revenue: number
+  quantity: number
+  tracks: TrackData[]
+}
+
+export interface ArtistTreeNode {
+  artist: string
+  totalRevenue: number
+  finalPayout: number
+  splitPercentage: number
+  quantity: number
+  releases: ReleaseWithTracks[]
+}

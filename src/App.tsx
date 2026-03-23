@@ -12,12 +12,25 @@ import { SplitFeeManager } from '@/components/SplitFeeManager'
 import { ManualRevenueManager } from '@/components/ManualRevenueManager'
 import { LabelBranding } from '@/components/LabelBranding'
 import { RevenueDashboard } from '@/components/RevenueDashboard'
+import { ReportingPanel } from '@/components/ReportingPanel'
+import { ArtistTreeView } from '@/components/ArtistTreeView'
+import { CSVColumnMapper } from '@/components/CSVColumnMapper'
+import { HistoryPanel } from '@/components/HistoryPanel'
 import { MusicNotes } from '@phosphor-icons/react'
 import { useFileManager } from '@/hooks/useFileManager'
 import { useCSVProcessor } from '@/hooks/useCSVProcessor'
 import { useExports } from '@/hooks/useExports'
 import { useSplitFeeSync } from '@/hooks/useSplitFeeSync'
-import type { CompilationFilter, ArtistMapping, SplitFee, ManualRevenue, LabelInfo } from '@/lib/types'
+import { useHistoryLog } from '@/hooks/useHistoryLog'
+import type {
+  CompilationFilter,
+  ArtistMapping,
+  SplitFee,
+  ManualRevenue,
+  LabelInfo,
+  CSVColumnAlias,
+  UploadedFile,
+} from '@/lib/types'
 import { toast } from 'sonner'
 
 function App() {
@@ -30,10 +43,30 @@ function App() {
   const [excludePhysical, setExcludePhysical] = useKV<boolean>('exclude-physical', false)
   const [periodStart, setPeriodStart] = useKV<string>('period-start', '')
   const [periodEnd, setPeriodEnd] = useKV<string>('period-end', '')
+  const [csvAliases, setCsvAliases] = useKV<CSVColumnAlias[]>('csv-aliases', [])
+
+  // ── History ────────────────────────────────────────────────────────────────
+  const { entries: historyEntries, addEntry, markRemoved, clearHistory } = useHistoryLog()
 
   // ── File management ────────────────────────────────────────────────────────
-  const believeManager = useFileManager('believe')
-  const bandcampManager = useFileManager('bandcamp')
+  const believeManager = useFileManager('believe', {
+    onFileAdded: useCallback(
+      (file: UploadedFile, rowsParsed: number, rowsSkipped: number, uniqueArtists: number) => {
+        addEntry({ filename: file.name, source: 'believe', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists })
+      },
+      [addEntry]
+    ),
+    onFileRemoved: markRemoved,
+  })
+  const bandcampManager = useFileManager('bandcamp', {
+    onFileAdded: useCallback(
+      (file: UploadedFile, rowsParsed: number, rowsSkipped: number, uniqueArtists: number) => {
+        addEntry({ filename: file.name, source: 'bandcamp', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists })
+      },
+      [addEntry]
+    ),
+    onFileRemoved: markRemoved,
+  })
 
   // ── CSV processing pipeline ────────────────────────────────────────────────
   const { uniqueArtists, processedData, filteredCompilations, revenues } = useCSVProcessor(
@@ -129,6 +162,30 @@ function App() {
     [setManualRevenues]
   )
 
+  // ── CSV alias handlers ─────────────────────────────────────────────────────
+  const handleAddAlias = useCallback(
+    (alias: Omit<CSVColumnAlias, 'id'>) => {
+      setCsvAliases(current => [
+        ...(current ?? []),
+        { ...alias, id: crypto.randomUUID() },
+      ])
+      toast.success('Column synonym added')
+    },
+    [setCsvAliases]
+  )
+
+  const handleRemoveAlias = useCallback(
+    (id: string) => {
+      setCsvAliases(current => (current ?? []).filter(a => a.id !== id))
+      toast.info('Column synonym removed')
+    },
+    [setCsvAliases]
+  )
+
+  // ── Tab trigger class ──────────────────────────────────────────────────────
+  const triggerClass =
+    'data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300 text-xs sm:text-sm'
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen">
@@ -146,13 +203,17 @@ function App() {
         </div>
 
         <Tabs defaultValue="upload" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-card/50 backdrop-blur-sm border border-border p-1.5 h-auto">
-            <TabsTrigger value="upload" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300">Upload & Process</TabsTrigger>
-            <TabsTrigger value="settings" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300">Settings</TabsTrigger>
-            <TabsTrigger value="branding" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300">Branding</TabsTrigger>
-            <TabsTrigger value="dashboard" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300">Dashboard</TabsTrigger>
+          <TabsList className="flex w-full bg-card/50 backdrop-blur-sm border border-border p-1.5 h-auto flex-wrap gap-1">
+            <TabsTrigger value="upload" className={triggerClass}>Upload</TabsTrigger>
+            <TabsTrigger value="dashboard" className={triggerClass}>Dashboard</TabsTrigger>
+            <TabsTrigger value="reports" className={triggerClass}>Reports</TabsTrigger>
+            <TabsTrigger value="artists" className={triggerClass}>Artists</TabsTrigger>
+            <TabsTrigger value="settings" className={triggerClass}>Settings</TabsTrigger>
+            <TabsTrigger value="history" className={triggerClass}>History</TabsTrigger>
+            <TabsTrigger value="branding" className={triggerClass}>Branding</TabsTrigger>
           </TabsList>
 
+          {/* ── Upload ── */}
           <TabsContent value="upload" className="space-y-6">
             <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
@@ -214,6 +275,34 @@ function App() {
             </Card>
           </TabsContent>
 
+          {/* ── Dashboard ── */}
+          <TabsContent value="dashboard">
+            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <RevenueDashboard
+                revenues={revenues}
+                filteredCompilations={filteredCompilations}
+                onDownloadAll={handleDownloadAll}
+                onDownloadPDF={handleDownloadPDF}
+                onDownloadExcel={handleDownloadExcel}
+              />
+            </Card>
+          </TabsContent>
+
+          {/* ── Reports ── */}
+          <TabsContent value="reports">
+            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <ReportingPanel revenues={revenues} />
+            </Card>
+          </TabsContent>
+
+          {/* ── Artists ── */}
+          <TabsContent value="artists">
+            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <ArtistTreeView processedData={processedData} />
+            </Card>
+          </TabsContent>
+
+          {/* ── Settings ── */}
           <TabsContent value="settings" className="space-y-6">
             <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <CompilationFilterManager
@@ -247,6 +336,14 @@ function App() {
               />
             </Card>
 
+            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <CSVColumnMapper
+                aliases={csvAliases ?? []}
+                onAddAlias={handleAddAlias}
+                onRemoveAlias={handleRemoveAlias}
+              />
+            </Card>
+
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
@@ -263,23 +360,19 @@ function App() {
             </Card>
           </TabsContent>
 
+          {/* ── History ── */}
+          <TabsContent value="history">
+            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <HistoryPanel entries={historyEntries} onClearHistory={clearHistory} />
+            </Card>
+          </TabsContent>
+
+          {/* ── Branding ── */}
           <TabsContent value="branding">
             <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <LabelBranding
                 labelInfo={labelInfo ?? { name: '', address: '' }}
                 onUpdate={setLabelInfo}
-              />
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="dashboard">
-            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
-              <RevenueDashboard
-                revenues={revenues}
-                filteredCompilations={filteredCompilations}
-                onDownloadAll={handleDownloadAll}
-                onDownloadPDF={handleDownloadPDF}
-                onDownloadExcel={handleDownloadExcel}
               />
             </Card>
           </TabsContent>
@@ -290,3 +383,4 @@ function App() {
 }
 
 export default App
+
