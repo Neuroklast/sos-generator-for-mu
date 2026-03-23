@@ -184,26 +184,26 @@ function App() {
 
   // ── Tab trigger class ──────────────────────────────────────────────────────
   const triggerClass =
-    'data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300 text-xs sm:text-sm'
+    'data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/30 transition-all duration-300 text-xs sm:text-sm hover:bg-primary/10'
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-10 flex items-center gap-4">
-          <div className="p-4 bg-gradient-to-br from-primary to-accent rounded-xl shadow-lg shadow-primary/20">
+          <div className="p-4 bg-gradient-to-br from-primary via-primary to-accent rounded-2xl shadow-2xl shadow-primary/40 border border-primary/20">
             <MusicNotes size={40} weight="duotone" className="text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-5xl font-bold font-['Space_Grotesk'] tracking-tight bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+            <h1 className="text-5xl font-bold font-['Space_Grotesk'] tracking-tight bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-in slide-in-from-left duration-700">
               SOS Generator
             </h1>
-            <p className="text-muted-foreground text-lg mt-1">Statement of Sales Tool</p>
+            <p className="text-foreground/70 text-lg mt-1 font-medium">Statement of Sales Tool</p>
           </div>
         </div>
 
         <Tabs defaultValue="upload" className="space-y-6">
-          <TabsList className="flex w-full bg-card/50 backdrop-blur-sm border border-border p-1.5 h-auto flex-wrap gap-1">
+          <TabsList className="flex w-full bg-card/70 backdrop-blur-md border-2 border-primary/20 p-2 h-auto flex-wrap gap-2 rounded-2xl shadow-2xl shadow-primary/10">
             <TabsTrigger value="upload" className={triggerClass}>Upload</TabsTrigger>
             <TabsTrigger value="dashboard" className={triggerClass}>Dashboard</TabsTrigger>
             <TabsTrigger value="reports" className={triggerClass}>Reports</TabsTrigger>
@@ -214,10 +214,10 @@ function App() {
           </TabsList>
 
           {/* ── Upload ── */}
-          <TabsContent value="upload" className="space-y-6">
-            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
-              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-                <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
+          <TabsContent value="upload" className="space-y-6 animate-in fade-in duration-500">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
+              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
+                <span className="w-2 h-8 bg-gradient-to-b from-primary via-accent to-primary rounded-full shadow-lg shadow-primary/50" />
                 Believe CSV Files
               </h2>
               <FileUploadZone
@@ -230,9 +230,9 @@ function App() {
               />
             </Card>
 
-            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
-              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-                <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-accent rounded-full" />
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
+              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
+                <span className="w-2 h-8 bg-gradient-to-b from-primary via-accent to-primary rounded-full shadow-lg shadow-primary/50" />
                 Bandcamp CSV Files
               </h2>
               <FileUploadZone
@@ -245,30 +245,35 @@ function App() {
               />
             </Card>
 
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Statement Period</h2>
-              <p className="text-sm text-muted-foreground mb-4">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
+              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
+                <span className="w-2 h-8 bg-gradient-to-b from-primary via-accent to-primary rounded-full shadow-lg shadow-primary/50" />
+                Statement Period
+              </h2>
+              <p className="text-sm text-muted-foreground mb-6">
                 Define the reporting period to include in generated PDF and Excel statements.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-6">
                 <div className="flex-1 space-y-2">
-                  <Label htmlFor="period-start">Period Start</Label>
+                  <Label htmlFor="period-start" className="text-foreground/90 font-medium">Period Start</Label>
                   <Input
                     id="period-start"
                     type="month"
                     value={periodStart ?? ''}
                     onChange={e => setPeriodStart(e.target.value)}
                     placeholder="YYYY-MM"
+                    className="border-2 border-primary/20 focus:border-primary/60 bg-background/50"
                   />
                 </div>
                 <div className="flex-1 space-y-2">
-                  <Label htmlFor="period-end">Period End</Label>
+                  <Label htmlFor="period-end" className="text-foreground/90 font-medium">Period End</Label>
                   <Input
                     id="period-end"
                     type="month"
                     value={periodEnd ?? ''}
                     onChange={e => setPeriodEnd(e.target.value)}
                     placeholder="YYYY-MM"
+                    className="border-2 border-primary/20 focus:border-primary/60 bg-background/50"
                   />
                 </div>
               </div>
@@ -276,8 +281,8 @@ function App() {
           </TabsContent>
 
           {/* ── Dashboard ── */}
-          <TabsContent value="dashboard">
-            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+          <TabsContent value="dashboard" className="animate-in fade-in duration-500">
+            <Card className="border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <RevenueDashboard
                 revenues={revenues}
                 filteredCompilations={filteredCompilations}
@@ -289,22 +294,22 @@ function App() {
           </TabsContent>
 
           {/* ── Reports ── */}
-          <TabsContent value="reports">
-            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+          <TabsContent value="reports" className="animate-in fade-in duration-500">
+            <Card className="border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <ReportingPanel revenues={revenues} />
             </Card>
           </TabsContent>
 
           {/* ── Artists ── */}
-          <TabsContent value="artists">
-            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+          <TabsContent value="artists" className="animate-in fade-in duration-500">
+            <Card className="border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <ArtistTreeView processedData={processedData} />
             </Card>
           </TabsContent>
 
           {/* ── Settings ── */}
-          <TabsContent value="settings" className="space-y-6">
-            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+          <TabsContent value="settings" className="space-y-6 animate-in fade-in duration-500">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <CompilationFilterManager
                 filters={compilationFilters ?? []}
                 onAddFilter={handleAddCompilationFilter}
@@ -312,7 +317,7 @@ function App() {
               />
             </Card>
 
-            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <ArtistMappingManager
                 mappings={artistMappings ?? []}
                 onAddMapping={handleAddArtistMapping}
@@ -320,14 +325,14 @@ function App() {
               />
             </Card>
 
-            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <SplitFeeManager
                 splitFees={splitFees ?? []}
                 onUpdateSplitFee={handleUpdateSplitFee}
               />
             </Card>
 
-            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <ManualRevenueManager
                 revenues={manualRevenues ?? []}
                 artists={uniqueArtists}
@@ -336,7 +341,7 @@ function App() {
               />
             </Card>
 
-            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <CSVColumnMapper
                 aliases={csvAliases ?? []}
                 onAddAlias={handleAddAlias}
@@ -344,10 +349,10 @@ function App() {
               />
             </Card>
 
-            <Card className="p-6">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <h3 className="font-semibold">Exclude Physical Products</h3>
+                  <h3 className="font-semibold text-lg">Exclude Physical Products</h3>
                   <p className="text-sm text-muted-foreground">
                     When enabled, physical product sales (CD, Vinyl, etc.) are excluded from revenue calculations and statements.
                   </p>
@@ -361,15 +366,15 @@ function App() {
           </TabsContent>
 
           {/* ── History ── */}
-          <TabsContent value="history">
-            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+          <TabsContent value="history" className="animate-in fade-in duration-500">
+            <Card className="border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <HistoryPanel entries={historyEntries} onClearHistory={clearHistory} />
             </Card>
           </TabsContent>
 
           {/* ── Branding ── */}
-          <TabsContent value="branding">
-            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+          <TabsContent value="branding" className="animate-in fade-in duration-500">
+            <Card className="border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
               <LabelBranding
                 labelInfo={labelInfo ?? { name: '', address: '' }}
                 onUpdate={setLabelInfo}
