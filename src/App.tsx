@@ -248,31 +248,34 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-8 flex items-center gap-3">
-          <div className="p-3 bg-primary rounded-lg">
-            <MusicNotes size={32} weight="bold" className="text-primary-foreground" />
+        <div className="mb-10 flex items-center gap-4">
+          <div className="p-4 bg-gradient-to-br from-primary to-accent rounded-xl shadow-lg shadow-primary/20">
+            <MusicNotes size={40} weight="duotone" className="text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-4xl font-bold font-['Space_Grotesk'] tracking-tight">
+            <h1 className="text-5xl font-bold font-['Space_Grotesk'] tracking-tight bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
               SOS Generator
             </h1>
-            <p className="text-muted-foreground">Statement of Sales Tool</p>
+            <p className="text-muted-foreground text-lg mt-1">Statement of Sales Tool</p>
           </div>
         </div>
 
         <Tabs defaultValue="upload" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="upload">Upload & Process</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-            <TabsTrigger value="branding">Branding</TabsTrigger>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 bg-card/50 backdrop-blur-sm border border-border p-1.5 h-auto">
+            <TabsTrigger value="upload" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300">Upload & Process</TabsTrigger>
+            <TabsTrigger value="settings" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300">Settings</TabsTrigger>
+            <TabsTrigger value="branding" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300">Branding</TabsTrigger>
+            <TabsTrigger value="dashboard" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20 transition-all duration-300">Dashboard</TabsTrigger>
           </TabsList>
 
           <TabsContent value="upload" className="space-y-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Believe CSV Files</h2>
+            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+                <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-accent rounded-full"></span>
+                Believe CSV Files
+              </h2>
               <FileUploadZone
                 type="believe"
                 files={believeFiles || []}
@@ -283,8 +286,11 @@ function App() {
               />
             </Card>
 
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Bandcamp CSV Files</h2>
+            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+                <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-accent rounded-full"></span>
+                Bandcamp CSV Files
+              </h2>
               <FileUploadZone
                 type="bandcamp"
                 files={bandcampFiles || []}
@@ -297,7 +303,7 @@ function App() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            <Card className="p-6">
+            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <CompilationFilterManager
                 filters={compilationFilters || []}
                 onAddFilter={handleAddCompilationFilter}
@@ -305,7 +311,7 @@ function App() {
               />
             </Card>
 
-            <Card className="p-6">
+            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <ArtistMappingManager
                 mappings={artistMappings || []}
                 onAddMapping={handleAddArtistMapping}
@@ -313,14 +319,14 @@ function App() {
               />
             </Card>
 
-            <Card className="p-6">
+            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <SplitFeeManager
                 splitFees={splitFees || []}
                 onUpdateSplitFee={handleUpdateSplitFee}
               />
             </Card>
 
-            <Card className="p-6">
+            <Card className="p-8 border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <ManualRevenueManager
                 revenues={manualRevenues || []}
                 artists={uniqueArtists}
@@ -331,19 +337,23 @@ function App() {
           </TabsContent>
 
           <TabsContent value="branding">
-            <LabelBranding
-              labelInfo={labelInfo || { name: '', address: '' }}
-              onUpdate={setLabelInfo}
-            />
+            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <LabelBranding
+                labelInfo={labelInfo || { name: '', address: '' }}
+                onUpdate={setLabelInfo}
+              />
+            </Card>
           </TabsContent>
 
           <TabsContent value="dashboard">
-            <RevenueDashboard
-              revenues={revenues}
-              onDownloadAll={handleDownloadAll}
-              onDownloadPDF={handleDownloadPDF}
-              onDownloadExcel={handleDownloadExcel}
-            />
+            <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
+              <RevenueDashboard
+                revenues={revenues}
+                onDownloadAll={handleDownloadAll}
+                onDownloadPDF={handleDownloadPDF}
+                onDownloadExcel={handleDownloadExcel}
+              />
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

@@ -59,15 +59,17 @@ export function RevenueDashboard({
   const totalRevenue = revenues.reduce((sum, r) => sum + r.finalAmount, 0)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ChartBar size={24} weight="bold" className="text-primary" />
-          <h2 className="text-2xl font-bold font-['Space_Grotesk']">Revenue Dashboard</h2>
+    <div className="space-y-6 p-8">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-gradient-to-br from-primary to-accent rounded-lg">
+            <ChartBar size={28} weight="duotone" className="text-primary-foreground" />
+          </div>
+          <h2 className="text-3xl font-bold font-['Space_Grotesk']">Revenue Dashboard</h2>
         </div>
         
         {revenues.length > 0 && (
-          <Button onClick={() => handleDownload('all')} size="lg" className="gap-2">
+          <Button onClick={() => handleDownload('all')} size="lg" className="gap-2 bg-accent hover:bg-accent/90 shadow-lg shadow-accent/20">
             <DownloadSimple size={20} weight="bold" />
             Download All as ZIP
           </Button>
@@ -76,28 +78,28 @@ export function RevenueDashboard({
 
       {revenues.length > 0 ? (
         <>
-          <Card className="p-6">
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm uppercase tracking-wide text-muted-foreground">
+          <Card className="p-8 bg-gradient-to-br from-primary/5 to-accent/5 border-2">
+            <div className="flex items-baseline gap-3">
+              <span className="text-sm uppercase tracking-wider font-semibold text-muted-foreground">
                 Total Revenue
               </span>
-              <span className="text-3xl font-bold font-mono text-primary">
+              <span className="text-4xl font-bold font-mono bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 {formatCurrency(totalRevenue)}
               </span>
             </div>
           </Card>
 
-          <Card>
+          <Card className="overflow-hidden border-2">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Artist</TableHead>
-                  <TableHead className="text-right font-mono">Believe</TableHead>
-                  <TableHead className="text-right font-mono">Bandcamp</TableHead>
-                  <TableHead className="text-right font-mono">Manual</TableHead>
-                  <TableHead className="text-right font-mono">Split %</TableHead>
-                  <TableHead className="text-right font-mono">Final Amount</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="font-semibold">Artist</TableHead>
+                  <TableHead className="text-right font-mono font-semibold">Believe</TableHead>
+                  <TableHead className="text-right font-mono font-semibold">Bandcamp</TableHead>
+                  <TableHead className="text-right font-mono font-semibold">Manual</TableHead>
+                  <TableHead className="text-right font-mono font-semibold">Split %</TableHead>
+                  <TableHead className="text-right font-mono font-semibold">Final Amount</TableHead>
+                  <TableHead className="text-right font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -107,9 +109,9 @@ export function RevenueDashboard({
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="group hover:bg-muted/50"
+                    className="group hover:bg-primary/5 border-b transition-colors"
                   >
-                    <TableCell className="font-semibold">{revenue.artist}</TableCell>
+                    <TableCell className="font-semibold text-base">{revenue.artist}</TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       {formatCurrency(revenue.believeRevenue)}
                     </TableCell>
@@ -119,27 +121,27 @@ export function RevenueDashboard({
                     <TableCell className="text-right font-mono text-sm">
                       {formatCurrency(revenue.manualRevenue)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
+                    <TableCell className="text-right font-mono text-sm text-primary font-semibold">
                       {revenue.splitPercentage}%
                     </TableCell>
-                    <TableCell className="text-right font-mono font-semibold text-accent">
+                    <TableCell className="text-right font-mono font-bold text-lg text-accent">
                       {formatCurrency(revenue.finalAmount)}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="gap-2">
+                          <Button variant="ghost" size="sm" className="gap-2 hover:bg-primary hover:text-primary-foreground">
                             <DownloadSimple size={16} />
                             Download
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleDownload('pdf', revenue.artist)}>
-                            <FilePdf size={16} className="mr-2" />
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => handleDownload('pdf', revenue.artist)} className="cursor-pointer">
+                            <FilePdf size={16} className="mr-2 text-destructive" />
                             PDF Statement
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDownload('excel', revenue.artist)}>
-                            <FileXls size={16} className="mr-2" />
+                          <DropdownMenuItem onClick={() => handleDownload('excel', revenue.artist)} className="cursor-pointer">
+                            <FileXls size={16} className="mr-2 text-green-600" />
                             Excel Spreadsheet
                           </DropdownMenuItem>
                         </DropdownMenuContent>
