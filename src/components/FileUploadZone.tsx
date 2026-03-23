@@ -6,6 +6,7 @@ import {
   ArrowsClockwise,
   CheckCircle,
   Warning,
+  WarningCircle,
 } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,14 +31,40 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function FileStatusIcon({ state }: { state: FileProcessingState | undefined }) {
-  if (!state || state.status === 'idle' || state.status === 'done') {
-    return <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
+
+/** Returns a helpful, actionable error message based on the raw error string. */
+function humanizeError(error: string | undefined): string {
+  if (!error) return 'Processing failed'
+  if (error.toLowerCase().includes('call stack') || error.toLowerCase().includes('maximum')) {
+    return 'File is too large to process in one pass. Try splitting it into smaller files (< 100k rows each).'
   }
-  if (state.status === 'error') {
-    return <Warning size={16} className="text-destructive flex-shrink-0" />
+  if (error.toLowerCase().includes('quota') || error.toLowerCase().includes('storage')) {
+    return 'Browser storage is full. Clear some data or use a smaller file.'
   }
-  return <Spinner size={16} className="text-primary animate-spin flex-shrink-0" />
+  if (error.toLowerCase().includes('encoding') || error.toLowerCase().includes('utf')) {
+    return 'File encoding issue. Save the CSV as UTF-8 and try again.'
+  }
+  // Truncate very long raw messages
+  return error.length > 120 ? `${error.substring(0, 120)}…` : error
+}
+
+function FileStatusIcon({ state, hasData }: { state: FileProcessingState | undefined; hasData: boolean }) {
+  if (state?.status === 'error') {
+    return <WarningCircle size={16} className="text-destructive flex-shrink-0" />
+  }
+  if (state?.status === 'uploading' || state?.status === 'processing') {
+    return <Spinner size={16} className="text-primary animate-spin flex-shrink-0" />
+  }
+  if (!hasData && !state) {
+    // File metadata persisted from a previous session but data not in memory.
+    return <Warning size={16} className="text-amber-400 flex-shrink-0" />
+  }
+  return <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
 }
 
 function FileProgressBar({ state }: { state: FileProcessingState | undefined }) {
@@ -46,19 +73,29 @@ function FileProgressBar({ state }: { state: FileProcessingState | undefined }) 
 
   if (state.status === 'error') {
     return (
-      <p className="text-xs text-destructive mt-1 truncate">
-        {state.error ?? 'Processing failed'}
+      <p className="text-xs text-destructive mt-1.5 leading-relaxed">
+        {humanizeError(state.error)}
       </p>
     )
   }
 
-  const label = state.status === 'uploading' ? 'Reading…' : `Processing… ${state.progress}%`
+  const label = state.status === 'uploading' ? 'Reading file…' : `Parsing rows… ${state.progress}%`
 
   return (
     <div className="mt-1.5 space-y-0.5">
       <Progress value={state.progress} className="h-1.5" />
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
+  )
+}
+
+/** Stat pill shown on a completed file card. */
+function StatPill({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 text-[11px] text-muted-foreground leading-none">
+      <span className="font-mono font-semibold text-foreground/80">{value}</span>
+      {label}
+    </span>
   )
 }
 
@@ -71,6 +108,7 @@ export function FileUploadZone({
   onFileReplaced,
 }: FileUploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
+  const [sizeWarning, setSizeWarning] = useState<string | null>(null)
   const replaceRefs = useRef<Map<string, HTMLInputElement>>(new Map())
 
   // Stable ref-setter factory: creates one stable callback per file.id
@@ -89,6 +127,15 @@ export function FileUploadZone({
 
   const filterCSV = (raw: File[]) => raw.filter(f => f.name.toLowerCase().endsWith('.csv'))
 
+  const warnIfLarge = useCallback((csvFiles: File[]) => {
+    const LARGE_THRESHOLD = 50 * 1024 * 1024 // 50 MB
+    const large = csvFiles.find(f => f.size > LARGE_THRESHOLD)
+    if (large) {
+      setSizeWarning(`"${large.name}" is ${formatFileSize(large.size)}. Large files may take a minute to process.`)
+      setTimeout(() => setSizeWarning(null), 8000)
+    }
+  }, [])
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -101,20 +148,26 @@ export function FileUploadZone({
       e.preventDefault()
       setIsDragging(false)
       const csvFiles = filterCSV(Array.from(e.dataTransfer.files))
-      if (csvFiles.length > 0) onFilesAdded(csvFiles)
+      if (csvFiles.length > 0) {
+        warnIfLarge(csvFiles)
+        onFilesAdded(csvFiles)
+      }
     },
-    [onFilesAdded]
+    [onFilesAdded, warnIfLarge]
   )
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files) return
       const csvFiles = filterCSV(Array.from(e.target.files))
-      if (csvFiles.length > 0) onFilesAdded(csvFiles)
+      if (csvFiles.length > 0) {
+        warnIfLarge(csvFiles)
+        onFilesAdded(csvFiles)
+      }
       // Reset so the same file can be re-selected
       e.target.value = ''
     },
-    [onFilesAdded]
+    [onFilesAdded, warnIfLarge]
   )
 
   const handleReplaceInput = useCallback(
@@ -131,7 +184,7 @@ export function FileUploadZone({
   }, [])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Drop zone */}
       <div
         onDragOver={handleDragOver}
@@ -175,7 +228,7 @@ export function FileUploadZone({
             </p>
             <p className="text-sm text-muted-foreground">
               {isAnyProcessing
-                ? 'Please wait — processing your data'
+                ? 'Please wait — parsing your data'
                 : 'Drag & drop files here or click to browse'}
             </p>
           </div>
@@ -187,6 +240,21 @@ export function FileUploadZone({
           )}
         </div>
       </div>
+
+      {/* Large file size warning */}
+      <AnimatePresence>
+        {sizeWarning && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs"
+          >
+            <Warning size={14} className="shrink-0 mt-0.5" />
+            <span>{sizeWarning}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Uploaded files list */}
       <AnimatePresence mode="popLayout">
@@ -201,6 +269,9 @@ export function FileUploadZone({
               const state = fileStates[file.id]
               const isProcessingFile =
                 state?.status === 'uploading' || state?.status === 'processing'
+              const isDone = !state || state.status === 'done' || state.status === 'idle'
+              const hasData = Boolean(file.data)
+              const needsReupload = isDone && !hasData && !file.rowsParsed
 
               return (
                 <motion.div
@@ -224,7 +295,9 @@ export function FileUploadZone({
                       'p-3 transition-shadow',
                       state?.status === 'error'
                         ? 'border-destructive/40 bg-destructive/5'
-                        : 'bg-card hover:shadow-md',
+                        : needsReupload
+                          ? 'border-amber-500/30 bg-amber-500/5'
+                          : 'bg-card hover:shadow-md',
                     ].join(' ')}
                   >
                     <div className="flex items-start gap-3">
@@ -234,12 +307,35 @@ export function FileUploadZone({
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <FileStatusIcon state={state} />
+                          <FileStatusIcon state={state} hasData={hasData} />
                           <p className="text-sm font-medium truncate">{file.name}</p>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {formatFileSize(file.size)}
                         </p>
+
+                        {/* Stats row — shown after successful parse */}
+                        {isDone && (file.rowsParsed != null || file.rowsSkipped != null) && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {file.rowsParsed != null && (
+                              <StatPill label="rows" value={formatCount(file.rowsParsed)} />
+                            )}
+                            {file.uniqueArtistsCount != null && file.uniqueArtistsCount > 0 && (
+                              <StatPill label="artists" value={formatCount(file.uniqueArtistsCount)} />
+                            )}
+                            {file.rowsSkipped != null && file.rowsSkipped > 0 && (
+                              <StatPill label="skipped" value={formatCount(file.rowsSkipped)} />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Re-upload hint for stale metadata */}
+                        {needsReupload && (
+                          <p className="text-xs text-amber-400 mt-1">
+                            Data not in memory — re-upload to process
+                          </p>
+                        )}
+
                         <FileProgressBar state={state} />
                       </div>
 
@@ -276,3 +372,4 @@ export function FileUploadZone({
     </div>
   )
 }
+
