@@ -20,6 +20,17 @@ export function generatePDF(
   const margin = 20
   let yPos = margin
 
+  // Add label logo if available
+  if (labelInfo.logo) {
+    try {
+      const logoSize = 25
+      const pageWidth = doc.internal.pageSize.getWidth()
+      doc.addImage(labelInfo.logo, 'PNG', pageWidth - margin - logoSize, yPos - 5, logoSize, logoSize)
+    } catch {
+      // Logo rendering failed, continue without it
+    }
+  }
+
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   

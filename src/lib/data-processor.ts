@@ -17,6 +17,7 @@ export interface DataProcessorConfig {
   artistMappings: ArtistMapping[]
   splitFees: SplitFee[]
   manualRevenues: ManualRevenue[]
+  excludePhysical?: boolean
 }
 
 export function isCompilation(
@@ -63,7 +64,9 @@ export function processTransactions(
   config: DataProcessorConfig
 ): ProcessedArtistData[] {
   const filteredTransactions = transactions.filter(
-    transaction => !isCompilation(transaction, config.compilationFilters)
+    transaction =>
+      !isCompilation(transaction, config.compilationFilters) &&
+      !(config.excludePhysical && transaction.is_physical)
   )
 
   const transactionsWithResolvedArtists = filteredTransactions.map(transaction => ({

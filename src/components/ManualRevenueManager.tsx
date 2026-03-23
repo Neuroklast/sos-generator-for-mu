@@ -23,6 +23,8 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ManualRevenue } from '@/lib/types'
 
+const CUSTOM_ARTIST_VALUE = '__custom_artist__'
+
 interface ManualRevenueManagerProps {
   revenues: ManualRevenue[]
   artists: string[]
@@ -38,18 +40,29 @@ export function ManualRevenueManager({
 }: ManualRevenueManagerProps) {
   const [open, setOpen] = useState(false)
   const [artist, setArtist] = useState('')
+  const [customArtist, setCustomArtist] = useState('')
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
 
+  const effectiveArtist = artist === CUSTOM_ARTIST_VALUE ? customArtist.trim() : artist
+
+  const handleArtistChange = (value: string) => {
+    setArtist(value)
+    if (value !== CUSTOM_ARTIST_VALUE) {
+      setCustomArtist('')
+    }
+  }
+
   const handleAdd = () => {
     const amountNum = parseFloat(amount)
-    if (artist && description.trim() && !isNaN(amountNum) && amountNum > 0) {
+    if (effectiveArtist && description.trim() && !isNaN(amountNum) && amountNum > 0) {
       onAddRevenue({
-        artist,
+        artist: effectiveArtist,
         description: description.trim(),
         amount: amountNum,
       })
       setArtist('')
+      setCustomArtist('')
       setDescription('')
       setAmount('')
       setOpen(false)
@@ -73,7 +86,7 @@ export function ManualRevenueManager({
         
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-2" disabled={artists.length === 0}>
+            <Button size="sm" className="gap-2">
               <Plus size={16} weight="bold" />
               Add Revenue
             </Button>
@@ -89,9 +102,9 @@ export function ManualRevenueManager({
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="revenue-artist">Artist</Label>
-                <Select value={artist} onValueChange={setArtist}>
+                <Select value={artist} onValueChange={handleArtistChange}>
                   <SelectTrigger id="revenue-artist">
-                    <SelectValue placeholder="Select artist" />
+                    <SelectValue placeholder="Select or enter artist" />
                   </SelectTrigger>
                   <SelectContent>
                     {artists.map((a) => (
@@ -99,8 +112,19 @@ export function ManualRevenueManager({
                         {a}
                       </SelectItem>
                     ))}
+                    <SelectItem value={CUSTOM_ARTIST_VALUE}>
+                      + Enter custom artist name
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                {artist === CUSTOM_ARTIST_VALUE && (
+                  <Input
+                    value={customArtist}
+                    onChange={(e) => setCustomArtist(e.target.value)}
+                    placeholder="Enter artist name"
+                    autoFocus
+                  />
+                )}
               </div>
               
               <div className="space-y-2">
@@ -135,7 +159,7 @@ export function ManualRevenueManager({
               </Button>
               <Button
                 onClick={handleAdd}
-                disabled={!artist || !description.trim() || !amount || parseFloat(amount) <= 0}
+                disabled={!effectiveArtist || !description.trim() || !amount || parseFloat(amount) <= 0}
               >
                 Add Revenue
               </Button>
