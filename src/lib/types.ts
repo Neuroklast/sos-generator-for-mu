@@ -4,9 +4,16 @@ export interface UploadedFile {
   name: string
   size: number
   type: 'believe' | 'bandcamp'
-  data: string
+  /** Raw CSV string — kept in memory only, NOT persisted to IndexedDB. */
+  data?: string
   /** ISO 8601 timestamp string (YYYY-MM-DDTHH:mm:ss.sssZ) */
   uploadedAt: string
+  /** Number of successfully parsed data rows. */
+  rowsParsed?: number
+  /** Number of rows skipped due to parse errors. */
+  rowsSkipped?: number
+  /** Number of unique artists found. */
+  uniqueArtistsCount?: number
 }
 
 /** Transient per-file processing state (not persisted). */

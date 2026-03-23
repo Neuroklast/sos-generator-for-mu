@@ -1,10 +1,16 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useKV } from '@/hooks/useLocalKV'
 import { toast } from 'sonner'
 import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
 import type { UploadedFile, FileProcessingState } from '@/lib/types'
 
 type FileType = 'believe' | 'bandcamp'
+
+/**
+ * Metadata stored in IndexedDB — excludes the raw CSV string to keep storage
+ * footprint small. Raw data is held in React state (in-memory only).
+ */
+type UploadedFileMeta = Omit<UploadedFile, 'data'>
 
 interface FileEventCallbacks {
   onFileAdded?: (file: UploadedFile, rowsParsed: number, rowsSkipped: number, uniqueArtists: number) => void
@@ -14,10 +20,23 @@ interface FileEventCallbacks {
 /**
  * Manages CSV file state for one upload zone type.
  * Handles add, remove, and replace with per-file progress tracking.
+ *
+ * Raw CSV strings are kept in React state (memory only) and are NOT persisted
+ * to IndexedDB. Only file metadata (name, size, stats, etc.) is persisted.
+ * This avoids storing hundreds of MB of text in the browser's storage.
  */
 export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
-  const [files, setFiles] = useKV<UploadedFile[]>(`${type}-files`, [])
+  // Metadata persisted in IndexedDB (no raw CSV data).
+  const [fileMetas, setFileMetas] = useKV<UploadedFileMeta[]>(`${type}-files`, [])
+  // Raw CSV strings kept in memory only — lost on page reload, no storage limit issues.
+  const [fileDataMap, setFileDataMap] = useState<Record<string, string>>({})
   const [fileStates, setFileStates] = useState<Record<string, FileProcessingState>>({})
+
+  // Merge metadata with in-memory raw data so consumers see a unified UploadedFile.
+  const files = useMemo<UploadedFile[]>(
+    () => (fileMetas ?? []).map(meta => ({ ...meta, data: fileDataMap[meta.id] })),
+    [fileMetas, fileDataMap]
+  )
 
   const setFileState = useCallback((id: string, state: Partial<FileProcessingState>) => {
     setFileStates(prev => ({
@@ -39,6 +58,9 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
       setFileState(id, { status: 'uploading', progress: 0 })
 
       const data = await rawFile.text()
+
+      // Store raw CSV in memory immediately so re-parse with alias changes works.
+      setFileDataMap(prev => ({ ...prev, [id]: data }))
 
       setFileState(id, { status: 'processing', progress: 0 })
 
@@ -63,27 +85,29 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
 
       const ids = rawFiles.map(() => crypto.randomUUID())
 
-      // Optimistically show placeholders while reading/parsing
-      const placeholders: UploadedFile[] = rawFiles.map((f, i) => ({
+      // Optimistically show placeholders while reading/parsing.
+      const placeholders: UploadedFileMeta[] = rawFiles.map((f, i) => ({
         id: ids[i],
         name: f.name,
         size: f.size,
         type,
-        data: '',
         uploadedAt: new Date().toISOString(),
       }))
 
-      setFiles(current => [...(current ?? []), ...placeholders])
+      setFileMetas(current => [...(current ?? []), ...placeholders])
 
       const results = await Promise.allSettled(
         rawFiles.map(async (rawFile, i) => {
           const id = ids[i]
           try {
             const { data, rowsParsed, rowsSkipped, uniqueArtists } = await processAndStore(rawFile, id)
-            setFiles(current =>
-              (current ?? []).map(f => (f.id === id ? { ...f, data } : f))
+            // Update metadata with parsed stats (no raw data stored in KV).
+            setFileMetas(current =>
+              (current ?? []).map(f =>
+                f.id === id ? { ...f, rowsParsed, rowsSkipped, uniqueArtistsCount: uniqueArtists } : f
+              )
             )
-            // Notify parent for history logging
+            // Notify parent for history logging.
             const uploadedFile: UploadedFile = {
               id,
               name: rawFile.name,
@@ -91,6 +115,9 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
               type,
               data,
               uploadedAt: new Date().toISOString(),
+              rowsParsed,
+              rowsSkipped,
+              uniqueArtistsCount: uniqueArtists,
             }
             callbacks?.onFileAdded?.(uploadedFile, rowsParsed, rowsSkipped, uniqueArtists)
           } catch (err) {
@@ -116,32 +143,39 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
         toast.error(`${failed} file(s) failed to upload`)
       }
     },
-    [type, processAndStore, setFiles, setFileState, callbacks]
+    [type, processAndStore, setFileMetas, setFileState, callbacks]
   )
 
   const removeFile = useCallback(
     (id: string) => {
-      setFiles(current => (current ?? []).filter(f => f.id !== id))
+      setFileMetas(current => (current ?? []).filter(f => f.id !== id))
+      setFileDataMap(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
       removeFileState(id)
       callbacks?.onFileRemoved?.(id)
       toast.info('File removed')
     },
-    [setFiles, removeFileState, callbacks]
+    [setFileMetas, removeFileState, callbacks]
   )
 
   const replaceFile = useCallback(
     async (id: string, rawFile: File) => {
-      // Update metadata immediately so the user sees the new name
-      setFiles(current =>
+      // Update metadata immediately so the user sees the new name.
+      setFileMetas(current =>
         (current ?? []).map(f =>
-          f.id === id ? { ...f, name: rawFile.name, size: rawFile.size, data: '' } : f
+          f.id === id ? { ...f, name: rawFile.name, size: rawFile.size } : f
         )
       )
 
       try {
         const { data, rowsParsed, rowsSkipped, uniqueArtists } = await processAndStore(rawFile, id)
-        setFiles(current =>
-          (current ?? []).map(f => (f.id === id ? { ...f, data } : f))
+        setFileMetas(current =>
+          (current ?? []).map(f =>
+            f.id === id ? { ...f, rowsParsed, rowsSkipped, uniqueArtistsCount: uniqueArtists } : f
+          )
         )
         const uploadedFile: UploadedFile = {
           id,
@@ -150,6 +184,9 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
           type,
           data,
           uploadedAt: new Date().toISOString(),
+          rowsParsed,
+          rowsSkipped,
+          uniqueArtistsCount: uniqueArtists,
         }
         callbacks?.onFileAdded?.(uploadedFile, rowsParsed, rowsSkipped, uniqueArtists)
         toast.success(`"${rawFile.name}" replaced successfully`)
@@ -159,11 +196,11 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
         toast.error(`Failed to replace file`, { description: message })
       }
     },
-    [processAndStore, setFiles, setFileState, type, callbacks]
+    [processAndStore, setFileMetas, setFileState, type, callbacks]
   )
 
   return {
-    files: files ?? [],
+    files,
     fileStates,
     addFiles,
     removeFile,

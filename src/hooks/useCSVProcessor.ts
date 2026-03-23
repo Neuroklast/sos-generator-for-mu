@@ -56,8 +56,8 @@ export function useCSVProcessor(
   const aliasKey = config.csvAliases.map(a => `${a.fieldName}:${a.synonym}`).join(',')
 
   // Stable keys: re-parse only when file content actually changes
-  const believeKey = believeFiles.map(f => `${f.id}:${f.data.length}`).join(',')
-  const bandcampKey = bandcampFiles.map(f => `${f.id}:${f.data.length}`).join(',')
+  const believeKey = believeFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
+  const bandcampKey = bandcampFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
 
   useEffect(() => {
     const allFiles = [...believeFiles, ...bandcampFiles]
@@ -92,7 +92,7 @@ export function useCSVProcessor(
             toast.warning(`${result.errors.length} row(s) skipped in "${file.name}"`)
           }
 
-          collected.push(...result.transactions)
+          for (const t of result.transactions) collected.push(t)
         }
 
         if (!cancelled) {

@@ -15,7 +15,7 @@ export interface StreamingParseResult {
 }
 
 /** Rows to process per scheduler tick to keep the UI responsive. */
-const CHUNK_SIZE = 500
+const CHUNK_SIZE = 5000
 
 /**
  * Detects the most likely delimiter by checking consistency of column counts
@@ -95,7 +95,8 @@ function processChunk(
   mapping: Record<string, string>,
   delimiter: string,
   source: 'believe' | 'bandcamp',
-  startIndex: number
+  startIndex: number,
+  parseTag: string
 ): {
   transactions: SalesTransaction[]
   artists: Set<string>
@@ -147,7 +148,7 @@ function processChunk(
       if (originalArtist) artists.add(originalArtist)
 
       transactions.push({
-        id: crypto.randomUUID(),
+        id: `${parseTag}-${startIndex + i}`,
         source,
         sales_month: (mappedData.sales_month ?? '').trim(),
         platform: (mappedData.platform ?? '').trim(),
@@ -220,17 +221,20 @@ export async function parseCSVContentStreaming(
   const totalRows = dataLines.length
   let processedRows = 0
 
+  // Short random tag to make transaction IDs unique across multiple parse calls.
+  const parseTag = `${source}-${Math.random().toString(36).slice(2, 8)}`
+
   for (let i = 0; i < dataLines.length; i += CHUNK_SIZE) {
     const chunk = dataLines.slice(i, i + CHUNK_SIZE)
 
     // Yield to the event loop between chunks
     await new Promise<void>(resolve => setTimeout(resolve, 0))
 
-    const result = processChunk(chunk, headers, mapping, delimiter, source, processedRows)
+    const result = processChunk(chunk, headers, mapping, delimiter, source, processedRows, parseTag)
 
-    allTransactions.push(...result.transactions)
+    for (const t of result.transactions) allTransactions.push(t)
     result.artists.forEach(a => uniqueArtistsSet.add(a))
-    allErrors.push(...result.errors)
+    for (const e of result.errors) allErrors.push(e)
 
     processedRows += chunk.length
 

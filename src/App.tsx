@@ -722,7 +722,8 @@ function App() {
 
               {/* ── Ingestion ─── */}
               {activeView === 'ingest' && (
-                <div className="space-y-4">
+                <div className="space-y-6">
+                  {/* Detected period banner */}
                   <AnimatePresence>
                     <DetectedPeriodBanner
                       detectedStart={detectedPeriodStart}
@@ -737,94 +738,148 @@ function App() {
                     />
                   </AnimatePresence>
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
-                      <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                        <span className="inline-block w-1.5 h-4 rounded-full bg-primary" />
-                        Believe CSV Files
-                      </h2>
-                      <FileUploadZone
-                        type="believe"
-                        files={believeManager.files}
-                        fileStates={believeManager.fileStates}
-                        onFilesAdded={believeManager.addFiles}
-                        onFileRemoved={believeManager.removeFile}
-                        onFileReplaced={believeManager.replaceFile}
-                      />
-                    </Card>
+                  {/* ── Step 1: Upload CSV files ── */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">1</span>
+                      <h2 className="text-sm font-semibold">Upload CSV Files</h2>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
+                        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                          <span className="inline-block w-1.5 h-4 rounded-full bg-primary" />
+                          Believe CSV Files
+                        </h3>
+                        <FileUploadZone
+                          type="believe"
+                          files={believeManager.files}
+                          fileStates={believeManager.fileStates}
+                          onFilesAdded={believeManager.addFiles}
+                          onFileRemoved={believeManager.removeFile}
+                          onFileReplaced={believeManager.replaceFile}
+                        />
+                      </Card>
+
+                      <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
+                        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                          <span className="inline-block w-1.5 h-4 rounded-full bg-cyan-400" />
+                          Bandcamp CSV Files
+                        </h3>
+                        <FileUploadZone
+                          type="bandcamp"
+                          files={bandcampManager.files}
+                          fileStates={bandcampManager.fileStates}
+                          onFilesAdded={bandcampManager.addFiles}
+                          onFileRemoved={bandcampManager.removeFile}
+                          onFileReplaced={bandcampManager.replaceFile}
+                        />
+                      </Card>
+                    </div>
+
+                    {/* Summary stats after processing */}
+                    {!isProcessing && revenues.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3"
+                      >
+                        {[
+                          {
+                            label: 'Total Rows',
+                            value: (
+                              [...believeManager.files, ...bandcampManager.files]
+                                .reduce((s, f) => s + (f.rowsParsed ?? 0), 0)
+                            ).toLocaleString(),
+                          },
+                          {
+                            label: 'Unique Artists',
+                            value: uniqueArtists.length.toLocaleString(),
+                          },
+                          {
+                            label: 'Files Loaded',
+                            value: (believeManager.files.length + bandcampManager.files.length).toString(),
+                          },
+                          {
+                            label: 'Total Revenue',
+                            value: revenues
+                              .reduce((s, r) => s + r.totalRevenue, 0)
+                              .toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }),
+                          },
+                        ].map(stat => (
+                          <div key={stat.label} className="p-3 rounded-xl bg-card/70 border border-border/50 text-center">
+                            <p className="text-lg font-bold font-mono tabular-nums">{stat.value}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* ── Step 2: Configure Statement Period ── */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">2</span>
+                      <h2 className="text-sm font-semibold">Configure Statement Period</h2>
+                    </div>
 
                     <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
-                      <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                        <span className="inline-block w-1.5 h-4 rounded-full bg-cyan-400" />
-                        Bandcamp CSV Files
-                      </h2>
-                      <FileUploadZone
-                        type="bandcamp"
-                        files={bandcampManager.files}
-                        fileStates={bandcampManager.fileStates}
-                        onFilesAdded={bandcampManager.addFiles}
-                        onFileRemoved={bandcampManager.removeFile}
-                        onFileReplaced={bandcampManager.replaceFile}
-                      />
+                      <p className="text-xs text-muted-foreground mb-4">
+                        Define the reporting period for PDF and Excel statements. Automatically detected from your CSV data.
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex-1 space-y-1.5">
+                          <Label htmlFor="period-start" className="text-xs font-medium flex items-center gap-1.5">
+                            <CalendarDays size={12} className="text-muted-foreground" />
+                            Period Start
+                          </Label>
+                          <Input
+                            id="period-start"
+                            type="month"
+                            value={periodStart ?? ''}
+                            onChange={e => setPeriodStart(e.target.value)}
+                            className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-1.5">
+                          <Label htmlFor="period-end" className="text-xs font-medium flex items-center gap-1.5">
+                            <CalendarDays size={12} className="text-muted-foreground" />
+                            Period End
+                          </Label>
+                          <Input
+                            id="period-end"
+                            type="month"
+                            value={periodEnd ?? ''}
+                            onChange={e => setPeriodEnd(e.target.value)}
+                            className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
+                          />
+                        </div>
+                      </div>
+                      {detectedPeriodStart && detectedPeriodEnd && (
+                        <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1.5">
+                          <Sparkles size={11} className="text-amber-400" />
+                          Detected range from CSV: <span className="font-mono text-foreground/70">{detectedPeriodStart}</span> → <span className="font-mono text-foreground/70">{detectedPeriodEnd}</span>
+                        </p>
+                      )}
                     </Card>
                   </div>
 
-                  <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
-                    <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                      <span className="inline-block w-1.5 h-4 rounded-full bg-amber-400" />
-                      Statement Period
-                    </h2>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Define the reporting period for PDF and Excel statements. This is automatically detected from your CSV data.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <div className="flex-1 space-y-1.5">
-                        <Label htmlFor="period-start" className="text-xs font-medium flex items-center gap-1.5">
-                          <CalendarDays size={12} className="text-muted-foreground" />
-                          Period Start
-                        </Label>
-                        <Input
-                          id="period-start"
-                          type="month"
-                          value={periodStart ?? ''}
-                          onChange={e => setPeriodStart(e.target.value)}
-                          className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
-                        />
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <Label htmlFor="period-end" className="text-xs font-medium flex items-center gap-1.5">
-                          <CalendarDays size={12} className="text-muted-foreground" />
-                          Period End
-                        </Label>
-                        <Input
-                          id="period-end"
-                          type="month"
-                          value={periodEnd ?? ''}
-                          onChange={e => setPeriodEnd(e.target.value)}
-                          className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
-                        />
-                      </div>
+                  {/* ── Step 3: Manual Revenue Entries ── */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">3</span>
+                      <h2 className="text-sm font-semibold">Manual Entries <span className="text-muted-foreground font-normal">(Darkmerch / Sync)</span></h2>
                     </div>
-                    {detectedPeriodStart && detectedPeriodEnd && (
-                      <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1.5">
-                        <Sparkles size={11} className="text-amber-400" />
-                        Detected range from CSV: <span className="font-mono text-foreground/70">{detectedPeriodStart}</span> → <span className="font-mono text-foreground/70">{detectedPeriodEnd}</span>
-                      </p>
-                    )}
-                  </Card>
 
-                  <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
-                    <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                      <span className="inline-block w-1.5 h-4 rounded-full bg-violet-400" />
-                      Manual Entries (Darkmerch / Sync)
-                    </h2>
-                    <ManualRevenueManager
-                      revenues={manualRevenues ?? []}
-                      artists={uniqueArtists}
-                      onAddRevenue={handleAddManualRevenue}
-                      onRemoveRevenue={handleRemoveManualRevenue}
-                    />
-                  </Card>
+                    <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
+                      <ManualRevenueManager
+                        revenues={manualRevenues ?? []}
+                        artists={uniqueArtists}
+                        onAddRevenue={handleAddManualRevenue}
+                        onRemoveRevenue={handleRemoveManualRevenue}
+                      />
+                    </Card>
+                  </div>
                 </div>
               )}
 
