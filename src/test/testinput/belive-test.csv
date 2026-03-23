@@ -1,1 +1,55 @@
-
+"Sales Month";Platform;Country/Region;"Label Name";"Artist Name";"Release title";"Track title";UPC;ISRC;"Release Catalog nb";"Release Type";"Sales Type";Quantity;"Net Revenue"
+01/09/2024;Yandex;Worldwide;"DarkTunes Music Group";"Rebel Empire";"Gothic Music Orgy, Vol.5";"Mechanic EbmTunes Edit";4260363812474;DE-WG8-18-00218;DTD18CP031;"Music Release";Stream;1;0.000349502978
+01/03/2025;"Apple Music";France;"DarkTunes Music Group";"Dance my Darling";"Darkest Halloween Compilation 2021";Kathedrale;4260363815000;DE-WG8-20-00319;DTD21CP043;"Music Release";Stream;1;0.006993600000
+01/12/2024;Spotify;Netherlands;"DarkTunes Music Group";Xordia;Neolux;"Convince Me";4260363813983;DE-WG8-20-00112;DTD20LP024;"Music Release";Stream;1;0.002176000000
+01/01/2025;"YouTube Official Content";Ukraine;"DarkTunes Music Group";"Dark Side Eons";Eclipse;Eclipse;4260363811286;DE-SE5-16-00463;DTD16LP122;"Music Release";Stream;1;0.001609310853
+01/11/2024;Deezer;Mexico;"DarkTunes Music Group";"Dark Side Eons";Eclipse;Ghosts;4260363811286;DE-SE5-16-00459;DTD16LP122;"Music Release";Stream;2;0.005540405280
+01/02/2025;Spotify;France;"DarkTunes Music Group";"Deus Ex Vagina";"The Battle of Metal, Vol. 4";"Undead Pony Car";4260363811736;DE-SE5-16-00606;DTD17CP011;"Music Release";Stream;1;0.002091200000
+01/01/2025;"UMA (Vkontakte)";"Russian Federation";"DarkTunes Music Group";"Toxikk Deception";"Gothic Music Orgy, Vol. 6";"Twenty Days";4260363814232;DE-WG8-20-00302;DTD20CP042;"Music Release";Stream;22;0.001300735920
+01/12/2024;Spotify;Colombia;"DarkTunes Music Group";Stoppenberg;"Gothic Music Orgy, Vol. 1";"Raiding Party";3617227315892;DE-SE5-15-00110;DTD2015CP0000044;"Music Release";Stream;4;0.001572000000
+01/03/2025;"YouTube UGC";Colombia;"darkTunes Music Group";"White Ritual";"Head On Fire";"Blind Cattac Remix";4260363820196;DE-WG8-25-00106;DTD25SG067;"Music Release";Stream;5;0.000277900418
+01/03/2025;"YouTube Official Content";Brazil;"DarkTunes Music Group";"White Ritual";"In & Out";"Blue Shadow";4260363815598;DE-WG8-22-00197;DTD22LP032;"Music Release";Stream;2;0.003853597300
+01/01/2025;Tidal;Germany;"DarkTunes Music Group";T[ERROR];"Gothic Music Orgy, Vol. 3";"Dancing in God's Abcense";4260363811446;DE-SE5-16-00520;DTD16CP137;"Music Release";Stream;1;0.004095440000
+01/03/2025;"YouTube UGC";"United Kingdom";"darkTunes Music Group";"White Ritual";"Head On Fire";"Blind Cattac Remix";4260363820196;DE-WG8-25-00106;DTD25SG067;"Music Release";Stream;12;0.001797303646
+01/01/2025;Spotify;Uruguay;"DarkTunes Music Group";"White Ritual";Blind;Blind;4260363815604;DE-WG8-22-00196;DTD22SG032;"Music Release";Stream;1;0.000032800000
+01/01/2025;"iTunes Match";"United States";"DarkTunes Music Group";"Dark Control Operation";"Gothic Music Orgy, Vol.5";Backlash;4260363812474;DE-WG8-18-00205;DTD18CP031;"Music Release";Stream;1;0.000610084232
+01/12/2024;"Amazon Music Streaming";Brazil;"DarkTunes Music Group";"Omnimar, ES23";"The Road";"The Road Star-Road Remix";4260363816083;DE-WG8-22-00293;DTD22SG073;"Music Release";Stream;1;0.002975063674
+01/12/2024;Spotify;Ukraine;"DarkTunes Music Group";"White Ritual";"In & Out";"Live Again";4260363815598;DE-WG8-22-00200;DTD22LP032;"Music Release";Stream;1;0.001765600000
+01/03/2025;"Apple Music";"United Kingdom";"DarkTunes Music Group";"White Ritual";"In & Out";"Death Star";4260363815598;DE-WG8-22-00203;DTD22LP032;"Music Release";Stream;2;0.008612765214
+01/12/2024;Spotify;Slovakia;"DarkTunes Music Group";Aevum;D20;D20;4260363818063;DE-WG8-24-00046;DTD24SG028;"Music Release";Stream;6;0.008931199920
+01/12/2024;"Amazon Music Streaming";Germany;"DarkTunes Music Group";Aevum;Glitch;Glitch;4260363815017;DE-WG8-21-00193;DTD21LP044;"Music Release";Stream;1;0.002800000000
+01/02/2025;Spotify;Nigeria;"DarkTunes Music Group";Aevum;Multiverse;Tair;4260363813587;DE-WG8-19-00236;DTD19LP050;"Music Release";Stream;1;0.000244000000
+01/01/2025;"Amazon Music Streaming";"United Kingdom";"DarkTunes Music Group";Aevum;Glitch;Glitch;4260363815017;DE-WG8-21-00193;DTD21LP044;"Music Release";Stream;1;0.003274307524
+01/02/2025;"Apple Music";Italy;"DarkTunes Music Group";Aevum;Multiverse;"Black Honeymoon";4260363813587;DE-WG8-19-00237;DTD19LP050;"Music Release";Stream;1;0.003639200000
+01/04/2024;Yandex;Worldwide;"DarkTunes Music Group";Aevum;Multiverse;"The Pilgrim";4260363813587;DE-WG8-19-00234;DTD19LP050;"Music Release";Stream;1;0.000103768086
+01/01/2025;"YouTube UGC";Germany;"DarkTunes Music Group";Aevum;"Nova Vita";"Nova Vita";4260363813648;DE-WG8-20-00015;DTD20EP002;"Music Release";Stream;1;0.000114760990
+01/01/2025;"Amazon Music Streaming";"United Kingdom";"DarkTunes Music Group";Aevum;Kaleidoscope;Nightshade;4260363818100;DE-WG8-24-00048;DTD24LP032;"Music Release";Stream;5;0.031990076230
+01/03/2025;"Apple Music";Australia;"DarkTunes Music Group";"2nd Face";"Gothic Music Orgy, Vol. 2";"Prophecy Coverversion";4260363810708;DE-SE5-16-00007;DTD16CP067;"Music Release";Stream;1;0.004573648850
+01/03/2024;Yandex;Worldwide;"DarkTunes Music Group";"Chains Of Agony";"Gothic Music Orgy, Vol.5";"Aokigahara The Suicide Song";4260363812474;DE-WG8-18-00194;DTD18CP031;"Music Release";Stream;1;0.000478898952
+01/02/2025;Yandex;Belarus;"DarkTunes Music Group";Steingrab;"The Battle of Metal, Vol. 5";Scheintot;4260363812146;DE-WG8-18-00024;DTD18CP001;"Music Release";Stream;1;0.000316230426
+01/02/2025;"YouTube Official Content";"United States";"DarkTunes Music Group";Vioflesh;Vioflesh;Ayer;4260363818766;US-HM2-20-96303;DTD24LP093;"Music Release";Stream;3;0.025018912974
+01/02/2025;"YouTube UGC";Ecuador;"DarkTunes Music Group";Vioflesh;Vioflesh;"La Señal";4260363818766;US-HM2-20-81171;DTD24LP093;"Music Release";Stream;3;0.000322372299
+01/03/2025;"YouTube UGC";Colombia;"DarkTunes Music Group";Vioflesh;"Spring Nostalgia";Always;4260363819138;DE-WG8-24-00144;DTD24SG127;"Music Release";Stream;104;0.021812332095
+01/12/2024;Spotify;Greece;"DarkTunes Music Group";Vioflesh;Always;Always;4260363818797;DE-WG8-24-00144;DTD24SG096;"Music Release";Stream;148;0.287107203200
+01/01/2025;"YouTube UGC";"United States";"DarkTunes Music Group";"T3rr0r 3rr0r";"Digital Infection";3D;4260363810821;DE-SE5-16-00139;DTD16LP078;"Music Release";Stream;88;0.697314173562
+01/03/2025;"YouTube Official Content";"United States";"DarkTunes Music Group";"T3rr0r 3rr0r";Nitro;Galaxian;4260363810852;DE-SE5-16-00161;DTD16LP081;"Music Release";Stream;8;0.048496748059
+01/01/2025;"YouTube Official Content";Germany;"DarkTunes Music Group";"T3rr0r 3rr0r";"Digital Infection";Domination;4260363810821;DE-SE5-16-00137;DTD16LP078;"Music Release";Stream;25;0.186629625072
+01/01/2025;"YouTube UGC";Brazil;"DarkTunes Music Group";"T3rr0r 3rr0r";"Digital Infection";Domination;4260363810821;DE-SE5-16-00137;DTD16LP078;"Music Release";Stream;1;0.003724832960
+01/02/2025;"YouTube Official Content";Singapore;"DarkTunes Music Group";"T3rr0r 3rr0r";"Gothic Music Orgy, Vol. 3";"Dirty Rave";4260363811446;DE-SE5-16-00521;DTD16CP137;"Music Release";Stream;1;0.000100835494
+01/01/2025;"YouTube UGC";Hungary;"DarkTunes Music Group";"T3rr0r 3rr0r";"Digital Infection";3D;4260363810821;DE-SE5-16-00139;DTD16LP078;"Music Release";Stream;1;0.001012723842
+01/12/2024;Spotify;Ukraine;"DarkTunes Music Group";"T3rr0r 3rr0r";"Digital Infection";"In My Dreams";4260363810821;DE-SE5-16-00136;DTD16LP078;"Music Release";"Platform Promotion";9;-0.002997166900
+01/01/2025;Spotify;"United Kingdom";"DarkTunes Music Group";Extize,Mortes;"SWEETEST DEATH";CHAINZ;4260363819428;DE-WG8-24-00193;DTD24SG151;"Music Release";Stream;4;0.019117600000
+01/02/2025;"UMA (Vkontakte)";Belarus;"DarkTunes Music Group";Extize,Mortes;"SWEETEST DEATH";CHAINZ;4260363819428;DE-WG8-24-00193;DTD24SG151;"Music Release";Stream;6;0.000369156960
+01/01/2025;Tidal;"United States";"DarkTunes Music Group";"EXTIZE, BLACKBOOK";"Captain Spaulding's Smile";"Captain Spaulding's Smile Remix";4260363817110;DE-WG8-23-00092;DTD23SG041;"Music Release";Stream;1;0.010053432000
+01/01/2024;Yandex;Worldwide;"DarkTunes Music Group";"Freaky Mind, Croona";"Freaky Mind";"Where Is My Mind?";4260363815833;DE-WG8-22-00267;DTD22LP051;"Music Release";Stream;1;0.001595754869
+01/03/2024;Yandex;Worldwide;"DarkTunes Music Group";"Ocean Dark";"Hope & Chaos";"Who I Am";4260363814713;DE-WG8-21-00079;DTD21LP023;"Music Release";Stream;1;0.000341958963
+01/02/2025;Spotify;Poland;"darkTunes Music Group";Misscore;DROWN;CHIMERA;4260363820103;PL-95M-24-00011;DTD25LP060;"Music Release";Stream;21;0.022195200000
+01/02/2025;"Tencent Kugou";"China Mainland";"darkTunes Music Group";Misscore;F;F;4260363819879;PL-95M-24-00020;DTD25SG041;"Music Release";Stream;1;0.000065897338
+01/01/2025;"YouTube Official Content";"United Kingdom";"darkTunes Music Group";Misscore;DROWN;(late);4260363820103;PL-95M-24-00006;DTD25LP060;"Music Release";Stream;2;0.009776329614
+01/02/2025;Spotify;Iceland;"darkTunes Music Group";Misscore;Away;Away;4260363819893;PL-95M-24-00022;DTD25SG043;"Music Release";Stream;2;0.010194400000
+01/02/2025;"Amazon Music Streaming";"United States";"darkTunes Music Group";Misscore;DROWN;"THINGS behind";4260363820103;PL-95M-24-00008;DTD25LP060;"Music Release";Stream;1;0.004819451258
+01/02/2025;Spotify;Egypt;"darkTunes Music Group";Misscore;Tears;Tears;4260363819923;PL-95M-24-00025;DTD25SG046;"Music Release";Stream;1;0.000012000000
+01/02/2025;Yandex;"Russian Federation";"DarkTunes Music Group";"Dead Man's Boogie";"The Battle of Metal, Vol. 1";"Dead Man's Boogie";4260363810340;DE-SE5-15-00012;DTD2015CP0000036;"Music Release";Stream;1;0.000316230426
+01/02/2025;"iTunes Match";"United States";"DarkTunes Music Group";"Electro Fear";"The Little Shop of Horrors";"Cat People";4260363811712;DE-SE5-17-00062;DTD17LP009;"Music Release";Stream;1;0.000572874386
+01/09/2024;Yandex;Worldwide;"DarkTunes Music Group";Devil-M;"The Battle of Metal, Vol. 5";"Human Being";4260363812146;DE-SE5-16-00542;DTD18CP001;"Music Release";Stream;1;0.000233001986
+01/03/2025;"iTunes Match";"United States";"DarkTunes Music Group";Devil-M;"Darkest Halloween Compilation 2015";"Scabbed Angel";4260363810661;DE-SE5-15-00332;DTD15CP066;"Music Release";Stream;1;0.000550117660
