@@ -79,6 +79,7 @@ function App() {
       splitFees: splitFees ?? [],
       manualRevenues: manualRevenues ?? [],
       excludePhysical: excludePhysical ?? false,
+      csvAliases: csvAliases ?? [],
     }
   )
 

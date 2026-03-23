@@ -5,7 +5,6 @@ import {
   processTransactionsWithCompilations,
   getUniqueArtistsFromTransactions,
 } from '@/lib/data-processor'
-import type { ProcessedArtistData } from '@/lib/data-processor'
 import type { SalesTransaction } from '@/lib/csv-parser'
 import type {
   UploadedFile,
@@ -14,7 +13,7 @@ import type {
   SplitFee,
   ManualRevenue,
   ArtistRevenue,
-  FilteredCompilation,
+  CSVColumnAlias,
 } from '@/lib/types'
 
 interface CSVProcessorConfig {
@@ -23,6 +22,8 @@ interface CSVProcessorConfig {
   splitFees: SplitFee[]
   manualRevenues: ManualRevenue[]
   excludePhysical: boolean
+  /** User-defined additional column synonyms from the CSV Column Mapping settings. */
+  csvAliases: CSVColumnAlias[]
 }
 
 /**
@@ -40,6 +41,19 @@ export function useCSVProcessor(
 ) {
   const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+
+  // Build a stable map of field → additional synonyms from user-defined aliases
+  const customAliases = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    for (const alias of config.csvAliases) {
+      if (!map[alias.fieldName]) map[alias.fieldName] = []
+      map[alias.fieldName].push(alias.synonym)
+    }
+    return map
+  }, [config.csvAliases])
+
+  // Stable alias key: re-parse when user changes column mappings
+  const aliasKey = config.csvAliases.map(a => `${a.fieldName}:${a.synonym}`).join(',')
 
   // Stable keys: re-parse only when file content actually changes
   const believeKey = believeFiles.map(f => `${f.id}:${f.data.length}`).join(',')
@@ -63,7 +77,13 @@ export function useCSVProcessor(
           if (cancelled) break
           if (!file.data) continue
 
-          const result = await parseCSVContentStreaming(file.data, file.type)
+          const result = await parseCSVContentStreaming(
+            file.data,
+            file.type,
+            undefined,
+            undefined,
+            customAliases
+          )
 
           if (cancelled) break
 
@@ -97,7 +117,7 @@ export function useCSVProcessor(
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [believeKey, bandcampKey])
+  }, [believeKey, bandcampKey, aliasKey])
 
   const uniqueArtists = useMemo(
     () => getUniqueArtistsFromTransactions(allTransactions, config.artistMappings),

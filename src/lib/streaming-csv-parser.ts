@@ -18,13 +18,30 @@ export interface StreamingParseResult {
 const CHUNK_SIZE = 500
 
 /**
- * Detects the most likely delimiter by counting occurrences of `;` and `,`
- * on the first (header) line. Falls back to comma.
+ * Detects the most likely delimiter by checking consistency of column counts
+ * across the first few non-empty lines. Falls back to comma.
  */
-function detectDelimiter(headerLine: string): string {
-  const semicolons = (headerLine.match(/;/g) ?? []).length
-  const commas = (headerLine.match(/,/g) ?? []).length
-  return semicolons > commas ? ';' : ','
+function detectDelimiter(lines: string[]): string {
+  const candidates = [';', ',']
+  const sampleLines = lines.filter(l => l.trim()).slice(0, 5)
+  if (sampleLines.length === 0) return ','
+
+  let bestDelimiter = ','
+  let bestScore = -1
+
+  for (const delim of candidates) {
+    const counts = sampleLines.map(l => (l.match(new RegExp(`\\${delim}`, 'g')) ?? []).length)
+    const first = counts[0]
+    // Score: consistency (lines with same count as header) × 100 + column count
+    const consistent = counts.filter(c => c === first).length
+    const score = consistent * 100 + first
+    if (score > bestScore) {
+      bestScore = score
+      bestDelimiter = delim
+    }
+  }
+
+  return bestDelimiter
 }
 
 /**
@@ -35,24 +52,36 @@ function stripBOM(text: string): string {
 }
 
 /**
- * Parses a revenue number that may use either European ("1.234,56") or
- * standard ("1,234.56") decimal notation.
+ * Parses a revenue number that may use European ("1.234,56"), standard
+ * ("1,234.56"), or scientific notation ("3.495e-4") decimal formats.
  */
 function parseRevenue(raw: string): number {
   if (!raw) return 0
   const cleaned = raw.trim()
+  if (!cleaned) return 0
 
-  // European: last separator is a comma → "1.234,56"
+  // Scientific notation (e.g. "3.495e-4" or "3,495E-4")
+  const sciMatch = cleaned.match(/^([+-]?\d+[.,]\d+)[eE]([+-]?\d+)$/)
+  if (sciMatch) {
+    const mantissa = sciMatch[1].replace(',', '.')
+    return parseFloat(`${mantissa}e${sciMatch[2]}`) || 0
+  }
+  // Plain scientific notation without decimal (e.g. "1e-3")
+  if (/^[+-]?\d+[eE][+-]?\d+$/.test(cleaned)) {
+    return parseFloat(cleaned) || 0
+  }
+
   const lastComma = cleaned.lastIndexOf(',')
   const lastDot = cleaned.lastIndexOf('.')
+
   if (lastComma > lastDot) {
-    // European notation
+    // European notation: last separator is comma → "1.234,56"
     const normalised = cleaned.replace(/\./g, '').replace(',', '.')
     return parseFloat(normalised.replace(/[^0-9.-]/g, '')) || 0
   }
 
-  // Standard notation
-  return parseFloat(cleaned.replace(/[^0-9.-]/g, '')) || 0
+  // Standard notation (or plain integer)
+  return parseFloat(cleaned.replace(/[^0-9.eE-]/g, '')) || 0
 }
 
 function parseQuantity(raw: string): number {
@@ -151,12 +180,16 @@ function processChunk(
  * Parses a CSV file in chunks, yielding progress callbacks between chunks so
  * the main thread stays responsive even for files with hundreds of thousands
  * of rows.
+ *
+ * @param customAliases - Optional map of fieldName → additional synonyms to
+ *   extend the built-in semantic dictionary (from user CSV column settings).
  */
 export async function parseCSVContentStreaming(
   csvContent: string,
   source: 'believe' | 'bandcamp',
   onProgress?: (progress: ParseProgress) => void,
-  columnMapping?: Record<string, string>
+  columnMapping?: Record<string, string>,
+  customAliases?: Record<string, string[]>
 ): Promise<StreamingParseResult> {
   const allTransactions: SalesTransaction[] = []
   const uniqueArtistsSet = new Set<string>()
@@ -172,15 +205,17 @@ export async function parseCSVContentStreaming(
     return { transactions: [], uniqueArtists: [], errors: [] }
   }
 
+  // Detect delimiter using the header + first few data lines for accuracy
+  const sampleLines = lines.slice(firstNonEmpty, firstNonEmpty + 6)
+  const delimiter = detectDelimiter(sampleLines)
   const headerLine = lines[firstNonEmpty]
-  const delimiter = detectDelimiter(headerLine)
   const headers = parseCSVLine(headerLine, delimiter).map(h => h.trim())
 
   if (headers.length === 0) {
     return { transactions: [], uniqueArtists: [], errors: [{ row: 1, reason: 'Empty header row', data: '' }] }
   }
 
-  const mapping = columnMapping ?? mapCSVHeadersToModel(headers)
+  const mapping = columnMapping ?? mapCSVHeadersToModel(headers, customAliases)
   const dataLines = lines.slice(firstNonEmpty + 1)
   const totalRows = dataLines.length
   let processedRows = 0

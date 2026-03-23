@@ -74,16 +74,36 @@ function calculateSimilarity(str1: string, str2: string): number {
   return (maxLen - distance) / maxLen
 }
 
-export function mapCSVHeadersToModel(headers: string[]): Record<string, string> {
+/**
+ * Builds a merged dictionary from the built-in semantic dictionary and any
+ * user-defined custom synonyms (e.g. from the CSV Column Mapping settings).
+ */
+export function buildMergedDictionary(
+  customAliases?: Record<string, string[]>
+): Record<string, string[]> {
+  if (!customAliases) return semanticDictionary
+
+  const merged: Record<string, string[]> = {}
+  for (const [field, synonyms] of Object.entries(semanticDictionary)) {
+    merged[field] = [...synonyms, ...(customAliases[field] ?? [])]
+  }
+  return merged
+}
+
+export function mapCSVHeadersToModel(
+  headers: string[],
+  customAliases?: Record<string, string[]>
+): Record<string, string> {
   const mapping: Record<string, string> = {}
+  const dictionary = buildMergedDictionary(customAliases)
 
   headers.forEach((header) => {
     const normalized = header.trim().toLowerCase().replace(/\s+/g, '')
-    
-    for (const [fieldName, synonyms] of Object.entries(semanticDictionary)) {
+
+    // Exact match pass
+    for (const [fieldName, synonyms] of Object.entries(dictionary)) {
       for (const synonym of synonyms) {
         const normalizedSynonym = synonym.toLowerCase().replace(/\s+/g, '')
-        
         if (normalized === normalizedSynonym) {
           mapping[header] = fieldName
           return
@@ -91,7 +111,8 @@ export function mapCSVHeadersToModel(headers: string[]): Record<string, string> 
       }
     }
 
-    for (const [fieldName, synonyms] of Object.entries(semanticDictionary)) {
+    // Fuzzy match pass (similarity ≥ 0.8)
+    for (const [fieldName, synonyms] of Object.entries(dictionary)) {
       for (const synonym of synonyms) {
         const similarity = calculateSimilarity(header, synonym)
         if (similarity >= 0.8 && !mapping[header]) {
