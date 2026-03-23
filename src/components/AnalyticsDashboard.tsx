@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   ChartBar,
@@ -16,8 +15,6 @@ import {
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -186,14 +183,14 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
 
   const formatCurrency = (value: number) => `€${value.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { color: string; name: string; value: unknown }[]; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-card border-2 border-primary/30 p-4 rounded-lg shadow-xl">
           <p className="font-semibold text-foreground mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
+          {payload.map((entry, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {typeof entry.value === 'number' ? formatCurrency(entry.value) : entry.value}
+              {entry.name}: {typeof entry.value === 'number' ? formatCurrency(entry.value) : String(entry.value)}
             </p>
           ))}
         </div>

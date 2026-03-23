@@ -324,7 +324,8 @@ export function RevenueDashboard({
     } else if (artist) {
       const fmt = type === 'pdf' ? 'PDF' : 'Excel'
       toast.success(`Generating ${fmt} for "${artist}"…`)
-      type === 'pdf' ? onDownloadPDF(artist) : onDownloadExcel(artist)
+      if (type === 'pdf') onDownloadPDF(artist)
+      else onDownloadExcel(artist)
     }
   }
 

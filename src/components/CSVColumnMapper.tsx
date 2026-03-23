@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react'
 import {
   Plus,
-  Trash,
   GearSix,
   CheckCircle,
   Info,
