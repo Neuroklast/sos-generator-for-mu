@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/hooks/useLocalKV'
 import { toast } from 'sonner'
 import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
 import type { UploadedFile, FileProcessingState } from '@/lib/types'

@@ -1,48 +1,47 @@
 # SOS Generator — Statement of Sales Tool
 
-A web application for music labels to process CSV royalty reports (Believe, Bandcamp), aggregate revenue per artist, apply split fees, and export professional PDF/Excel statements.
+> **Fintech-Grade Royalty Reporting for Indie Labels**
 
-## Features
-
-- **CSV Upload & Auto-Parsing**: Drop Believe or Bandcamp CSV files. Columns are auto-detected by semantic matching — no manual configuration needed.
-- **Custom Column Mapping**: If your CSV uses non-standard column headers, add synonyms in Settings → CSV Column Mapping.
-- **Compilation Filtering**: Exclude compilation revenue by EAN, catalog number, or title.
-- **Artist Mapping**: Map featuring/alias names (e.g. "Artist feat. XY") to the correct primary artist.
-- **Split Fees**: Define per-artist revenue percentages.
-- **Manual Revenues**: Add one-off payments not covered by the CSV data.
-- **Analytics Dashboard**: Platform, country, and monthly breakdowns per artist.
-- **PDF & Excel Export**: Generate individual or bulk artist statements.
-- **Persistent Settings**: All settings (mappings, filters, fees) are stored server-side via the KV store.
+A professional web application for music labels to process royalty reports from Believe, Bandcamp, and manual sources (Darkmerch, sync deals), aggregate revenue per artist, apply split fees, and export branded PDF/Excel statements.
 
 ---
 
-## CSV Format Requirements
+## Screenshot
 
-### Believe (Distributor) Format
+![SOS Generator Dashboard](https://github.com/user-attachments/assets/0c59bdda-8a31-45cc-8d5a-824ec24dbf49)
 
-| Column | Required | Notes |
-|--------|----------|-------|
-| `Sales Month` | Yes | Format: `MM/YYYY` or `YYYY-MM` |
-| `Platform` | Yes | DSP name (Spotify, Apple Music, etc.) |
-| `Country/Region` | Yes | Country name or "Worldwide" |
-| `Artist Name` | Yes | Main artist on the release |
-| `Release title` | Yes | Album or single title |
-| `Track title` | Yes | Track name |
-| `UPC` | No | Barcode |
-| `ISRC` | No | Track identifier |
-| `Release Catalog nb` | No | Internal catalog number |
-| `Release Type` | No | e.g. "Music Release" |
-| `Sales Type` | No | e.g. "Stream", "Platform Promotion" |
-| `Quantity` | Yes | Number of streams/downloads |
-| `Net Revenue` | Yes | Decimal number (dot or comma separator) |
+---
 
-**Supported delimiter:** Semicolon (`;`) or comma (`,`) — auto-detected.
-**Supported number formats:** `0.003974`, `0,003974`, `1.234,56`, `3.49e-4`
-**Encoding:** UTF-8 (with or without BOM)
+## Features
 
-### Bandcamp Format
+- **Multi-Source Ingestion**: Upload Believe and Bandcamp CSVs simultaneously. Merge unlimited files (e.g. 2x Believe for a full year).
+- **Intelligent CSV Parsing**: Auto-detects delimiters, handles BOM, scientific notation revenue values, and quoted headers.
+- **Semantic Column Mapping**: Columns are matched by meaning. Add custom synonyms in Settings.
+- **Smart Artist Mapping**: Map featuring/alias names to the correct primary artist. Persistent across sessions.
+- **Compilation Filter**: Exclude compilation revenue by EAN, catalog number, or title.
+- **Physical Filter**: Toggle to exclude physical product sales from digital-only statements.
+- **Split Fee Engine**: Define per-artist revenue percentages.
+- **Manual Revenue Entries**: Add Darkmerch sales, sync deals, or any ad-hoc income directly in the UI.
+- **Bento-Grid Dashboard**: At-a-glance overview of Total Net Revenue, Active Artists, Top Platform, and files loaded.
+- **Analytics**: Platform breakdown, country split, and monthly revenue trend charts.
+- **PDF and Excel Export**: Per-artist statements with your label branding (logo + address).
+- **Upload History**: Full audit log of every uploaded file.
+- **Persistent Settings**: All settings survive page reloads via IndexedDB.
 
-Standard Bandcamp sales CSV export. Columns like `Item Name`, `Artist`, `Amount`, etc. are mapped automatically.
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19 + Vite 7 |
+| UI | Tailwind CSS v4 + shadcn/ui |
+| Animations | Framer Motion |
+| Charts | Recharts |
+| Persistence | IndexedDB via idb-keyval (Vercel KV ready) |
+| CSV Parsing | Custom streaming parser + PapaParse |
+| Export | jsPDF + xlsx (SheetJS) |
+| Deployment | Vercel (Edge-compatible) |
 
 ---
 
@@ -50,128 +49,107 @@ Standard Bandcamp sales CSV export. Columns like `Item Name`, `Artist`, `Amount`
 
 ### Prerequisites
 
-- Node.js 18+
-- npm 9+
-- [GitHub Spark](https://githubnext.com/projects/github-spark) (for KV persistence) **or** a standalone Vercel deployment (see below)
+- Node.js 20+
+- npm 10+
 
-### Local Development (GitHub Spark)
+### Local Development
 
 ```bash
+git clone https://github.com/Neuroklast/sos-generator-for-mu.git
+cd sos-generator-for-mu
 npm install
 npm run dev
 ```
 
-Open the URL shown by Vite. The Spark Workbench provides the KV service at `/_spark/kv` automatically.
+The app runs at `http://localhost:5173`.
 
-### Vercel Deployment
-
-1. Fork this repository and import it into Vercel.
-2. **No additional environment variables are required** for the core CSV processing — all parsing happens in the browser.
-3. **For persistent settings** (artist mappings, split fees, etc.) across page refreshes, choose one:
-
-   **Option A — GitHub Spark (recommended):** Deploy via the Spark Workbench, which provides the KV service automatically.
-
-   **Option B — Vercel KV:** Set up [Vercel KV](https://vercel.com/docs/storage/vercel-kv) and add a serverless function that proxies `/_spark/kv` to `@vercel/kv`. See [Vercel KV Setup](#vercel-kv-setup) below.
-
-> **Note:** Without a KV backend, the app fully works within a single browser session. Settings are lost when the browser tab is closed or refreshed.
-
-### Build for Production
+### Production Build
 
 ```bash
 npm run build
+npm run preview
 ```
+
+### Deploy to Vercel
+
+```bash
+npx vercel --prod
+```
+
+No environment variables are required for basic usage. All settings are stored client-side in IndexedDB.
 
 ---
 
-## Vercel KV Setup
+## Vercel KV Migration (Future)
 
-To persist settings across page refreshes on a standalone Vercel deployment:
+The `useLocalKV` hook in `src/hooks/useLocalKV.ts` is designed as a drop-in swap for a server-side KV store. To migrate to Vercel KV (Redis):
 
-1. Create a Vercel KV store in your project dashboard.
-2. Vercel automatically adds these environment variables:
+1. Install: `npm install @vercel/kv`
+2. Set environment variables in your Vercel project:
    - `KV_URL`
    - `KV_REST_API_URL`
    - `KV_REST_API_TOKEN`
    - `KV_REST_API_READ_ONLY_TOKEN`
-3. Create an API route at `api/kv/[key].ts`:
+3. Create API routes in `/api/kv/[key].ts` backed by `@vercel/kv`
+4. Update `useLocalKV.ts` to call the API routes instead of `idb-keyval`
 
-```typescript
-// api/kv/[key].ts
-import { kv } from '@vercel/kv'
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const key = req.query.key as string
-
-  if (req.method === 'GET') {
-    const value = await kv.get(key)
-    if (value === null) return res.status(404).end()
-    res.json(value)
-  } else if (req.method === 'POST') {
-    const body = req.body
-    await kv.set(key, body)
-    res.status(200).end()
-  } else if (req.method === 'DELETE') {
-    await kv.del(key)
-    res.status(200).end()
-  } else {
-    res.status(405).end()
-  }
-}
-```
-
-4. Update `vercel.json` to route `/_spark/kv/:key` to `/api/kv/:key`:
-
-```json
-{
-  "rewrites": [
-    { "source": "/_spark/kv/:key", "destination": "/api/kv/:key" },
-    { "source": "/((?!_spark/).*)", "destination": "/index.html" }
-  ]
-}
-```
+This architecture is ready for multi-user / multi-label SaaS features.
 
 ---
 
-## Architecture Overview
+## CSV Format Reference
 
-```
-src/
-├── lib/
-│   ├── csv-parser.ts           # Column header mapping (semantic dictionary + custom aliases)
-│   ├── streaming-csv-parser.ts # Chunked streaming parser (keeps UI responsive)
-│   ├── data-processor.ts       # Artist aggregation, split fee calculations
-│   ├── export-utils.ts         # PDF and Excel generation
-│   └── types.ts                # Shared TypeScript interfaces
-├── hooks/
-│   ├── useFileManager.ts       # File upload state and per-file parsing progress
-│   ├── useCSVProcessor.ts      # Full data pipeline (parse -> aggregate -> calculate)
-│   ├── useHistoryLog.ts        # Upload history (KV-persisted)
-│   ├── useExports.ts           # PDF/Excel download handlers
-│   └── useSplitFeeSync.ts      # Auto-register new artists in split fee list
-└── components/
-    ├── FileUploadZone.tsx       # Drag & drop upload with progress indicator
-    ├── RevenueDashboard.tsx     # Main revenue table with per-artist detail
-    ├── AnalyticsDashboard.tsx   # Charts: platform, country, monthly breakdowns
-    ├── ReportingPanel.tsx       # Statement generation
-    ├── ArtistTreeView.tsx       # Artist -> Release -> Track hierarchy
-    ├── CSVColumnMapper.tsx      # Custom column synonym management
-    └── ...                     # Settings panels (filters, mappings, fees)
-```
+### Believe Format
 
-### Data Flow
+| Column | Required | Notes |
+|--------|----------|-------|
+| Sales Month | Yes | Format: MM/YYYY or YYYY-MM |
+| Platform | Yes | DSP name (Spotify, Apple Music, etc.) |
+| Country/Region | Yes | Country name |
+| Artist Name | Yes | Main artist |
+| Release title | Yes | Album or single title |
+| Track title | Yes | Track name |
+| ISRC | No | Used for deduplication |
+| UPC/EAN | No | Used for compilation filtering |
+| Catalog number | No | Alternative compilation filter key |
+| Net Revenue | Yes | Decimal number (any format) |
+| Quantity | No | Stream or download count |
+| Product type | No | Audio Stream, Digital Download, Physical, etc. |
 
-1. **Upload**: User drops a CSV onto `FileUploadZone`
-2. **Parse**: `useFileManager` reads the file and calls `parseCSVContentStreaming`
-   - Auto-detects delimiter (`;` or `,`) using consistency analysis across multiple lines
-   - Maps column headers using `semanticDictionary` + any custom aliases from settings
-   - Parses revenue values (EU/US decimal formats and scientific notation)
-3. **Aggregate**: `useCSVProcessor` builds `allTransactions` from all uploaded files
-4. **Process**: `data-processor.ts` applies compilation filters, artist mappings, split fees, and manual revenues
-5. **Display**: Dashboard tabs show the processed data
+### Bandcamp Format
+
+| Column | Required | Notes |
+|--------|----------|-------|
+| date | Yes | Sale date |
+| artist | Yes | Artist name |
+| album title | No | Album name |
+| item title | Yes | Track or album title |
+| net revenue | Yes | After Bandcamp fees |
+| currency | No | Default: EUR |
+
+### Multi-File Upload
+
+Believe only exports 6 months at a time. Upload multiple Believe CSVs to cover a full year — the app merges them automatically.
+
+---
+
+## Workflow
+
+1. **Ingestion** — Upload Believe and/or Bandcamp CSVs plus manual entries
+2. **Settings** — Configure compilation filters, artist mappings, split fees
+3. **Dashboard** — Review aggregated revenue per artist
+4. **Analytics** — Inspect platform, country, and monthly breakdowns
+5. **Reports** — Download per-artist PDF and Excel statements
+6. **Branding** — Set your label logo and address for professional exports
+
+---
+
+## Label Branding
+
+Upload your label logo (PNG/SVG) and enter your label address in the **Branding** section. These appear on all generated PDF and Excel statements.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE)
+MIT
