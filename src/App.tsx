@@ -36,7 +36,7 @@ function App() {
   const bandcampManager = useFileManager('bandcamp')
 
   // ── CSV processing pipeline ────────────────────────────────────────────────
-  const { uniqueArtists, processedData, revenues } = useCSVProcessor(
+  const { uniqueArtists, processedData, filteredCompilations, revenues } = useCSVProcessor(
     believeManager.files,
     bandcampManager.files,
     {
@@ -276,6 +276,7 @@ function App() {
             <Card className="border-2 shadow-xl shadow-primary/5 backdrop-blur-sm bg-card/95">
               <RevenueDashboard
                 revenues={revenues}
+                filteredCompilations={filteredCompilations}
                 onDownloadAll={handleDownloadAll}
                 onDownloadPDF={handleDownloadPDF}
                 onDownloadExcel={handleDownloadExcel}

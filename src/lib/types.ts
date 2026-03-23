@@ -5,6 +5,7 @@ export interface UploadedFile {
   size: number
   type: 'believe' | 'bandcamp'
   data: string
+  /** ISO 8601 timestamp string (YYYY-MM-DDTHH:mm:ss.sssZ) */
   uploadedAt: string
 }
 
@@ -48,6 +49,45 @@ export interface LabelInfo {
   logo?: string
 }
 
+/** Revenue aggregated by streaming/download platform. */
+export interface PlatformRevenue {
+  platform: string
+  revenue: number
+  quantity: number
+}
+
+/** Revenue aggregated by territory/country. */
+export interface CountryRevenue {
+  country: string
+  revenue: number
+  quantity: number
+}
+
+/** Revenue aggregated by calendar month (YYYY-MM). */
+export interface MonthlyRevenue {
+  month: string
+  revenue: number
+}
+
+/** Revenue aggregated by release (album / single). */
+export interface ReleaseRevenue {
+  releaseTitle: string
+  upcEan: string
+  catalogNumber: string
+  revenue: number
+  quantity: number
+  isPhysical: boolean
+}
+
+/** Compilation release that was filtered out, with its accumulated revenue. */
+export interface FilteredCompilation {
+  releaseTitle: string
+  identifier: string
+  filterType: 'ean' | 'title' | 'catalog'
+  revenue: number
+  transactionCount: number
+}
+
 export interface ArtistRevenue {
   artist: string
   believeRevenue: number
@@ -56,4 +96,9 @@ export interface ArtistRevenue {
   totalRevenue: number
   splitPercentage: number
   finalAmount: number
+  totalQuantity: number
+  platformBreakdown: PlatformRevenue[]
+  countryBreakdown: CountryRevenue[]
+  monthlyBreakdown: MonthlyRevenue[]
+  releaseBreakdown: ReleaseRevenue[]
 }

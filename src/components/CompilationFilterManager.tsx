@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { CompilationFilter } from '@/lib/types'
 
@@ -29,39 +29,50 @@ interface CompilationFilterManagerProps {
   onRemoveFilter: (id: string) => void
 }
 
+type FilterType = 'ean' | 'title' | 'catalog'
+
+const FILTER_TYPE_LABELS: Record<FilterType, string> = {
+  ean: 'EAN / UPC',
+  title: 'Release Title',
+  catalog: 'Catalog Number',
+}
+
+const DEFAULT_TYPE: FilterType = 'ean'
+
+function useDialogForm() {
+  const [type, setType] = useState<FilterType>(DEFAULT_TYPE)
+  const [identifier, setIdentifier] = useState('')
+
+  const reset = useCallback(() => {
+    setType(DEFAULT_TYPE)
+    setIdentifier('')
+  }, [])
+
+  return { type, setType, identifier, setIdentifier, reset }
+}
+
 export function CompilationFilterManager({
   filters,
   onAddFilter,
   onRemoveFilter,
 }: CompilationFilterManagerProps) {
   const [open, setOpen] = useState(false)
-  const [type, setType] = useState<'ean' | 'title' | 'catalog'>('ean')
-  const [identifier, setIdentifier] = useState('')
+  const { type, setType, identifier, setIdentifier, reset } = useDialogForm()
 
-  const handleAdd = () => {
-    if (identifier.trim()) {
-      onAddFilter({
-        identifier: identifier.trim(),
-        type,
-        label: identifier.trim(),
-      })
-      setIdentifier('')
-      setOpen(false)
-    }
-  }
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      setOpen(next)
+      if (!next) reset()
+    },
+    [reset]
+  )
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'ean':
-        return 'EAN/UPC'
-      case 'title':
-        return 'Release Title'
-      case 'catalog':
-        return 'Catalog Number'
-      default:
-        return type
-    }
-  }
+  const handleAdd = useCallback(() => {
+    const trimmed = identifier.trim()
+    if (!trimmed) return
+    onAddFilter({ identifier: trimmed, type, label: trimmed })
+    handleOpenChange(false)
+  }, [identifier, type, onAddFilter, handleOpenChange])
 
   return (
     <div className="space-y-4">
@@ -70,8 +81,8 @@ export function CompilationFilterManager({
           <FunnelSimple size={20} weight="bold" className="text-primary" />
           <h3 className="font-semibold">Compilation Exclusions</h3>
         </div>
-        
-        <Dialog open={open} onOpenChange={setOpen}>
+
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-2">
               <Plus size={16} weight="bold" />
@@ -85,36 +96,39 @@ export function CompilationFilterManager({
                 Add a compilation to exclude from artist statements
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="filter-type">Identifier Type</Label>
-                <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+                <Select value={type} onValueChange={v => setType(v as FilterType)}>
                   <SelectTrigger id="filter-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ean">EAN/UPC</SelectItem>
-                    <SelectItem value="title">Release Title</SelectItem>
-                    <SelectItem value="catalog">Catalog Number</SelectItem>
+                    {(Object.keys(FILTER_TYPE_LABELS) as FilterType[]).map(t => (
+                      <SelectItem key={t} value={t}>
+                        {FILTER_TYPE_LABELS[t]}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="filter-value">{getTypeLabel(type)}</Label>
+                <Label htmlFor="filter-value">{FILTER_TYPE_LABELS[type]}</Label>
                 <Input
                   id="filter-value"
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={`Enter ${getTypeLabel(type).toLowerCase()}`}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                  onChange={e => setIdentifier(e.target.value)}
+                  placeholder={`Enter ${FILTER_TYPE_LABELS[type].toLowerCase()}`}
+                  onKeyDown={e => e.key === 'Enter' && handleAdd()}
+                  autoFocus
                 />
               </div>
             </div>
-            
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
               <Button onClick={handleAdd} disabled={!identifier.trim()}>
@@ -127,11 +141,7 @@ export function CompilationFilterManager({
 
       <AnimatePresence mode="popLayout">
         {filters.length > 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-2"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
             {filters.map((filter, index) => (
               <motion.div
                 key={filter.id}
@@ -144,10 +154,10 @@ export function CompilationFilterManager({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{filter.label}</p>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                      {getTypeLabel(filter.type)}
+                      {FILTER_TYPE_LABELS[filter.type]}
                     </p>
                   </div>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -163,9 +173,7 @@ export function CompilationFilterManager({
         ) : (
           <Card className="p-8 text-center border-dashed">
             <FunnelSimple size={32} className="mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              No compilations excluded yet
-            </p>
+            <p className="text-sm text-muted-foreground">No compilations excluded yet</p>
           </Card>
         )}
       </AnimatePresence>

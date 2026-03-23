@@ -1,7 +1,11 @@
 import { useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
-import { processTransactions, getUniqueArtistsFromTransactions } from '@/lib/data-processor'
+import {
+  processTransactionsWithCompilations,
+  getUniqueArtistsFromTransactions,
+} from '@/lib/data-processor'
+import type { ProcessedArtistData } from '@/lib/data-processor'
 import type { SalesTransaction } from '@/lib/csv-parser'
 import type {
   UploadedFile,
@@ -10,6 +14,7 @@ import type {
   SplitFee,
   ManualRevenue,
   ArtistRevenue,
+  FilteredCompilation,
 } from '@/lib/types'
 
 interface CSVProcessorConfig {
@@ -21,9 +26,12 @@ interface CSVProcessorConfig {
 }
 
 /**
- * Parses all uploaded CSV files and runs the data processing pipeline.
- * Uses a cancellation flag to prevent stale state updates when files change
- * while a previous parse is still in flight.
+ * Parses all uploaded CSV files and runs the full data processing pipeline.
+ *
+ * A cancellation flag prevents stale state updates when files change while a
+ * previous parse is still in flight. The dependency string is intentionally
+ * derived from file IDs + data lengths to avoid re-running the effect when
+ * only unrelated state changes.
  */
 export function useCSVProcessor(
   believeFiles: UploadedFile[],
@@ -32,6 +40,10 @@ export function useCSVProcessor(
 ) {
   const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+
+  // Stable keys: re-parse only when file content actually changes
+  const believeKey = believeFiles.map(f => `${f.id}:${f.data.length}`).join(',')
+  const bandcampKey = bandcampFiles.map(f => `${f.id}:${f.data.length}`).join(',')
 
   useEffect(() => {
     const allFiles = [...believeFiles, ...bandcampFiles]
@@ -84,22 +96,17 @@ export function useCSVProcessor(
     return () => {
       cancelled = true
     }
-  // We intentionally use file IDs + data lengths as a stable dependency signal
-  // to avoid re-running the effect when only unrelated state changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    believeFiles.map(f => `${f.id}:${f.data.length}`).join(','),
-    bandcampFiles.map(f => `${f.id}:${f.data.length}`).join(','),
-  ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [believeKey, bandcampKey])
 
   const uniqueArtists = useMemo(
     () => getUniqueArtistsFromTransactions(allTransactions, config.artistMappings),
     [allTransactions, config.artistMappings]
   )
 
-  const processedData = useMemo(
+  const { artistData: processedData, filteredCompilations } = useMemo(
     () =>
-      processTransactions(allTransactions, {
+      processTransactionsWithCompilations(allTransactions, {
         compilationFilters: config.compilationFilters,
         artistMappings: config.artistMappings,
         splitFees: config.splitFees,
@@ -130,9 +137,21 @@ export function useCSVProcessor(
         totalRevenue: data.grossRevenue,
         splitPercentage: data.splitPercentage,
         finalAmount: data.finalPayout,
+        totalQuantity: data.totalQuantity,
+        platformBreakdown: data.platformBreakdown,
+        countryBreakdown: data.countryBreakdown,
+        monthlyBreakdown: data.monthlyBreakdown,
+        releaseBreakdown: data.releaseBreakdown,
       })),
     [processedData]
   )
 
-  return { allTransactions, isProcessing, uniqueArtists, processedData, revenues }
+  return {
+    allTransactions,
+    isProcessing,
+    uniqueArtists,
+    processedData,
+    filteredCompilations,
+    revenues,
+  }
 }

@@ -151,7 +151,3 @@ export function useFileManager(type: FileType) {
     replaceFile,
   }
 }
-
-export function createSafeFilename(name: string): string {
-  return name.replace(/[^a-z0-9]/gi, '_')
-}

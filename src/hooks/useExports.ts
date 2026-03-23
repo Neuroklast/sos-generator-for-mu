@@ -6,6 +6,7 @@ import {
   downloadBlob,
   generateZipOfAllStatements,
 } from '@/lib/export-utils'
+import { createSafeFilename } from '@/lib/utils'
 import type { ProcessedArtistData } from '@/lib/data-processor'
 import type { LabelInfo } from '@/lib/types'
 
@@ -33,7 +34,7 @@ export function useExports(
           periodStart || undefined,
           periodEnd || undefined
         )
-        downloadBlob(blob, `${artist.replace(/[^a-z0-9]/gi, '_')}_statement.pdf`)
+        downloadBlob(blob, `${createSafeFilename(artist)}_statement.pdf`)
         toast.success(`PDF for "${artist}" downloaded`)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
@@ -59,7 +60,7 @@ export function useExports(
           periodStart || undefined,
           periodEnd || undefined
         )
-        downloadBlob(blob, `${artist.replace(/[^a-z0-9]/gi, '_')}_statement.xlsx`)
+        downloadBlob(blob, `${createSafeFilename(artist)}_statement.xlsx`)
         toast.success(`Excel for "${artist}" downloaded`)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
