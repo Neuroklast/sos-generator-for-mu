@@ -201,7 +201,8 @@ export function parseCSVContent(
   }
 }
 
-function parseCSVLine(line: string, delimiter: string): string[] {
+/** Parses a single CSV line respecting quoted fields and escaped quotes. */
+export function parseCSVLine(line: string, delimiter: string): string[] {
   const result: string[] = []
   let current = ''
   let inQuotes = false

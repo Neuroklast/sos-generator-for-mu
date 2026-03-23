@@ -1,5 +1,5 @@
 import type { SalesTransaction } from './csv-parser'
-import { mapCSVHeadersToModel } from './csv-parser'
+import { mapCSVHeadersToModel, parseCSVLine } from './csv-parser'
 
 export interface ParseProgress {
   processedRows: number
@@ -11,37 +11,53 @@ export interface ParseProgress {
 export interface StreamingParseResult {
   transactions: SalesTransaction[]
   uniqueArtists: string[]
-  errors: Array<{ row: number, reason: string, data: string }>
+  errors: Array<{ row: number; reason: string; data: string }>
 }
 
-const CHUNK_SIZE = 1000
+/** Rows to process per scheduler tick to keep the UI responsive. */
+const CHUNK_SIZE = 500
 
-function parseCSVLine(line: string, delimiter: string): string[] {
-  const result: string[] = []
-  let current = ''
-  let inQuotes = false
+/**
+ * Detects the most likely delimiter by counting occurrences of `;` and `,`
+ * on the first (header) line. Falls back to comma.
+ */
+function detectDelimiter(headerLine: string): string {
+  const semicolons = (headerLine.match(/;/g) ?? []).length
+  const commas = (headerLine.match(/,/g) ?? []).length
+  return semicolons > commas ? ';' : ','
+}
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]
-    const nextChar = line[i + 1]
+/**
+ * Removes a UTF-8 BOM character that some editors / Excel exports prepend.
+ */
+function stripBOM(text: string): string {
+  return text.startsWith('\uFEFF') ? text.slice(1) : text
+}
 
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        current += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === delimiter && !inQuotes) {
-      result.push(current.trim())
-      current = ''
-    } else {
-      current += char
-    }
+/**
+ * Parses a revenue number that may use either European ("1.234,56") or
+ * standard ("1,234.56") decimal notation.
+ */
+function parseRevenue(raw: string): number {
+  if (!raw) return 0
+  const cleaned = raw.trim()
+
+  // European: last separator is a comma → "1.234,56"
+  const lastComma = cleaned.lastIndexOf(',')
+  const lastDot = cleaned.lastIndexOf('.')
+  if (lastComma > lastDot) {
+    // European notation
+    const normalised = cleaned.replace(/\./g, '').replace(',', '.')
+    return parseFloat(normalised.replace(/[^0-9.-]/g, '')) || 0
   }
 
-  result.push(current.trim())
-  return result.map(v => v.replace(/^"|"$/g, ''))
+  // Standard notation
+  return parseFloat(cleaned.replace(/[^0-9.-]/g, '')) || 0
+}
+
+function parseQuantity(raw: string): number {
+  if (!raw) return 0
+  return parseInt(raw.replace(/[^0-9]/g, ''), 10) || 0
 }
 
 function processChunk(
@@ -54,11 +70,12 @@ function processChunk(
 ): {
   transactions: SalesTransaction[]
   artists: Set<string>
-  errors: Array<{ row: number, reason: string, data: string }>
+  errors: Array<{ row: number; reason: string; data: string }>
 } {
   const transactions: SalesTransaction[] = []
   const artists = new Set<string>()
-  const errors: Array<{ row: number, reason: string, data: string }> = []
+  const errors: Array<{ row: number; reason: string; data: string }> = []
+  const expectedCols = headers.length
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -66,68 +83,63 @@ function processChunk(
 
     try {
       const values = parseCSVLine(line, delimiter)
-      
-      if (values.length !== headers.length && values.length > 0) {
+
+      // Be lenient: if a row has fewer columns, fill with empty strings.
+      // If it has way more (>= 2× expected), it's likely a corrupted row.
+      if (values.length >= expectedCols * 2 && values.length > expectedCols) {
         errors.push({
           row: startIndex + i + 2,
-          reason: `Column count mismatch: expected ${headers.length}, got ${values.length}`,
-          data: line.substring(0, 100)
+          reason: `Too many columns: expected ~${expectedCols}, got ${values.length}`,
+          data: line.substring(0, 120),
         })
         continue
       }
 
       const rowData: Record<string, string> = {}
-      headers.forEach((header, index) => {
-        rowData[header] = values[index] || ''
+      headers.forEach((header, idx) => {
+        rowData[header] = values[idx] ?? ''
       })
 
       const mappedData: Record<string, string> = {}
-      for (const [originalHeader, value] of Object.entries(rowData)) {
-        const mappedField = mapping[originalHeader]
-        if (mappedField) {
-          mappedData[mappedField] = value
-        }
+      for (const [header, value] of Object.entries(rowData)) {
+        const field = mapping[header]
+        if (field) mappedData[field] = value
       }
 
-      const originalArtist = mappedData.original_artist || ''
-      const netRevenueStr = mappedData.net_revenue || '0'
-      const quantityStr = mappedData.quantity || '0'
-      
-      const netRevenue = parseFloat(netRevenueStr.replace(/[^0-9.-]/g, '')) || 0
-      const quantity = parseInt(quantityStr.replace(/[^0-9]/g, '')) || 0
-
-      const releaseType = mappedData.release_type || ''
+      const originalArtist = (mappedData.original_artist ?? '').trim()
+      const netRevenue = parseRevenue(mappedData.net_revenue ?? '')
+      const quantity = parseQuantity(mappedData.quantity ?? '')
+      const releaseType = mappedData.release_type ?? ''
       const isPhysical = /physical|cd|vinyl|cassette|tape/i.test(releaseType)
 
-      if (originalArtist) {
-        artists.add(originalArtist)
-      }
+      // Skip rows with no useful data (no artist AND no revenue)
+      if (!originalArtist && netRevenue === 0) continue
 
-      const transaction: SalesTransaction = {
+      if (originalArtist) artists.add(originalArtist)
+
+      transactions.push({
         id: crypto.randomUUID(),
         source,
-        sales_month: mappedData.sales_month || '',
-        platform: mappedData.platform || '',
-        country: mappedData.country || '',
+        sales_month: (mappedData.sales_month ?? '').trim(),
+        platform: (mappedData.platform ?? '').trim(),
+        country: (mappedData.country ?? '').trim(),
         main_artist: originalArtist,
         original_artist: originalArtist,
-        release_title: mappedData.release_title || '',
-        track_title: mappedData.track_title || '',
-        upc_ean: mappedData.upc_ean || '',
-        isrc: mappedData.isrc || '',
-        catalog_number: mappedData.catalog_number || '',
+        release_title: (mappedData.release_title ?? '').trim(),
+        track_title: (mappedData.track_title ?? '').trim(),
+        upc_ean: (mappedData.upc_ean ?? '').trim(),
+        isrc: (mappedData.isrc ?? '').trim(),
+        catalog_number: (mappedData.catalog_number ?? '').trim(),
         quantity,
         net_revenue: netRevenue,
-        currency: mappedData.currency || 'EUR',
-        is_physical: isPhysical
-      }
-
-      transactions.push(transaction)
-    } catch (error) {
+        currency: (mappedData.currency ?? 'EUR').trim() || 'EUR',
+        is_physical: isPhysical,
+      })
+    } catch (err) {
       errors.push({
         row: startIndex + i + 2,
-        reason: error instanceof Error ? error.message : 'Unknown parsing error',
-        data: line.substring(0, 100)
+        reason: err instanceof Error ? err.message : 'Unknown parsing error',
+        data: line.substring(0, 120),
       })
     }
   }
@@ -135,6 +147,11 @@ function processChunk(
   return { transactions, artists, errors }
 }
 
+/**
+ * Parses a CSV file in chunks, yielding progress callbacks between chunks so
+ * the main thread stays responsive even for files with hundreds of thousands
+ * of rows.
+ */
 export async function parseCSVContentStreaming(
   csvContent: string,
   source: 'believe' | 'bandcamp',
@@ -143,62 +160,56 @@ export async function parseCSVContentStreaming(
 ): Promise<StreamingParseResult> {
   const allTransactions: SalesTransaction[] = []
   const uniqueArtistsSet = new Set<string>()
-  const allErrors: Array<{ row: number, reason: string, data: string }> = []
+  const allErrors: Array<{ row: number; reason: string; data: string }> = []
 
-  const lines = csvContent.split('\n').filter(line => line.trim())
-  
-  if (lines.length === 0) {
+  // Normalise line endings and remove BOM
+  const normalised = stripBOM(csvContent).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const lines = normalised.split('\n')
+
+  // Find first non-empty line (header)
+  const firstNonEmpty = lines.findIndex(l => l.trim().length > 0)
+  if (firstNonEmpty === -1) {
     return { transactions: [], uniqueArtists: [], errors: [] }
   }
 
-  const delimiter = csvContent.includes(';') ? ';' : ','
-  const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''))
-  
-  const mapping = columnMapping || mapCSVHeadersToModel(headers)
+  const headerLine = lines[firstNonEmpty]
+  const delimiter = detectDelimiter(headerLine)
+  const headers = parseCSVLine(headerLine, delimiter).map(h => h.trim())
 
-  const dataLines = lines.slice(1)
-  const totalRows = dataLines.length
-
-  let processedRows = 0
-
-  const chunks: string[][] = []
-  for (let i = 0; i < dataLines.length; i += CHUNK_SIZE) {
-    chunks.push(dataLines.slice(i, i + CHUNK_SIZE))
+  if (headers.length === 0) {
+    return { transactions: [], uniqueArtists: [], errors: [{ row: 1, reason: 'Empty header row', data: '' }] }
   }
 
-  for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-    const chunk = chunks[chunkIndex]
-    
-    await new Promise(resolve => setTimeout(resolve, 0))
+  const mapping = columnMapping ?? mapCSVHeadersToModel(headers)
+  const dataLines = lines.slice(firstNonEmpty + 1)
+  const totalRows = dataLines.length
+  let processedRows = 0
 
-    const result = processChunk(
-      chunk,
-      headers,
-      mapping,
-      delimiter,
-      source,
-      processedRows
-    )
+  for (let i = 0; i < dataLines.length; i += CHUNK_SIZE) {
+    const chunk = dataLines.slice(i, i + CHUNK_SIZE)
+
+    // Yield to the event loop between chunks
+    await new Promise<void>(resolve => setTimeout(resolve, 0))
+
+    const result = processChunk(chunk, headers, mapping, delimiter, source, processedRows)
 
     allTransactions.push(...result.transactions)
-    result.artists.forEach(artist => uniqueArtistsSet.add(artist))
+    result.artists.forEach(a => uniqueArtistsSet.add(a))
     allErrors.push(...result.errors)
 
     processedRows += chunk.length
 
-    if (onProgress) {
-      onProgress({
-        processedRows,
-        totalRows,
-        percentage: Math.round((processedRows / totalRows) * 100),
-        isComplete: processedRows >= totalRows
-      })
-    }
+    onProgress?.({
+      processedRows,
+      totalRows,
+      percentage: totalRows > 0 ? Math.round((processedRows / totalRows) * 100) : 100,
+      isComplete: processedRows >= totalRows,
+    })
   }
 
   return {
     transactions: allTransactions,
     uniqueArtists: Array.from(uniqueArtistsSet).sort(),
-    errors: allErrors
+    errors: allErrors,
   }
 }

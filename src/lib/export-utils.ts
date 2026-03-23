@@ -16,6 +16,21 @@ export function generatePDF(
   periodStart?: string,
   periodEnd?: string
 ): Blob {
+  try {
+    return buildPDF(artistData, labelInfo, periodStart, periodEnd)
+  } catch (err) {
+    throw new Error(
+      `PDF generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+}
+
+function buildPDF(
+  artistData: ProcessedArtistData,
+  labelInfo: LabelInfo,
+  periodStart?: string,
+  periodEnd?: string
+): Blob {
   const doc = new jsPDF()
   const margin = 20
   let yPos = margin
@@ -164,6 +179,21 @@ export function generateExcel(
   periodStart?: string,
   periodEnd?: string
 ): Blob {
+  try {
+    return buildExcel(artistData, labelInfo, periodStart, periodEnd)
+  } catch (err) {
+    throw new Error(
+      `Excel generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+}
+
+function buildExcel(
+  artistData: ProcessedArtistData,
+  labelInfo: LabelInfo,
+  periodStart?: string,
+  periodEnd?: string
+): Blob {
   const workbook = XLSX.utils.book_new()
 
   const summaryData = [
@@ -253,15 +283,19 @@ export function generateExcel(
   })
 }
 
+/** Downloads a Blob as a file. Always revokes the object URL even if the operation fails. */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  try {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 export async function generateZipOfAllStatements(
