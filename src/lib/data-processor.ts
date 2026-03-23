@@ -73,32 +73,34 @@ export function processTransactions(
 
   const artistGroups = new Map<string, SalesTransaction[]>()
   
-  for (let i = 0; i < transactionsWithResolvedArtists.length; i++) {
-    const transaction = transactionsWithResolvedArtists[i]
+  transactionsWithResolvedArtists.forEach(transaction => {
     const artist = transaction.main_artist
     if (!artistGroups.has(artist)) {
       artistGroups.set(artist, [])
     }
-    const group = artistGroups.get(artist)
-    if (group) {
-       group.push(transaction)
-    }
-  }
+    artistGroups.get(artist)!.push(transaction)
+  })
 
   const results: ProcessedArtistData[] = []
 
   for (const [artist, artistTransactions] of artistGroups.entries()) {
-    const digitalRevenue = artistTransactions
-      .filter(t => !t.is_physical)
-      .reduce((sum, t) => sum + t.net_revenue, 0)
+    let digitalRevenue = 0
+    let physicalRevenue = 0
 
-    const physicalRevenue = artistTransactions
-      .filter(t => t.is_physical)
-      .reduce((sum, t) => sum + t.net_revenue, 0)
+    for (const t of artistTransactions) {
+      if (t.is_physical) {
+        physicalRevenue += t.net_revenue
+      } else {
+        digitalRevenue += t.net_revenue
+      }
+    }
 
-    const manualRevenue = config.manualRevenues
-      .filter(mr => mr.artist === artist)
-      .reduce((sum, mr) => sum + mr.amount, 0)
+    let manualRevenue = 0
+    for (const mr of config.manualRevenues) {
+      if (mr.artist === artist) {
+        manualRevenue += mr.amount
+      }
+    }
 
     const grossRevenue = digitalRevenue + physicalRevenue + manualRevenue
 

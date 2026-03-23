@@ -9,7 +9,8 @@ import { SplitFeeManager } from '@/components/SplitFeeManager'
 import { ManualRevenueManager } from '@/components/ManualRevenueManager'
 import { LabelBranding } from '@/components/LabelBranding'
 import { RevenueDashboard } from '@/components/RevenueDashboard'
-import { parseCSVContent } from '@/lib/csv-parser'
+import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
+import type { ParseProgress } from '@/lib/streaming-csv-parser'
 import { processTransactions, getUniqueArtistsFromTransactions } from '@/lib/data-processor'
 import { generatePDF, generateExcel, downloadBlob, generateZipOfAllStatements } from '@/lib/export-utils'
 import { MusicNotes } from '@phosphor-icons/react'
@@ -30,30 +31,47 @@ function App() {
   })
 
   const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
   const handleFilesAdded = async (files: File[], type: 'believe' | 'bandcamp') => {
-    const newFiles: UploadedFile[] = []
-    
-    for (const file of files) {
-      const content = await file.text()
-      const uploadedFile: UploadedFile = {
-        id: crypto.randomUUID(),
-        name: file.name,
-        size: file.size,
-        type,
-        data: content,
-        uploadedAt: new Date(),
+    setIsProcessing(true)
+    setUploadProgress(0)
+
+    try {
+      const newFiles: UploadedFile[] = []
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const content = await file.text()
+        
+        const uploadedFile: UploadedFile = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          size: file.size,
+          type,
+          data: content,
+          uploadedAt: new Date(),
+        }
+        newFiles.push(uploadedFile)
+        
+        setUploadProgress(Math.round(((i + 1) / files.length) * 50))
       }
-      newFiles.push(uploadedFile)
-    }
 
-    if (type === 'believe') {
-      setBelieveFiles((current = []) => [...current, ...newFiles])
-    } else {
-      setBandcampFiles((current = []) => [...current, ...newFiles])
-    }
+      if (type === 'believe') {
+        setBelieveFiles((current = []) => [...current, ...newFiles])
+      } else {
+        setBandcampFiles((current = []) => [...current, ...newFiles])
+      }
 
-    toast.success(`${newFiles.length} file(s) uploaded successfully`)
+      toast.success(`${newFiles.length} file(s) uploaded successfully`)
+    } catch (error) {
+      toast.error('Error uploading files')
+      console.error(error)
+    } finally {
+      setIsProcessing(false)
+      setUploadProgress(0)
+    }
   }
 
   const handleFileRemoved = (id: string, type: 'believe' | 'bandcamp') => {
@@ -65,19 +83,52 @@ function App() {
     toast.info('File removed')
   }
 
-  const processAllFiles = (files: UploadedFile[]) => {
-    const transactions: SalesTransaction[] = []
+  const processAllFiles = async (files: UploadedFile[]) => {
+    if (files.length === 0) {
+      setAllTransactions([])
+      return
+    }
 
-    files.forEach((file) => {
-      const parsed = parseCSVContent(file.data, file.type)
-      transactions.push(...parsed.transactions)
-      
-      if (parsed.errors.length > 0) {
-        console.warn(`Errors parsing ${file.name}:`, parsed.errors)
+    setIsProcessing(true)
+    setUploadProgress(0)
+
+    try {
+      const transactions: SalesTransaction[] = []
+      let totalProgress = 0
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        
+        const parsed = await parseCSVContentStreaming(
+          file.data,
+          file.type,
+          (progress: ParseProgress) => {
+            const fileProgress = progress.percentage
+            const overallProgress = Math.round(
+              (totalProgress + fileProgress / files.length)
+            )
+            setUploadProgress(Math.min(overallProgress, 100))
+          }
+        )
+        
+        transactions.push(...parsed.transactions)
+        
+        if (parsed.errors.length > 0) {
+          console.warn(`Errors parsing ${file.name}:`, parsed.errors)
+          toast.warning(`${parsed.errors.length} row(s) skipped in ${file.name}`)
+        }
+
+        totalProgress += (100 / files.length)
       }
-    })
 
-    setAllTransactions(transactions)
+      setAllTransactions(transactions)
+    } catch (error) {
+      toast.error('Error processing files')
+      console.error(error)
+    } finally {
+      setIsProcessing(false)
+      setUploadProgress(0)
+    }
   }
 
   useEffect(() => {
@@ -227,6 +278,8 @@ function App() {
                 files={believeFiles || []}
                 onFilesAdded={(files) => handleFilesAdded(files, 'believe')}
                 onFileRemoved={(id) => handleFileRemoved(id, 'believe')}
+                isProcessing={isProcessing}
+                uploadProgress={uploadProgress}
               />
             </Card>
 
@@ -237,6 +290,8 @@ function App() {
                 files={bandcampFiles || []}
                 onFilesAdded={(files) => handleFilesAdded(files, 'bandcamp')}
                 onFileRemoved={(id) => handleFileRemoved(id, 'bandcamp')}
+                isProcessing={isProcessing}
+                uploadProgress={uploadProgress}
               />
             </Card>
           </TabsContent>
