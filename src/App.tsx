@@ -16,6 +16,7 @@ import { ReportingPanel } from '@/components/ReportingPanel'
 import { ArtistTreeView } from '@/components/ArtistTreeView'
 import { CSVColumnMapper } from '@/components/CSVColumnMapper'
 import { HistoryPanel } from '@/components/HistoryPanel'
+import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
 import { MusicNotes } from '@phosphor-icons/react'
 import { useFileManager } from '@/hooks/useFileManager'
 import { useCSVProcessor } from '@/hooks/useCSVProcessor'
@@ -206,6 +207,7 @@ function App() {
           <TabsList className="flex w-full bg-card/70 backdrop-blur-md border-2 border-primary/20 p-2 h-auto flex-wrap gap-2 rounded-2xl shadow-2xl shadow-primary/10">
             <TabsTrigger value="upload" className={triggerClass}>Upload</TabsTrigger>
             <TabsTrigger value="dashboard" className={triggerClass}>Dashboard</TabsTrigger>
+            <TabsTrigger value="analytics" className={triggerClass}>Analytics</TabsTrigger>
             <TabsTrigger value="reports" className={triggerClass}>Reports</TabsTrigger>
             <TabsTrigger value="artists" className={triggerClass}>Artists</TabsTrigger>
             <TabsTrigger value="settings" className={triggerClass}>Settings</TabsTrigger>
@@ -290,6 +292,13 @@ function App() {
                 onDownloadPDF={handleDownloadPDF}
                 onDownloadExcel={handleDownloadExcel}
               />
+            </Card>
+          </TabsContent>
+
+          {/* ── Analytics ── */}
+          <TabsContent value="analytics" className="animate-in fade-in duration-500">
+            <Card className="p-8 border-2 border-primary/30 shadow-2xl shadow-primary/20 backdrop-blur-md bg-card/95 rounded-2xl hover:border-primary/50 transition-all duration-300">
+              <AnalyticsDashboard revenues={revenues} />
             </Card>
           </TabsContent>
 
