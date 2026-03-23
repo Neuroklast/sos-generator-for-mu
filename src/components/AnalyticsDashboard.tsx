@@ -46,11 +46,31 @@ const CHART_COLORS = [
 
 export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
   const [selectedArtist, setSelectedArtist] = useState<string>('all')
+  const [selectedCountry, setSelectedCountry] = useState<string>('all')
+
+  // ── Available countries for filter ────────────────────────────────────────
+
+  const allCountries = useMemo(() => {
+    const set = new Set<string>()
+    revenues.forEach(r => r.countryBreakdown.forEach(c => { if (c.country) set.add(c.country) }))
+    return Array.from(set).sort()
+  }, [revenues])
 
   const filteredRevenues = useMemo(() => {
-    if (selectedArtist === 'all') return revenues
-    return revenues.filter(r => r.artist === selectedArtist)
-  }, [revenues, selectedArtist])
+    let result = revenues
+    if (selectedArtist !== 'all') {
+      result = result.filter(r => r.artist === selectedArtist)
+    }
+    if (selectedCountry !== 'all') {
+      result = result
+        .map(r => ({
+          ...r,
+          countryBreakdown: r.countryBreakdown.filter(c => c.country === selectedCountry),
+        }))
+        .filter(r => r.countryBreakdown.length > 0)
+    }
+    return result
+  }, [revenues, selectedArtist, selectedCountry])
 
   const stats = useMemo(() => {
     const total = revenues.reduce((sum, r) => sum + r.totalRevenue, 0)
@@ -201,6 +221,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
 
   return (
     <div className="space-y-6">
+      <div className="max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold flex items-center gap-3">
@@ -212,7 +233,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <Select value={selectedArtist} onValueChange={setSelectedArtist}>
             <SelectTrigger className="w-[200px] border-primary/30">
               <SelectValue placeholder="Select artist" />
@@ -226,11 +247,22 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
               ))}
             </SelectContent>
           </Select>
+          <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+            <SelectTrigger className="w-[180px] border-primary/30">
+              <SelectValue placeholder="Select country" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Countries</SelectItem>
+              {allCountries.map(c => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-6 border-primary/20 bg-gradient-to-br from-card to-card/50">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <Card className="p-6 md:p-8 border-primary/20 bg-gradient-to-br from-card to-card/50">
           <div className="flex items-center gap-3 mb-2">
             <CurrencyEur size={24} weight="duotone" className="text-primary" />
             <h3 className="text-sm font-medium text-muted-foreground">Total Revenue</h3>
@@ -238,7 +270,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           <p className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</p>
         </Card>
 
-        <Card className="p-6 border-primary/20 bg-gradient-to-br from-card to-card/50">
+        <Card className="p-6 md:p-8 border-primary/20 bg-gradient-to-br from-card to-card/50">
           <div className="flex items-center gap-3 mb-2">
             <Users size={24} weight="duotone" className="text-accent" />
             <h3 className="text-sm font-medium text-muted-foreground">Artists</h3>
@@ -246,7 +278,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           <p className="text-2xl font-bold">{stats.artistCount}</p>
         </Card>
 
-        <Card className="p-6 border-primary/20 bg-gradient-to-br from-card to-card/50">
+        <Card className="p-6 md:p-8 border-primary/20 bg-gradient-to-br from-card to-card/50">
           <div className="flex items-center gap-3 mb-2">
             <Storefront size={24} weight="duotone" className="text-primary" />
             <h3 className="text-sm font-medium text-muted-foreground">Platforms</h3>
@@ -254,7 +286,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           <p className="text-2xl font-bold">{stats.platformCount}</p>
         </Card>
 
-        <Card className="p-6 border-primary/20 bg-gradient-to-br from-card to-card/50">
+        <Card className="p-6 md:p-8 border-primary/20 bg-gradient-to-br from-card to-card/50">
           <div className="flex items-center gap-3 mb-2">
             <MusicNote size={24} weight="duotone" className="text-accent" />
             <h3 className="text-sm font-medium text-muted-foreground">Total Units</h3>
@@ -274,7 +306,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
         </TabsList>
 
         <TabsContent value="monthly" className="space-y-6">
-          <Card className="p-6 border-primary/20">
+          <Card className="p-6 md:p-8 border-primary/20">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <CalendarBlank size={24} weight="duotone" className="text-primary" />
               Revenue Trend
@@ -311,7 +343,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
         </TabsContent>
 
         <TabsContent value="artists" className="space-y-6">
-          <Card className="p-6 border-primary/20">
+          <Card className="p-6 md:p-8 border-primary/20">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Users size={24} weight="duotone" className="text-primary" />
               Top 10 Artists by Revenue
@@ -348,7 +380,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
         </TabsContent>
 
         <TabsContent value="platforms" className="space-y-6">
-          <Card className="p-6 border-primary/20">
+          <Card className="p-6 md:p-8 border-primary/20">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Storefront size={24} weight="duotone" className="text-primary" />
               Revenue by Platform
@@ -366,7 +398,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
         </TabsContent>
 
         <TabsContent value="countries" className="space-y-6">
-          <Card className="p-6 border-primary/20">
+          <Card className="p-6 md:p-8 border-primary/20">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <TrendUp size={24} weight="duotone" className="text-primary" />
               Top Countries by Revenue
@@ -384,7 +416,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
         </TabsContent>
 
         <TabsContent value="sources" className="space-y-6">
-          <Card className="p-6 border-primary/20">
+          <Card className="p-6 md:p-8 border-primary/20">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Playlist size={24} weight="duotone" className="text-primary" />
               Revenue by Source
@@ -413,7 +445,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
         </TabsContent>
 
         <TabsContent value="types" className="space-y-6">
-          <Card className="p-6 border-primary/20">
+          <Card className="p-6 md:p-8 border-primary/20">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <MusicNote size={24} weight="duotone" className="text-primary" />
               Digital vs Physical
@@ -441,6 +473,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   )
 }

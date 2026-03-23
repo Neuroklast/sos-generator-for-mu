@@ -622,7 +622,8 @@ function App() {
         </header>
 
         {/* Page content */}
-        <main className={`flex-1 overflow-y-auto px-4 md:px-6 py-5 ${isMobile ? 'pb-20' : ''}`}>
+        <main className={`flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 md:py-8 ${isMobile ? 'pb-20' : ''}`}>
+          <div className="max-w-7xl mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
@@ -633,7 +634,7 @@ function App() {
             >
               {/* ── Dashboard ─── */}
               {activeView === 'dashboard' && (
-                <div className="space-y-5">
+                <div className="space-y-6 md:space-y-8">
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                     <StatCard
                       label="Net Revenue"
@@ -971,6 +972,7 @@ function App() {
               )}
             </motion.div>
           </AnimatePresence>
+          </div>
         </main>
 
         {/* ── Mobile bottom navigation ────────────── */}

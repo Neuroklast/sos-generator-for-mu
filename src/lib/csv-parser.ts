@@ -248,22 +248,75 @@ export function parseCSVLine(line: string, delimiter: string): string[] {
   }
 
   result.push(current.trim())
-  return result.map(v => v.replace(/^"|"$/g, ''))
+  return result
 }
 
-export function extractFeaturedArtists(artistName: string): string[] {
-  const separators = [' feat. ', ' feat ', ' ft. ', ' ft ', ' featuring ', ' with ', ' & ', ' and ', ' x ']
-  
-  let artists = [artistName]
-  for (const sep of separators) {
-    const regex = new RegExp(sep, 'gi')
-    if (regex.test(artistName)) {
-      artists = artistName.split(regex).map(a => a.trim())
-      break
-    }
+/**
+ * Splits a group of artist names on secondary separators (&, and, x, ,).
+ * Returns individual trimmed names, filtering out empty strings.
+ */
+function splitOnSecondaryDelimiters(part: string): string[] {
+  return part
+    .split(/\s*(?:&|,|\bx\b)\s*|\s+and\s+/gi)
+    .map(a => a.trim())
+    .filter(a => a.length > 0)
+}
+
+/**
+ * Multi-level hierarchical artist parser.
+ *
+ * Level 1 – split on primary "featuring" keywords (feat., ft., featuring).
+ *   Parenthesized forms like "(feat. X)" are also handled.
+ * Level 2 – within each resulting group, split on secondary delimiters
+ *   (&, and, x, ,) to extract individual artists.
+ *
+ * Returns all individual artists; the first element is always the primary.
+ */
+export function extractFeaturedArtistsDetailed(artistName: string): {
+  primary: string
+  featured: string[]
+} {
+  if (!artistName || !artistName.trim()) {
+    return { primary: '', featured: [] }
   }
 
-  return artists.filter(a => a.length > 0)
+  const cleaned = artistName.trim()
+
+  // Level 1: split on "feat.", "ft.", "featuring" (with optional parentheses)
+  const primarySplitRegex = /\s*[\[(]?\s*(?:feat\.|feat\b|ft\.|ft\b|featuring)\s*/gi
+  const parts = cleaned.split(primarySplitRegex).map(p => p.replace(/[\])]?\s*$/, '').trim()).filter(p => p.length > 0)
+
+  if (parts.length === 1) {
+    // No primary "featuring" separator found — treat the whole string as a
+    // single collaboration and split on secondary delimiters only if needed
+    // (e.g. "Artist A & Artist B" without "feat.").
+    const all = splitOnSecondaryDelimiters(parts[0])
+    if (all.length === 0) return { primary: cleaned, featured: [] }
+    const [primary, ...featured] = all
+    return { primary, featured }
+  }
+
+  // The first part is the primary artist group; the rest are featured groups
+  const primaryGroup = splitOnSecondaryDelimiters(parts[0])
+  const featuredGroups = parts.slice(1).flatMap(p => splitOnSecondaryDelimiters(p))
+
+  const primary = primaryGroup[0] ?? cleaned
+  const featured = [...primaryGroup.slice(1), ...featuredGroups]
+
+  return { primary, featured }
+}
+
+/**
+ * Returns all individual artists extracted from a collaboration string.
+ * The first element is always the primary artist.
+ * Backward-compatible replacement for the old single-level implementation.
+ */
+export function extractFeaturedArtists(artistName: string): string[] {
+  if (!artistName || !artistName.trim()) return []
+
+  const { primary, featured } = extractFeaturedArtistsDetailed(artistName)
+  const all = primary ? [primary, ...featured] : featured
+  return all.filter(a => a.length > 0)
 }
 
 export function suggestArtistMappings(uniqueArtists: string[]): Array<{
@@ -278,14 +331,25 @@ export function suggestArtistMappings(uniqueArtists: string[]): Array<{
   }> = []
 
   for (const artist of uniqueArtists) {
-    const featuredArtists = extractFeaturedArtists(artist)
-    
-    if (featuredArtists.length > 1) {
+    const { primary, featured } = extractFeaturedArtistsDetailed(artist)
+
+    if (featured.length > 0) {
+      // Always suggest mapping the full collaboration string to the primary
       suggestions.push({
         featuringName: artist,
-        primaryArtist: featuredArtists[0],
-        confidence: 'high'
+        primaryArtist: primary,
+        confidence: 'high',
       })
+
+      // Also suggest mappings for featured artists back to the primary so
+      // they don't appear as separate artists in the dashboard
+      for (const feat of featured) {
+        suggestions.push({
+          featuringName: feat,
+          primaryArtist: primary,
+          confidence: 'medium',
+        })
+      }
     }
   }
 

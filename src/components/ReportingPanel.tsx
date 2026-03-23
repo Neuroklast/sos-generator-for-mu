@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   AreaChart,
   Area,
@@ -15,6 +15,9 @@ import {
   Legend,
 } from 'recharts'
 import { Card } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { ChartLine, ChartBar, Globe, MusicNote, TrendUp } from '@phosphor-icons/react'
 import type { ArtistRevenue } from '@/lib/types'
 
@@ -91,13 +94,15 @@ function PieTooltip({ active, payload }: { active?: boolean; payload?: {name: st
 
 // ── Chart section wrapper ──────────────────────────────────────────────────────
 
-function ChartSection({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function ChartSection({ title, icon, children, description }: { title: string; icon: React.ReactNode; children: React.ReactNode; description?: string }) {
   return (
-    <Card className="p-6 border-2">
-      <div className="flex items-center gap-2 mb-5">
+    <Card className="p-6 md:p-8 border-2">
+      <div className="flex items-center gap-2 mb-1">
         <div className="p-2 rounded-lg bg-primary/10">{icon}</div>
         <h3 className="text-lg font-semibold">{title}</h3>
       </div>
+      {description && <p className="text-sm text-muted-foreground mb-5 ml-11">{description}</p>}
+      {!description && <div className="mb-5" />}
       {children}
     </Card>
   )
@@ -118,23 +123,54 @@ function KPICard({ label, value, sub }: { label: string; value: string; sub?: st
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function ReportingPanel({ revenues }: ReportingPanelProps) {
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('all')
+
+  // ── Available platforms for filter ──────────────────────────────────────────
+
+  const allPlatforms = useMemo(() => {
+    const set = new Set<string>()
+    for (const rev of revenues) {
+      for (const p of rev.platformBreakdown) {
+        if (p.platform) set.add(p.platform)
+      }
+    }
+    return Array.from(set).sort()
+  }, [revenues])
+
+  // ── Filter revenues by selected platform ────────────────────────────────────
+
+  const filteredRevenues = useMemo(() => {
+    if (selectedPlatform === 'all') return revenues
+    return revenues
+      .map(rev => ({
+        ...rev,
+        platformBreakdown: rev.platformBreakdown.filter(p => p.platform === selectedPlatform),
+        finalAmount: rev.platformBreakdown
+          .filter(p => p.platform === selectedPlatform)
+          .reduce((s, p) => s + p.revenue, 0),
+        believeRevenue: selectedPlatform ? 0 : rev.believeRevenue,
+        bandcampRevenue: selectedPlatform ? 0 : rev.bandcampRevenue,
+      }))
+      .filter(rev => rev.platformBreakdown.length > 0)
+  }, [revenues, selectedPlatform])
+
   // ── Derived aggregate data ─────────────────────────────────────────────────
 
-  const totalPayout = useMemo(() => revenues.reduce((s, r) => s + r.finalAmount, 0), [revenues])
-  const totalQuantity = useMemo(() => revenues.reduce((s, r) => s + (r.totalQuantity ?? 0), 0), [revenues])
+  const totalPayout = useMemo(() => filteredRevenues.reduce((s, r) => s + r.finalAmount, 0), [filteredRevenues])
+  const totalQuantity = useMemo(() => filteredRevenues.reduce((s, r) => s + (r.totalQuantity ?? 0), 0), [filteredRevenues])
   const avgSplit = useMemo(() =>
-    revenues.length ? revenues.reduce((s, r) => s + r.splitPercentage, 0) / revenues.length : 0,
-    [revenues]
+    filteredRevenues.length ? filteredRevenues.reduce((s, r) => s + r.splitPercentage, 0) / filteredRevenues.length : 0,
+    [filteredRevenues]
   )
   const topArtist = useMemo(() =>
-    revenues.length ? revenues[0] : null,
-    [revenues]
+    filteredRevenues.length ? filteredRevenues[0] : null,
+    [filteredRevenues]
   )
 
   /** Merged monthly data across all artists (YYYY-MM → total revenue) */
   const monthlyData = useMemo(() => {
     const map = new Map<string, number>()
-    for (const rev of revenues) {
+    for (const rev of filteredRevenues) {
       for (const m of rev.monthlyBreakdown) {
         map.set(m.month, (map.get(m.month) ?? 0) + m.revenue)
       }
@@ -142,12 +178,12 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
     return Array.from(map.entries())
       .map(([month, revenue]) => ({ month, revenue }))
       .sort((a, b) => a.month.localeCompare(b.month))
-  }, [revenues])
+  }, [filteredRevenues])
 
   /** Platform totals across all artists */
   const platformData = useMemo(() => {
     const map = new Map<string, { revenue: number; quantity: number }>()
-    for (const rev of revenues) {
+    for (const rev of filteredRevenues) {
       for (const p of rev.platformBreakdown) {
         const ex = map.get(p.platform) ?? { revenue: 0, quantity: 0 }
         map.set(p.platform, { revenue: ex.revenue + p.revenue, quantity: ex.quantity + p.quantity })
@@ -157,12 +193,12 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
       .map(([platform, { revenue, quantity }]) => ({ platform, revenue, quantity }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 12)
-  }, [revenues])
+  }, [filteredRevenues])
 
   /** Country totals */
   const countryData = useMemo(() => {
     const map = new Map<string, number>()
-    for (const rev of revenues) {
+    for (const rev of filteredRevenues) {
       for (const c of rev.countryBreakdown) {
         map.set(c.country, (map.get(c.country) ?? 0) + c.revenue)
       }
@@ -171,11 +207,11 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
       .map(([country, revenue]) => ({ country, revenue }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10)
-  }, [revenues])
+  }, [filteredRevenues])
 
   /** Artist comparison for bar chart */
   const artistComparison = useMemo(() =>
-    revenues.slice(0, 15).map(r => ({
+    filteredRevenues.slice(0, 15).map(r => ({
       artist: r.artist.length > 18 ? r.artist.slice(0, 16) + '…' : r.artist,
       fullName: r.artist,
       believe: r.believeRevenue,
@@ -183,20 +219,20 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
       manual: r.manualRevenue,
       total: r.finalAmount,
     })),
-    [revenues]
+    [filteredRevenues]
   )
 
   /** Pie chart data for source breakdown */
   const sourceData = useMemo(() => {
-    const believe = revenues.reduce((s, r) => s + r.believeRevenue, 0)
-    const bandcamp = revenues.reduce((s, r) => s + r.bandcampRevenue, 0)
-    const manual = revenues.reduce((s, r) => s + r.manualRevenue, 0)
+    const believe = filteredRevenues.reduce((s, r) => s + r.believeRevenue, 0)
+    const bandcamp = filteredRevenues.reduce((s, r) => s + r.bandcampRevenue, 0)
+    const manual = filteredRevenues.reduce((s, r) => s + r.manualRevenue, 0)
     return [
       { name: 'Believe', value: believe },
       { name: 'Bandcamp', value: bandcamp },
       { name: 'Manual', value: manual },
     ].filter(d => d.value > 0)
-  }, [revenues])
+  }, [filteredRevenues])
 
   // ── Empty state ───────────────────────────────────────────────────────────
 
@@ -217,7 +253,7 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 md:p-8 lg:p-10 space-y-8">
       <div className="flex items-center gap-3 mb-2">
         <div className="p-3 bg-gradient-to-br from-primary to-accent rounded-lg">
           <TrendUp size={28} weight="duotone" className="text-primary-foreground" />
@@ -229,17 +265,46 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard label="Total Payout" value={fmtEur(totalPayout)} sub={`${revenues.length} artist(s)`} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <KPICard label="Total Payout" value={fmtEur(totalPayout)} sub={`${filteredRevenues.length} artist(s)`} />
         <KPICard label="Total Streams / Units" value={fmtNum(totalQuantity)} />
         <KPICard label="Avg Split %" value={`${avgSplit.toFixed(1)} %`} />
         <KPICard label="Top Artist" value={topArtist?.artist ?? '—'} sub={topArtist ? fmtEur(topArtist.finalAmount) : undefined} />
       </div>
 
+      {/* Platform filter */}
+      {allPlatforms.length > 0 && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium text-muted-foreground">Filter by Platform:</span>
+          <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+            <SelectTrigger className="w-[200px] border-primary/30">
+              <SelectValue placeholder="All Platforms" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Platforms</SelectItem>
+              {allPlatforms.map(p => (
+                <SelectItem key={p} value={p}>{p}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedPlatform !== 'all' && (
+            <Badge variant="secondary" className="text-xs">
+              {selectedPlatform}
+            </Badge>
+          )}
+        </div>
+      )}
+
+      <Separator />
+
       {/* Monthly revenue trend */}
       {monthlyData.length > 0 && (
-        <ChartSection title="Monthly Revenue Trend" icon={<ChartLine size={20} className="text-primary" />}>
-          <ResponsiveContainer width="100%" height={260}>
+        <ChartSection
+          title="Monthly Revenue Trend"
+          icon={<ChartLine size={20} className="text-primary" />}
+          description="Cumulative revenue across all artists over time"
+        >
+          <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={monthlyData} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
               <defs>
                 <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -266,20 +331,26 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
         </ChartSection>
       )}
 
+      <Separator />
+
       {/* Two-column: Artist comparison + Source pie */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
         {/* Artist comparison */}
         {artistComparison.length > 0 && (
-          <ChartSection title="Artist Revenue Comparison" icon={<MusicNote size={20} className="text-primary" />}>
-            <ResponsiveContainer width="100%" height={280}>
+          <ChartSection
+            title="Artist Revenue Comparison"
+            icon={<MusicNote size={20} className="text-primary" />}
+            description="Top 15 artists ranked by total payout"
+          >
+            <ResponsiveContainer width="100%" height={320}>
               <BarChart data={artistComparison} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" strokeOpacity={0.5} />
                 <XAxis type="number" tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtEurShort} />
-                <YAxis dataKey="artist" type="category" tick={{ ...AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
+                <YAxis dataKey="artist" type="category" tick={{ ...AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} width={120} />
                 <Tooltip
                   content={({ active, payload, label }: { active?: boolean; payload?: {name: string; value: number; color: string}[]; label?: string }) => {
                     if (!active || !payload?.length) return null
-                    const full = revenues.find(r => r.artist.startsWith(label?.replace('…', '') ?? ''))
+                    const full = filteredRevenues.find(r => r.artist.startsWith(label?.replace('…', '') ?? ''))
                     return (
                       <div style={TOOLTIP_STYLE} className="p-3 shadow-lg">
                         <p className="font-semibold mb-1">{full?.artist ?? label}</p>
@@ -304,8 +375,12 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
 
         {/* Source breakdown pie */}
         {sourceData.length > 0 && (
-          <ChartSection title="Revenue by Source" icon={<ChartBar size={20} className="text-primary" />}>
-            <ResponsiveContainer width="100%" height={280}>
+          <ChartSection
+            title="Revenue by Source"
+            icon={<ChartBar size={20} className="text-primary" />}
+            description="Distribution across Believe, Bandcamp, and manual entries"
+          >
+            <ResponsiveContainer width="100%" height={320}>
               <PieChart>
                 <Pie
                   data={sourceData}
@@ -313,8 +388,8 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
                   nameKey="name"
                   cx="50%"
                   cy="50%"
-                  outerRadius={100}
-                  innerRadius={50}
+                  outerRadius={110}
+                  innerRadius={55}
                   paddingAngle={2}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
                   labelLine={{ stroke: 'var(--muted-foreground)', strokeWidth: 1 }}
@@ -330,18 +405,24 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
         )}
       </div>
 
+      <Separator />
+
       {/* Platform breakdown */}
       {platformData.length > 0 && (
-        <ChartSection title="Revenue by Platform" icon={<ChartBar size={20} className="text-primary" />}>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={platformData} margin={{ top: 8, right: 16, left: 8, bottom: 40 }}>
+        <ChartSection
+          title="Revenue by Platform"
+          icon={<ChartBar size={20} className="text-primary" />}
+          description="Top 12 DSPs and stores by aggregated revenue"
+        >
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={platformData} margin={{ top: 8, right: 16, left: 8, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" strokeOpacity={0.5} />
               <XAxis
                 dataKey="platform"
                 tick={{ ...AXIS_STYLE, fontSize: 10 }}
                 axisLine={false}
                 tickLine={false}
-                angle={-35}
+                angle={-45}
                 textAnchor="end"
                 interval={0}
               />
@@ -369,14 +450,20 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
         </ChartSection>
       )}
 
+      <Separator />
+
       {/* Country breakdown */}
       {countryData.length > 0 && (
-        <ChartSection title="Top 10 Countries by Revenue" icon={<Globe size={20} className="text-primary" />}>
-          <ResponsiveContainer width="100%" height={300}>
+        <ChartSection
+          title="Top 10 Countries by Revenue"
+          icon={<Globe size={20} className="text-primary" />}
+          description="Geographic distribution of streaming and sales revenue"
+        >
+          <ResponsiveContainer width="100%" height={320}>
             <BarChart data={countryData} layout="vertical" margin={{ top: 4, right: 80, left: 8, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" strokeOpacity={0.5} />
               <XAxis type="number" tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtEurShort} />
-              <YAxis dataKey="country" type="category" tick={AXIS_STYLE} axisLine={false} tickLine={false} width={40} />
+              <YAxis dataKey="country" type="category" tick={AXIS_STYLE} axisLine={false} tickLine={false} width={80} />
               <Tooltip
                 content={({ active, payload, label }: { active?: boolean; payload?: {value: number}[]; label?: string }) => {
                   if (!active || !payload?.length) return null

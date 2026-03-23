@@ -271,9 +271,24 @@ export function RevenueDashboard({
   const [expandedArtist, setExpandedArtist] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [minRevenue, setMinRevenue] = useState('')
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortField, setSortField] = useState<DashboardSortField>('finalAmount')
   const [sortDir, setSortDir] = useState<SortDirection>('desc')
+
+  // ── Available platforms ───────────────────────────────────────────────────
+
+  const allPlatforms = useMemo(() => {
+    const set = new Set<string>()
+    revenues.forEach(r => r.platformBreakdown.forEach(p => { if (p.platform) set.add(p.platform) }))
+    return Array.from(set).sort()
+  }, [revenues])
+
+  const togglePlatform = (platform: string) => {
+    setSelectedPlatforms(prev =>
+      prev.includes(platform) ? prev.filter(p => p !== platform) : [...prev, platform]
+    )
+  }
 
   // ── Filter + Sort ─────────────────────────────────────────────────────────
 
@@ -284,7 +299,9 @@ export function RevenueDashboard({
     const result = revenues.filter(r => {
       const matchSearch = !q || r.artist.toLowerCase().includes(q)
       const matchMin = r.finalAmount >= (isNaN(minVal) ? -Infinity : minVal)
-      return matchSearch && matchMin
+      const matchPlatform = selectedPlatforms.length === 0 ||
+        r.platformBreakdown.some(p => selectedPlatforms.includes(p.platform))
+      return matchSearch && matchMin && matchPlatform
     })
 
     result.sort((a, b) => {
@@ -301,7 +318,7 @@ export function RevenueDashboard({
     })
 
     return result
-  }, [revenues, searchQuery, minRevenue, sortField, sortDir])
+  }, [revenues, searchQuery, minRevenue, selectedPlatforms, sortField, sortDir])
 
   const handleSort = (field: DashboardSortField) => {
     if (field === sortField) {
@@ -337,7 +354,7 @@ export function RevenueDashboard({
 
   if (revenues.length === 0) {
     return (
-      <div className="space-y-6 p-8">
+      <div className="space-y-6 md:space-y-8 p-6 md:p-8 lg:p-10">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-gradient-to-br from-primary to-accent rounded-lg">
             <ChartBar size={28} weight="duotone" className="text-primary-foreground" />
@@ -358,7 +375,7 @@ export function RevenueDashboard({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="space-y-6 md:space-y-8 p-6 md:p-8 lg:p-10">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
@@ -379,7 +396,7 @@ export function RevenueDashboard({
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
         <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5 border-2">
           <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-1">
             Total Payout
@@ -424,11 +441,15 @@ export function RevenueDashboard({
               <Button variant="outline" size="sm" className="h-9 gap-2">
                 <FunnelSimple size={15} />
                 Filter
-                {minRevenue && <Badge variant="secondary" className="text-xs h-4 px-1">1</Badge>}
+                {(minRevenue || selectedPlatforms.length > 0) && (
+                  <Badge variant="secondary" className="text-xs h-4 px-1">
+                    {(minRevenue ? 1 : 0) + selectedPlatforms.length}
+                  </Badge>
+                )}
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <Card className="p-4 mt-2 border-2 space-y-3">
+              <Card className="p-4 mt-2 border-2 space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="space-y-1">
                     <Label htmlFor="min-rev" className="text-xs">Min. Final Payout (€)</Label>
@@ -452,12 +473,43 @@ export function RevenueDashboard({
                     </Button>
                   )}
                 </div>
+                {allPlatforms.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Platforms</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {allPlatforms.map(platform => (
+                        <button
+                          key={platform}
+                          onClick={() => togglePlatform(platform)}
+                          className={[
+                            'text-xs px-2.5 py-1 rounded-full border transition-colors',
+                            selectedPlatforms.includes(platform)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground',
+                          ].join(' ')}
+                        >
+                          {platform}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedPlatforms.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedPlatforms([])}
+                        className="text-xs text-muted-foreground h-6 px-2"
+                      >
+                        Clear platforms
+                      </Button>
+                    )}
+                  </div>
+                )}
               </Card>
             </CollapsibleContent>
           </Collapsible>
         </div>
 
-        {(searchQuery || minRevenue) && (
+        {(searchQuery || minRevenue || selectedPlatforms.length > 0) && (
           <p className="text-sm text-muted-foreground">
             Showing <strong>{filteredRevenues.length}</strong> of <strong>{revenues.length}</strong> artists
             {searchQuery && <> matching "<em>{searchQuery}</em>"</>}
