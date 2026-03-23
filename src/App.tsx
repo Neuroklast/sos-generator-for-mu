@@ -2,6 +2,9 @@ import { useState, useMemo, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { FileUploadZone } from '@/components/FileUploadZone'
 import { CompilationFilterManager } from '@/components/CompilationFilterManager'
 import { ArtistMappingManager } from '@/components/ArtistMappingManager'
@@ -29,6 +32,9 @@ function App() {
     name: '',
     address: '',
   })
+  const [excludePhysical, setExcludePhysical] = useKV<boolean>('exclude-physical', false)
+  const [periodStart, setPeriodStart] = useKV<string>('period-start', '')
+  const [periodEnd, setPeriodEnd] = useKV<string>('period-end', '')
 
   const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -158,8 +164,9 @@ function App() {
       artistMappings: artistMappings || [],
       splitFees: splitFees || [],
       manualRevenues: manualRevenues || [],
+      excludePhysical: excludePhysical || false,
     })
-  }, [allTransactions, compilationFilters, artistMappings, splitFees, manualRevenues])
+  }, [allTransactions, compilationFilters, artistMappings, splitFees, manualRevenues, excludePhysical])
 
   const revenues: ArtistRevenue[] = useMemo(() => {
     return processedData.map((data) => ({
@@ -227,7 +234,7 @@ function App() {
   const handleDownloadPDF = (artist: string) => {
     const artistData = processedData.find((d) => d.artist === artist)
     if (artistData && labelInfo) {
-      const blob = generatePDF(artistData, labelInfo)
+      const blob = generatePDF(artistData, labelInfo, periodStart || undefined, periodEnd || undefined)
       downloadBlob(blob, `${artist.replace(/[^a-z0-9]/gi, '_')}_statement.pdf`)
     }
   }
@@ -235,14 +242,14 @@ function App() {
   const handleDownloadExcel = (artist: string) => {
     const artistData = processedData.find((d) => d.artist === artist)
     if (artistData && labelInfo) {
-      const blob = generateExcel(artistData, labelInfo)
+      const blob = generateExcel(artistData, labelInfo, periodStart || undefined, periodEnd || undefined)
       downloadBlob(blob, `${artist.replace(/[^a-z0-9]/gi, '_')}_statement.xlsx`)
     }
   }
 
   const handleDownloadAll = async () => {
     if (labelInfo) {
-      const blob = await generateZipOfAllStatements(processedData, labelInfo)
+      const blob = await generateZipOfAllStatements(processedData, labelInfo, periodStart || undefined, periodEnd || undefined)
       downloadBlob(blob, 'artist_statements.zip')
     }
   }
@@ -300,6 +307,35 @@ function App() {
                 uploadProgress={uploadProgress}
               />
             </Card>
+
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Statement Period</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Define the reporting period to include in generated PDF and Excel statements.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="period-start">Period Start</Label>
+                  <Input
+                    id="period-start"
+                    type="month"
+                    value={periodStart || ''}
+                    onChange={(e) => setPeriodStart(e.target.value)}
+                    placeholder="YYYY-MM"
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="period-end">Period End</Label>
+                  <Input
+                    id="period-end"
+                    type="month"
+                    value={periodEnd || ''}
+                    onChange={(e) => setPeriodEnd(e.target.value)}
+                    placeholder="YYYY-MM"
+                  />
+                </div>
+              </div>
+            </Card>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
@@ -333,6 +369,21 @@ function App() {
                 onAddRevenue={handleAddManualRevenue}
                 onRemoveRevenue={handleRemoveManualRevenue}
               />
+            </Card>
+
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h3 className="font-semibold">Exclude Physical Products</h3>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, physical product sales (CD, Vinyl, etc.) are excluded from revenue calculations and statements.
+                  </p>
+                </div>
+                <Switch
+                  checked={excludePhysical || false}
+                  onCheckedChange={(checked) => setExcludePhysical(checked)}
+                />
+              </div>
             </Card>
           </TabsContent>
 
