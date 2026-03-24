@@ -120,9 +120,7 @@ function buildPDF(
   yPos += 5
   doc.setFont('helvetica', 'normal')
 
-  const maxReleases = 30
-  const releases = artistData.releaseBreakdown.slice(0, maxReleases)
-  for (const rel of releases) {
+  for (const rel of artistData.releaseBreakdown) {
     if (yPos > 270) { doc.addPage(); yPos = 20 }
     xPos = margin
     const rowData = [
@@ -135,16 +133,6 @@ function buildPDF(
       doc.text(cell, xPos, yPos)
       xPos += releaseColWidths[idx]
     })
-    yPos += 5
-  }
-
-  if (artistData.releaseBreakdown.length > maxReleases) {
-    doc.setFont('helvetica', 'italic')
-    doc.text(
-      `... and ${artistData.releaseBreakdown.length - maxReleases} more releases`,
-      margin,
-      yPos
-    )
     yPos += 5
   }
 
@@ -283,19 +271,17 @@ function buildExcel(
   })
 }
 
-/** Downloads a Blob as a file. Always revokes the object URL even if the operation fails. */
+/** Downloads a Blob as a file. Revokes the object URL after a short delay so
+ *  the browser has time to initiate the download before the reference is freed. */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
-  try {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  } finally {
-    URL.revokeObjectURL(url)
-  }
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  setTimeout(() => URL.revokeObjectURL(url), 100)
 }
 
 /**

@@ -151,10 +151,11 @@ export function useCSVProcessor(
       setIsProcessing(false)
     }
 
+    const knownFileIds = knownFileIdsRef.current
     return () => {
       worker.terminate()
       workerRef.current = null
-      knownFileIdsRef.current.clear()
+      knownFileIds.clear()
       pendingParsesRef.current = 0
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

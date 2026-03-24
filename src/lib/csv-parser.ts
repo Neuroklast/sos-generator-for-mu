@@ -283,7 +283,7 @@ export function extractFeaturedArtistsDetailed(artistName: string): {
   const cleaned = artistName.trim()
 
   // Level 1: split on "feat.", "ft.", "featuring" (with optional parentheses)
-  const primarySplitRegex = /\s*[\[(]?\s*(?:feat\.|feat\b|ft\.|ft\b|featuring)\s*/gi
+  const primarySplitRegex = /\s*[[(]?\s*(?:feat\.|feat\b|ft\.|ft\b|featuring)\s*/gi
   const parts = cleaned.split(primarySplitRegex).map(p => p.replace(/[\])]?\s*$/, '').trim()).filter(p => p.length > 0)
 
   if (parts.length === 1) {
