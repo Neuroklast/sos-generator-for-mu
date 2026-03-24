@@ -28,12 +28,17 @@ export function useExports(
         return
       }
 
+      const invoiceNumber = labelInfo.invoiceNumberPrefix
+        ? `${labelInfo.invoiceNumberPrefix}-${artist.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 4) || '0001'}`
+        : undefined
+
       try {
         const blob = generatePDF(
           artistData,
           labelInfo,
           periodStart || undefined,
-          periodEnd || undefined
+          periodEnd || undefined,
+          invoiceNumber
         )
         downloadBlob(blob, `${createSafeFilename(artist)}_statement.pdf`)
         toast.success(`PDF for "${artist}" downloaded`)

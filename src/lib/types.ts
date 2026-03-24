@@ -57,7 +57,40 @@ export interface ManualRevenue {
 export interface LabelInfo {
   name: string
   address: string
+  /** Legacy logo field (data URL) — used by PDF generation. */
   logo?: string
+  /** Base64-encoded logo image used for display and export. Kept in sync with logo. */
+  logoBase64?: string
+  /** Steuernummer (domestic German tax number, e.g. "123/456/78901"). */
+  taxNumber?: string
+  /** Umsatzsteuer-Identifikationsnummer (EU VAT ID, e.g. "DE123456789"). */
+  taxId?: string
+  /** Rechtsform und Geschäftsführer, e.g. "GmbH · Geschäftsführer: Max Mustermann". */
+  legalForm?: string
+  /** Kontakt-E-Mail-Adresse des Labels. */
+  email?: string
+  /** Bankverbindung im Freitext, z.B. "IBAN: DE89… · BIC: DEUTDEDB". */
+  bankAccount?: string
+  /** Rechtlicher Hinweistext für die Fußzeile von Abrechnungen. */
+  footerText?: string
+  /**
+   * VAT rate as an integer percentage applied to all artist payouts, e.g. 19 for 19 % MwSt.
+   * Set to 0 (or leave undefined) when the label is not VAT-liable.
+   */
+  vatRate?: number
+  /**
+   * Prefix used when generating invoice numbers, e.g. "SOS-2025".
+   * Each statement gets a unique suffix appended (artist index or name).
+   */
+  invoiceNumberPrefix?: string
+}
+
+/** Contractual payout share assigned to a guest / featured artist. */
+export interface GuestPayoutRule {
+  primaryArtist: string
+  guestName: string
+  /** Percentage of the collab-track revenue that the guest receives (0–100). */
+  percentage: number
 }
 
 /** Revenue aggregated by streaming/download platform. */
