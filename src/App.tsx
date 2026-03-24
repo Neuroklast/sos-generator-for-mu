@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useKV } from '@/hooks/useLocalKV'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card } from '@/components/ui/card'
@@ -46,6 +46,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  ChevronDown,
   Disc3,
   Zap,
   TrendingUp,
@@ -93,6 +94,14 @@ const pageVariants = {
   exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
 }
 
+// ── Formatting helpers ────────────────────────────────────────────────────────
+
+const fmtEur = (n: number) =>
+  n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+const fmtPct = (part: number, total: number) =>
+  total > 0 ? ((part / total) * 100).toFixed(1) : '0.0'
+
 // ── KPI stat card ─────────────────────────────────────────────────────────────
 
 function StatCard({
@@ -115,7 +124,7 @@ function StatCard({
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.38, ease: 'easeOut' }}
-      className="relative overflow-hidden rounded-2xl border border-white/10 bg-card/70 backdrop-blur-md p-5 md:p-6 min-h-[120px] flex flex-col justify-between transition-all duration-300 hover:border-white/20 hover:shadow-lg group"
+      className="relative overflow-hidden rounded-2xl border border-white/10 bg-card backdrop-blur-md p-6 md:p-8 min-h-[120px] flex flex-col justify-between transition-all duration-300 hover:border-white/20 hover:shadow-lg group"
     >
       {/* accent glow */}
       <div aria-hidden="true" className={`absolute -top-6 -right-6 w-24 h-24 rounded-full blur-2xl opacity-25 group-hover:opacity-40 transition-opacity ${gradient}`} />
@@ -126,7 +135,7 @@ function StatCard({
         </div>
       </div>
       <div className="relative z-10 mt-3">
-        <p className="text-3xl font-bold text-foreground leading-none truncate">{value}</p>
+        <p className="text-3xl font-bold text-foreground leading-none truncate font-mono tabular-nums">{value}</p>
         {sub && <p className="text-xs text-muted-foreground mt-2 leading-tight">{sub}</p>}
       </div>
     </motion.div>
@@ -323,6 +332,7 @@ function App() {
   const [activeView, setActiveView] = useState<string>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [expandedArtists, setExpandedArtists] = useState<Set<string>>(new Set())
 
   const [compilationFilters, setCompilationFilters] = useKV<CompilationFilter[]>('compilation-filters', [])
   const [artistMappings, setArtistMappings] = useKV<ArtistMapping[]>('artist-mappings', [])
@@ -538,6 +548,15 @@ function App() {
     setMobileMenuOpen(false)
   }, [])
 
+  const toggleArtistExpanded = useCallback((artist: string) => {
+    setExpandedArtists(prev => {
+      const next = new Set(prev)
+      if (next.has(artist)) next.delete(artist)
+      else next.add(artist)
+      return next
+    })
+  }, [])
+
   // UX 4: 4 core mobile nav items. Constructed from named ids instead of slice()
   // so items remain correct even if the NAV_ITEMS order changes.
   const mobileNavItems = useMemo(() => {
@@ -546,102 +565,120 @@ function App() {
   }, [])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="flex flex-col h-screen w-full overflow-hidden bg-background text-foreground">
       <Toaster position="top-right" theme="dark" richColors />
 
-      {/* ── Desktop Sidebar ─────────────────────────────── */}
-      {!isMobile && (
-        <motion.aside
-          animate={{ width: sidebarCollapsed ? 72 : 280 }}
-          transition={{ duration: 0.25, ease: 'easeInOut' }}
-          className="relative flex-none flex flex-col border-r border-border/70 bg-card/60 backdrop-blur-xl overflow-hidden z-20"
-        >
-          <div className="flex items-center gap-3 px-4 py-6 border-b border-border/50">
-            <div className="shrink-0 p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/30">
-              <Disc3 className="text-white" size={20} />
-            </div>
-            {!sidebarCollapsed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.18 }}
+      {/* ── Fixed Top Navigation ─────────────────────────── */}
+      <header className="shrink-0 sticky top-0 z-30 border-b border-white/10 bg-card/80 backdrop-blur-xl">
+        <div className="flex items-center justify-between px-6 lg:px-12 h-16">
+          <div className="flex items-center gap-4">
+            {isMobile && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileMenuOpen(true)}
+                className="h-10 w-10 text-muted-foreground hover:text-foreground"
               >
+                <Menu size={20} />
+              </Button>
+            )}
+            <div className="flex items-center gap-3">
+              <div className="shrink-0 p-2 rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/30">
+                <Disc3 className="text-white" size={18} />
+              </div>
+              <div>
                 <p className="text-sm font-bold tracking-tight text-foreground leading-none">SOS Generator</p>
-                <p className="text-xs text-muted-foreground mt-0.5 font-medium uppercase tracking-widest">Label Suite</p>
-              </motion.div>
+                <p className="text-[10px] text-muted-foreground mt-0.5 font-medium uppercase tracking-widest">Label Suite</p>
+              </div>
+            </div>
+            {!isMobile && (
+              <div className="w-px h-8 bg-border/40 ml-2" />
             )}
           </div>
 
-          {!sidebarCollapsed && (
-            <div className="px-3 pt-4 pb-2">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Workflow</p>
-              <div className="flex items-center gap-1">
-                {STEP_ITEMS.map((_, i) => (
-                  <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${i + 1 <= currentStep ? 'bg-primary' : 'bg-border/50'}`} />
-                ))}
-              </div>
-            </div>
+          {/* Desktop Navigation Tabs */}
+          {!isMobile && (
+            <nav className="flex items-center gap-1 mx-4">
+              {STEP_ITEMS.map(item => {
+                const Icon = item.icon
+                const isActive = activeView === item.id
+                const isCompleted = currentStep > item.step
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => navigate(item.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+                      ${isActive
+                        ? 'bg-primary/15 text-primary border border-primary/30'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5 border border-transparent'
+                      }`}
+                  >
+                    <Icon size={15} />
+                    <span>{item.label}</span>
+                    {isCompleted && <span className="w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center">✓</span>}
+                  </button>
+                )
+              })}
+              <div className="w-px h-5 bg-border/40 mx-1" />
+              {SECONDARY_ITEMS.map(item => {
+                const Icon = item.icon
+                const isActive = activeView === item.id
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => navigate(item.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+                      ${isActive
+                        ? 'bg-primary/15 text-primary border border-primary/30'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5 border border-transparent'
+                      }`}
+                  >
+                    <Icon size={14} />
+                    <span className="hidden xl:inline">{item.label}</span>
+                  </button>
+                )
+              })}
+            </nav>
           )}
 
-          <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
-            {/* Workflow steps */}
-            {STEP_ITEMS.map(item => (
-              <StepNavItem
-                key={item.id}
-                item={item}
-                stepNum={item.step}
-                active={activeView === item.id}
-                onClick={() => navigate(item.id)}
-                collapsed={sidebarCollapsed}
-                completed={currentStep > item.step}
-              />
-            ))}
-            <div className="my-3 border-t border-border/40" />
-            {/* Secondary nav */}
-            {SECONDARY_ITEMS.map(item => (
-              <SideNavItem
-                key={item.id}
-                item={item}
-                active={activeView === item.id}
-                onClick={() => navigate(item.id)}
-                collapsed={sidebarCollapsed}
-              />
-            ))}
-          </nav>
-
-          {!sidebarCollapsed && (
-            <div className="px-3 pb-5 space-y-2">
-              <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
-                isProcessing
-                  ? 'bg-amber-500/10 border-amber-500/25'
-                  : 'bg-emerald-500/10 border-emerald-500/25'
+          <div className="flex items-center gap-3">
+            {isProcessing && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-xs font-medium text-amber-400 uppercase tracking-wider">Processing</span>
+              </motion.div>
+            )}
+            {!isProcessing && (
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${
+                isProcessing ? 'bg-amber-500/10 border-amber-500/25' : 'bg-emerald-500/10 border-emerald-500/25'
               }`}>
-                <span className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${isProcessing ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isProcessing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
                 <span className={`text-xs font-medium uppercase tracking-wider ${isProcessing ? 'text-amber-400' : 'text-emerald-400'}`}>
-                  {isProcessing ? 'Processing…' : 'Parser Ready'}
+                  {isProcessing ? 'Processing…' : 'Ready'}
                 </span>
               </div>
-              {totalFiles > 0 && (
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-primary/8 border border-primary/20">
-                  <UploadCloud size={14} className="text-primary shrink-0" />
-                  <span className="text-xs font-medium text-primary truncate">
-                    {totalFiles} file{totalFiles !== 1 ? 's' : ''} loaded
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarCollapsed(c => !c)}
-            className="absolute top-5 right-2 h-8 w-8 text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
-          >
-            {sidebarCollapsed ? <Menu size={16} /> : <X size={16} />}
-          </Button>
-        </motion.aside>
-      )}
+            )}
+            {totalFiles > 0 && !isProcessing && (
+              <span className="text-xs px-3 py-1.5 rounded-full bg-primary/12 text-primary border border-primary/25 font-medium font-mono whitespace-nowrap">
+                {totalFiles} file{totalFiles !== 1 ? 's' : ''}
+              </span>
+            )}
+            <Button
+              size="default"
+              className="bg-primary/90 hover:bg-primary text-primary-foreground gap-2 shadow-md shadow-primary/20 h-9"
+              onClick={() => navigate('reports')}
+            >
+              <Download size={15} />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </div>
+        </div>
+      </header>
 
       {/* ── Mobile Sidebar Drawer ───────────────────────── */}
       {isMobile && (
@@ -726,69 +763,7 @@ function App() {
       )}
 
       {/* ── Main content ────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Header */}
-        <header className="shrink-0 flex items-center justify-between px-4 md:px-6 py-4 border-b border-border/50 bg-card/30 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            {isMobile && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setMobileMenuOpen(true)}
-                className="h-10 w-10 text-muted-foreground hover:text-foreground"
-              >
-                <Menu size={20} />
-              </Button>
-            )}
-            <div>
-              <div className="flex items-center gap-2">
-                {!isMobile && (
-                  <span className="text-sm text-muted-foreground">
-                    {labelInfo?.name || 'SOS Generator'}
-                  </span>
-                )}
-                {!isMobile && <ChevronRight size={13} className="text-muted-foreground/50" />}
-                <h1 className="text-base font-bold text-foreground">
-                  {NAV_ITEMS.find(n => n.id === activeView)?.label ?? 'Dashboard'}
-                </h1>
-              </div>
-              {isMobile && labelInfo?.name && (
-                <p className="text-xs text-muted-foreground">{labelInfo.name}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {isProcessing && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-xs font-medium text-amber-400 uppercase tracking-wider">Processing</span>
-              </motion.div>
-            )}
-            {totalFiles > 0 && !isProcessing && (
-              <span className="text-xs px-3 py-1.5 rounded-full bg-primary/12 text-primary border border-primary/25 font-medium whitespace-nowrap">
-                {totalFiles} file{totalFiles !== 1 ? 's' : ''}
-              </span>
-            )}
-            <Button
-              size="default"
-              className="bg-primary/90 hover:bg-primary text-primary-foreground gap-2 shadow-md shadow-primary/20 h-10"
-              onClick={() => navigate('reports')}
-            >
-              <Download size={15} />
-              Export
-            </Button>
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className={`flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 md:py-8 ${isMobile ? 'pb-24' : ''}`}>
-          <div className="max-w-7xl mx-auto">
+      <main className={`flex-1 overflow-y-auto px-6 md:px-8 lg:px-12 py-8 md:py-10 ${isMobile ? 'pb-24' : ''}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
@@ -799,8 +774,8 @@ function App() {
             >
               {/* ── Dashboard ─── */}
               {activeView === 'dashboard' && (
-                <div className="space-y-6 md:space-y-8">
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+                <div className="space-y-8 md:space-y-10">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                     <StatCard
                       label="Net Revenue"
                       value={`€${totalNetRevenue.toFixed(2)}`}
@@ -836,7 +811,7 @@ function App() {
                   </div>
 
                   {revenues.length === 0 && !isProcessing && (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                       {STEP_ITEMS.map((step) => (
                         <motion.button
                           key={step.id}
@@ -901,7 +876,7 @@ function App() {
                   )}
 
                   {revenues.length > 0 && (
-                    <Card className="border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl overflow-hidden">
+                    <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
                       <RevenueDashboard
                         revenues={revenues}
                         filteredCompilations={filteredCompilations}
@@ -916,7 +891,7 @@ function App() {
 
               {/* ── Ingestion ─── */}
               {activeView === 'ingest' && (
-                <div className="space-y-6">
+                <div className="space-y-8">
                   {/* Detected period banner */}
                   <AnimatePresence>
                     <DetectedPeriodBanner
@@ -939,8 +914,8 @@ function App() {
                       <h2 className="text-base font-semibold">Upload CSV Files</h2>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
+                    <div className="grid md:grid-cols-2 gap-8">
+                      <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                         <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                           <span className="inline-block w-1.5 h-4 rounded-full bg-primary" />
                           Believe CSV Files
@@ -955,7 +930,7 @@ function App() {
                         />
                       </Card>
 
-                      <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
+                      <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                         <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                           <span className="inline-block w-1.5 h-4 rounded-full bg-cyan-400" />
                           Bandcamp CSV Files
@@ -976,7 +951,7 @@ function App() {
                       <motion.div
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3"
+                        className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4"
                       >
                         {[
                           {
@@ -1001,7 +976,7 @@ function App() {
                               .toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }),
                           },
                         ].map(stat => (
-                          <div key={stat.label} className="p-4 rounded-xl bg-card/70 border border-border/60 text-center">
+                          <div key={stat.label} className="p-4 rounded-xl bg-card border border-white/10 text-center">
                             <p className="text-xl font-bold font-mono tabular-nums">{stat.value}</p>
                             <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
                           </div>
@@ -1017,7 +992,7 @@ function App() {
                       <h2 className="text-base font-semibold">Configure Statement Period</h2>
                     </div>
 
-                    <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
+                    <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                       <p className="text-xs text-muted-foreground mb-4">
                         Define the reporting period for PDF and Excel statements. Automatically detected from your CSV data.
                       </p>
@@ -1065,7 +1040,7 @@ function App() {
                       <h2 className="text-base font-semibold">Manual Entries <span className="text-muted-foreground font-normal">(Darkmerch / Sync)</span></h2>
                     </div>
 
-                    <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
+                    <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                       <ManualRevenueManager
                         revenues={manualRevenues ?? []}
                         artists={uniqueArtists}
@@ -1079,18 +1054,18 @@ function App() {
 
               {/* ── Analytics ─── */}
               {activeView === 'analytics' && (
-                <Card className="border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl overflow-hidden">
+                <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
                   <AnalyticsDashboard revenues={revenues} />
                 </Card>
               )}
 
               {/* ── Artists ─── */}
               {activeView === 'artists' && (
-                <div className="space-y-4">
-                  <Card className="border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl overflow-hidden">
+                <div className="space-y-8">
+                  <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
                     <ArtistTreeView treeNodes={artistTrees} collabTree={collabTree} />
                   </Card>
-                  <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
+                  <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                     <ArtistMappingManager
                       mappings={artistMappings ?? []}
                       onAddMapping={handleAddArtistMapping}
@@ -1102,27 +1077,27 @@ function App() {
 
               {/* ── Reports ─── */}
               {activeView === 'reports' && (
-                <Card className="border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl overflow-hidden">
+                <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
                   <ReportingPanel revenues={revenues} />
                 </Card>
               )}
 
               {/* ── Process Cockpit ─── */}
               {activeView === 'process' && (
-                <div className="flex flex-col min-h-full -mx-4 md:-mx-8 lg:-mx-12 -my-6 md:-my-8">
+                <div className="flex flex-col min-h-full -mx-6 md:-mx-8 lg:-mx-12 -my-8 md:-my-10">
                   {/* Title */}
-                  <div className="px-6 pt-6 pb-4 border-b border-border/50">
+                  <div className="px-8 lg:px-12 pt-8 pb-6 border-b border-white/10">
                     <h2 className="text-2xl font-bold font-['Space_Grotesk']">Process Cockpit</h2>
                     <p className="text-sm text-muted-foreground mt-1">
                       Upload data, configure rules, and generate statements in one place.
                     </p>
                   </div>
 
-                  {/* 4-card grid — full viewport width, no column restriction */}
-                  <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 pb-4">
+                  {/* 12-column dashboard grid */}
+                  <div className="flex-1 grid grid-cols-12 gap-8 lg:gap-10 p-8 lg:p-12 pb-6">
 
-                    {/* ─ Card 1: Data Ingest ─ */}
-                    <Card className="p-6 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl flex flex-col gap-5">
+                    {/* ─ Card 1: Data Ingest — 8 columns ─ */}
+                    <Card className="col-span-12 lg:col-span-8 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col gap-6">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shrink-0 shadow-lg shadow-emerald-500/25">
                           <UploadCloud size={20} className="text-white" />
@@ -1138,7 +1113,7 @@ function App() {
                         )}
                       </div>
 
-                      <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="grid sm:grid-cols-2 gap-6">
                         <div>
                           <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                             <span className="inline-block w-2 h-2 rounded-full bg-primary shrink-0" />
@@ -1186,8 +1161,8 @@ function App() {
                       )}
                     </Card>
 
-                    {/* ─ Card 2: Compilations & Rules ─ */}
-                    <Card className="p-6 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl flex flex-col gap-5 overflow-hidden">
+                    {/* ─ Card 2: Compilations & Rules — 4 columns ─ */}
+                    <Card className="col-span-12 lg:col-span-4 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col gap-6 overflow-hidden">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shrink-0 shadow-lg shadow-violet-500/25">
                           <Settings size={20} className="text-white" />
@@ -1216,22 +1191,211 @@ function App() {
                       </div>
                     </Card>
 
-                    {/* ─ Card 3: Artist Assignments & Split Fees ─ */}
-                    <Card className="p-6 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl flex flex-col gap-5 overflow-hidden">
-                      <div className="flex items-center gap-3">
+                    {/* ─ Card 3: Finance Master Table — 12 columns ─ */}
+                    <Card className="col-span-12 p-0 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col overflow-hidden">
+                      {/* Card Header */}
+                      <div className="flex items-center gap-3 p-8 pb-6">
                         <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent shrink-0 shadow-lg shadow-primary/25">
                           <Users size={20} className="text-white" />
                         </div>
-                        <div>
-                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Artist Assignments & Split Fees</h3>
-                          <p className="text-xs text-muted-foreground">Set revenue splits and collab mappings</p>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Finance Master Table</h3>
+                          <p className="text-xs text-muted-foreground">Aggregated revenue per artist · click a row to expand</p>
                         </div>
+                        {revenues.length > 0 && (
+                          <div className="text-right shrink-0">
+                            <p className="text-xs text-muted-foreground">Total Payout</p>
+                            <p className="font-mono font-bold text-primary tabular-nums">
+                              {revenues.reduce((s, r) => s + r.finalAmount, 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 overflow-y-auto min-h-0 space-y-6">
-                        <SplitFeeManager
-                          splitFees={splitFees ?? []}
-                          onUpdateSplitFee={handleUpdateSplitFee}
-                        />
+
+                      {/* Expandable Data Grid */}
+                      {revenues.length === 0 ? (
+                        <div className="px-8 pb-8">
+                          <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-dashed border-border/40 bg-muted/10">
+                            <Users size={28} className="text-muted-foreground/40 mb-3" />
+                            <p className="text-sm text-muted-foreground">No revenue data yet</p>
+                            <p className="text-xs text-muted-foreground/60 mt-1">Upload CSV files to see artist breakdowns</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-y border-white/10 bg-white/[0.02]">
+                                <th className="py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground w-8"></th>
+                                <th className="py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Artist</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Units</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Solo Revenue</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Collab Revenue</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Revenue</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Split Rate</th>
+                                <th className="py-3 px-8 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payout</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {revenues.map(rev => {
+                                const isExpanded = expandedArtists.has(rev.artist)
+                                const collabNode = collabTree.find(c => c.primaryArtist === rev.artist)
+                                const collabRevenue = collabNode?.collabEntries.reduce((s, e) => s + e.revenue, 0) ?? 0
+                                const soloRevenue = rev.totalRevenue - collabRevenue
+
+                                return (
+                                  <Fragment key={rev.artist}>
+                                    {/* Master Row */}
+                                    <tr
+                                      onClick={() => toggleArtistExpanded(rev.artist)}
+                                      className={`border-b border-white/5 cursor-pointer transition-colors duration-150 hover:bg-white/[0.04] ${isExpanded ? 'bg-white/[0.03]' : ''}`}
+                                    >
+                                      <td className="py-4 px-4 text-muted-foreground">
+                                        <ChevronDown
+                                          size={14}
+                                          className={`transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
+                                        />
+                                      </td>
+                                      <td className="py-4 px-4 font-medium text-foreground whitespace-nowrap">{rev.artist}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-muted-foreground">{rev.totalQuantity.toLocaleString('de-DE')}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-foreground/80">€{fmtEur(soloRevenue)}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-foreground/60">
+                                        {collabRevenue > 0 ? `€${fmtEur(collabRevenue)}` : '—'}
+                                      </td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.totalRevenue)}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-primary">{rev.splitPercentage.toFixed(1)}%</td>
+                                      <td className="py-4 px-8 text-right font-mono tabular-nums font-bold text-primary">€{fmtEur(rev.finalAmount)}</td>
+                                    </tr>
+
+                                    {/* Sub Row (expanded) */}
+                                    {isExpanded && (
+                                      <tr>
+                                        <td colSpan={8} className="p-0">
+                                          <div className="bg-white/5 shadow-inner border-b border-white/10">
+                                            <div className="px-8 lg:px-12 py-6 space-y-5">
+
+                                              {/* Solo Revenue Section */}
+                                              <div>
+                                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Solo Revenue</p>
+                                                <div className="grid grid-cols-3 gap-6">
+                                                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                                                    <p className="text-xs text-muted-foreground mb-1">Believe</p>
+                                                    <p className="font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.believeRevenue)}</p>
+                                                  </div>
+                                                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                                                    <p className="text-xs text-muted-foreground mb-1">Bandcamp</p>
+                                                    <p className="font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.bandcampRevenue)}</p>
+                                                  </div>
+                                                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                                                    <p className="text-xs text-muted-foreground mb-1">Manual</p>
+                                                    <p className="font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.manualRevenue)}</p>
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              {/* Feature Guests Section */}
+                                              {collabNode && collabNode.collabEntries.length > 0 && (
+                                                <div>
+                                                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Feature Guests</p>
+                                                  <div className="ml-4 overflow-hidden rounded-lg border border-white/5">
+                                                    <table className="w-full text-sm">
+                                                      <thead>
+                                                        <tr className="bg-white/[0.02]">
+                                                          <th className="py-2 px-4 text-left text-xs font-medium text-muted-foreground">Featured Artist</th>
+                                                          <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Units</th>
+                                                          <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Revenue</th>
+                                                          <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Share</th>
+                                                        </tr>
+                                                      </thead>
+                                                      <tbody>
+                                                        {collabNode.collabEntries.map(entry => (
+                                                          <tr key={entry.name} className="border-t border-white/5">
+                                                            <td className="py-2.5 px-4 text-foreground/80">{entry.name}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{entry.quantity.toLocaleString('de-DE')}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground/70">€{fmtEur(entry.revenue)}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">
+                                                              {fmtPct(entry.revenue, rev.totalRevenue)}%
+                                                            </td>
+                                                          </tr>
+                                                        ))}
+                                                      </tbody>
+                                                    </table>
+                                                  </div>
+                                                </div>
+                                              )}
+
+                                              {/* Inline split rate edit */}
+                                              <div className="flex items-center gap-4 pt-2 border-t border-white/5">
+                                                <p className="text-xs font-medium text-muted-foreground">Split Rate</p>
+                                                <div className="flex items-center gap-2">
+                                                  <Input
+                                                    type="number"
+                                                    min={0}
+                                                    max={100}
+                                                    step={0.1}
+                                                    defaultValue={rev.splitPercentage}
+                                                    key={`${rev.artist}-${rev.splitPercentage}`}
+                                                    onBlur={e => {
+                                                      const val = parseFloat(e.target.value)
+                                                      if (!Number.isNaN(val)) {
+                                                        handleUpdateSplitFee(rev.artist, Math.min(100, Math.max(0, val)))
+                                                      }
+                                                    }}
+                                                    className="w-24 h-8 text-sm font-mono tabular-nums text-right border-white/10 bg-white/5 focus:border-primary/60"
+                                                  />
+                                                  <span className="text-xs text-muted-foreground">%</span>
+                                                </div>
+                                                <div className="ml-auto text-right">
+                                                  <p className="text-xs text-muted-foreground">Net Payout</p>
+                                                  <p className="font-mono tabular-nums font-bold text-primary">€{fmtEur(rev.finalAmount)}</p>
+                                                </div>
+                                              </div>
+
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </Fragment>
+                                )
+                              })}
+                            </tbody>
+                            {/* Table Footer with Totals */}
+                            <tfoot>
+                              <tr className="border-t border-white/10 bg-white/[0.02]">
+                                <td className="py-4 px-4"></td>
+                                <td className="py-4 px-4 font-semibold text-foreground text-xs uppercase tracking-wider">Total</td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground">
+                                  {revenues.reduce((s, r) => s + r.totalQuantity, 0).toLocaleString('de-DE')}
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground/80">
+                                  €{revenues.reduce((s, r) => {
+                                    const cn = collabTree.find(c => c.primaryArtist === r.artist)
+                                    const cr = cn?.collabEntries.reduce((a, e) => a + e.revenue, 0) ?? 0
+                                    return s + (r.totalRevenue - cr)
+                                  }, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground/60">
+                                  €{revenues.reduce((s, r) => {
+                                    const cn = collabTree.find(c => c.primaryArtist === r.artist)
+                                    return s + (cn?.collabEntries.reduce((a, e) => a + e.revenue, 0) ?? 0)
+                                  }, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-bold text-foreground">
+                                  €{revenues.reduce((s, r) => s + r.totalRevenue, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-4 px-4"></td>
+                                <td className="py-4 px-8 text-right font-mono tabular-nums font-bold text-primary text-base">
+                                  €{revenues.reduce((s, r) => s + r.finalAmount, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Artist Mapping Section */}
+                      <div className="px-8 pb-8 pt-2 border-t border-white/5">
                         <ArtistMappingManager
                           mappings={artistMappings ?? []}
                           onAddMapping={handleAddArtistMapping}
@@ -1240,8 +1404,8 @@ function App() {
                       </div>
                     </Card>
 
-                    {/* ─ Card 4: Manual Revenue ─ */}
-                    <Card className="p-6 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl flex flex-col gap-5 overflow-hidden">
+                    {/* ─ Card 4: Manual Revenue — 6 columns ─ */}
+                    <Card className="col-span-12 lg:col-span-6 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col gap-6 overflow-hidden">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shrink-0 shadow-lg shadow-amber-500/25">
                           <Download size={20} className="text-white" />
@@ -1262,8 +1426,8 @@ function App() {
                     </Card>
                   </div>
 
-                  {/* ── Sticky bottom action bar ── */}
-                  <div className="sticky bottom-0 z-20 bg-card/95 backdrop-blur-xl border-t border-border/60 px-6 py-4 mt-2">
+                  {/* ── Fixed bottom action bar ── */}
+                  <div className="sticky bottom-0 z-20 bg-card/95 backdrop-blur-xl border-t border-white/10 px-8 lg:px-12 py-5 mt-2">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                       <div className="flex items-center gap-3 flex-1 flex-wrap">
                         <div className="flex items-center gap-2 shrink-0">
@@ -1307,7 +1471,7 @@ function App() {
                         size="lg"
                         onClick={() => navigate('analytics')}
                         disabled={revenues.length === 0}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 font-bold px-8 h-12 text-base shadow-lg shadow-primary/25 shrink-0 disabled:opacity-50"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 font-bold px-10 h-14 text-lg shadow-lg shadow-primary/30 shrink-0 disabled:opacity-50 ring-2 ring-primary/20"
                       >
                         {isProcessing
                           ? <TrendingUp size={18} className="animate-pulse" />
@@ -1321,8 +1485,8 @@ function App() {
 
               {/* ── Settings ─── */}
               {activeView === 'settings' && (
-                <div className="space-y-5">
-                  <Card className="p-5 border border-border/70 bg-card/70 backdrop-blur-md rounded-2xl">
+                <div className="space-y-8">
+                  <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                     <div className="flex items-center justify-between">
                       <div className="space-y-1.5">
                         <h3 className="font-semibold">Exclude Physical Products</h3>
@@ -1336,20 +1500,20 @@ function App() {
                       />
                     </div>
                   </Card>
-                  <Card className="p-5 border border-border/70 bg-card/70 backdrop-blur-md rounded-2xl">
+                  <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                     <CompilationFilterManager
                       filters={compilationFilters ?? []}
                       onAddFilter={handleAddCompilationFilter}
                       onRemoveFilter={handleRemoveCompilationFilter}
                     />
                   </Card>
-                  <Card className="p-5 border border-border/70 bg-card/70 backdrop-blur-md rounded-2xl">
+                  <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                     <SplitFeeManager
                       splitFees={splitFees ?? []}
                       onUpdateSplitFee={handleUpdateSplitFee}
                     />
                   </Card>
-                  <Card className="p-5 border border-border/70 bg-card/70 backdrop-blur-md rounded-2xl">
+                  <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                     <CSVColumnMapper
                       aliases={csvAliases ?? []}
                       onAddAlias={handleAddAlias}
@@ -1361,14 +1525,14 @@ function App() {
 
               {/* ── History ─── */}
               {activeView === 'history' && (
-                <Card className="border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl overflow-hidden">
+                <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
                   <HistoryPanel entries={historyEntries} onClearHistory={clearHistory} />
                 </Card>
               )}
 
               {/* ── Branding ─── */}
               {activeView === 'branding' && (
-                <Card className="border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl overflow-hidden">
+                <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
                   <LabelBranding
                     labelInfo={labelInfo ?? { name: '', address: '' }}
                     onUpdate={setLabelInfo}
@@ -1377,7 +1541,6 @@ function App() {
               )}
             </motion.div>
           </AnimatePresence>
-          </div>
         </main>
 
         {/* ── Mobile bottom navigation ────────────── */}
@@ -1403,7 +1566,6 @@ function App() {
             </button>
           </nav>
         )}
-      </div>
     </div>
   )
 }
