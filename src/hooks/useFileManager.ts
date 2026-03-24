@@ -57,7 +57,19 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
     async (rawFile: File, id: string): Promise<{ data: string; rowsParsed: number; rowsSkipped: number; uniqueArtists: number }> => {
       setFileState(id, { status: 'uploading', progress: 0 })
 
-      const data = await rawFile.text()
+      // Detect UTF-16 BOM (0xFF 0xFE for LE, 0xFE 0xFF for BE) and decode
+      // accordingly. Bandcamp exports CSV files in UTF-16 LE. The browser's
+      // default rawFile.text() uses UTF-8 and would produce garbled output.
+      const buffer = await rawFile.arrayBuffer()
+      const firstBytes = new Uint8Array(buffer, 0, 2)
+      let data: string
+      if (firstBytes[0] === 0xFF && firstBytes[1] === 0xFE) {
+        data = new TextDecoder('utf-16le').decode(buffer)
+      } else if (firstBytes[0] === 0xFE && firstBytes[1] === 0xFF) {
+        data = new TextDecoder('utf-16be').decode(buffer)
+      } else {
+        data = new TextDecoder('utf-8').decode(buffer)
+      }
 
       // Store raw CSV in memory immediately so re-parse with alias changes works.
       setFileDataMap(prev => ({ ...prev, [id]: data }))

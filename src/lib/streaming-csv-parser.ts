@@ -36,6 +36,24 @@ function stripBOM(text: string): string {
 }
 
 /**
+ * Normalises a Bandcamp date string to a YYYY-MM month key.
+ *
+ * Bandcamp exports dates in the format "M/D/YY H:MMam" or "M/D/YY H:MMpm"
+ * (e.g. "7/1/25 2:10am"). We extract only the month/year portion so that
+ * all transactions within the same calendar month group together.
+ */
+function normalizeBandcampDate(dateStr: string): string {
+  if (!dateStr) return ''
+  // Matches "M/D/YY" or "M/D/YYYY" — captures month (group 1) and year (group 2), ignoring day
+  const match = dateStr.match(/^(\d{1,2})\/\d{1,2}\/(\d{2,4})/)
+  if (!match) return dateStr
+  const month = parseInt(match[1], 10)
+  const rawYear = parseInt(match[2], 10)
+  const year = rawYear < 100 ? 2000 + rawYear : rawYear
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+/**
  * Parses a revenue number that may use European ("1.234,56"), standard
  * ("1,234.56"), or scientific notation ("3.495e-4") decimal formats.
  */
@@ -126,16 +144,23 @@ function processChunk(
       const releaseType = mappedData.release_type ?? ''
       const isPhysical = /physical|cd|vinyl|cassette|tape/i.test(releaseType)
 
-      // Skip rows with no useful data (no artist AND no revenue)
+      // Bandcamp: skip payout/transfer rows (no artist and no revenue)
       if (!originalArtist && netRevenue === 0) continue
 
       if (originalArtist) artists.add(originalArtist)
 
+      // Bandcamp date format is "M/D/YY H:MMam" — normalise to "YYYY-MM".
+      const rawMonth = (mappedData.sales_month ?? '').trim()
+      const salesMonth = source === 'bandcamp' ? normalizeBandcampDate(rawMonth) : rawMonth
+
+      // Bandcamp CSVs have no dedicated platform column; default to "Bandcamp".
+      const platform = (mappedData.platform ?? '').trim() || (source === 'bandcamp' ? 'Bandcamp' : '')
+
       transactions.push({
         id: `${parseTag}-${startIndex + i}`,
         source,
-        sales_month: (mappedData.sales_month ?? '').trim(),
-        platform: (mappedData.platform ?? '').trim(),
+        sales_month: salesMonth,
+        platform,
         country: (mappedData.country ?? '').trim(),
         main_artist: originalArtist,
         original_artist: originalArtist,
