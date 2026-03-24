@@ -756,7 +756,7 @@ function App() {
               {/* ── Dashboard ─── */}
               {activeView === 'dashboard' && (
                 <div className="space-y-8 md:space-y-10">
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                     <StatCard
                       label="Net Revenue"
                       value={`€${totalNetRevenue.toFixed(2)}`}
@@ -792,7 +792,7 @@ function App() {
                   </div>
 
                   {revenues.length === 0 && !isProcessing && (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                       {STEP_ITEMS.map((step) => (
                         <motion.button
                           key={step.id}
@@ -895,7 +895,7 @@ function App() {
                       <h2 className="text-base font-semibold">Upload CSV Files</h2>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-6">
+                    <div className="grid md:grid-cols-2 gap-8">
                       <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                         <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                           <span className="inline-block w-1.5 h-4 rounded-full bg-primary" />
@@ -1075,7 +1075,7 @@ function App() {
                   </div>
 
                   {/* 12-column dashboard grid */}
-                  <div className="flex-1 grid grid-cols-12 gap-8 lg:gap-10 p-8 lg:p-12 pb-4">
+                  <div className="flex-1 grid grid-cols-12 gap-8 lg:gap-10 p-8 lg:p-12 pb-6">
 
                     {/* ─ Card 1: Data Ingest — 8 columns ─ */}
                     <Card className="col-span-12 lg:col-span-8 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col gap-6">
@@ -1094,7 +1094,7 @@ function App() {
                         )}
                       </div>
 
-                      <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="grid sm:grid-cols-2 gap-6">
                         <div>
                           <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                             <span className="inline-block w-2 h-2 rounded-full bg-primary shrink-0" />
