@@ -1,3 +1,21 @@
+export function normalizeDateToMonth(dateString: string): string {
+  if (!dateString) return ''
+  const str = dateString.trim()
+  // Bandcamp: "9/30/25 5:39pm" -> "2025-09"
+  const bcMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})\s/)
+  if (bcMatch) return `20${bcMatch[3]}-${bcMatch[1].padStart(2, '0')}`
+
+  // Believe: "01/09/2024" (DD/MM/YYYY) -> "2024-09"
+  const blMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (blMatch) return `${blMatch[3]}-${blMatch[2].padStart(2, '0')}`
+
+  // ISO Fallback (YYYY-MM-DD) -> "YYYY-MM"
+  const isoMatch = str.match(/^(\d{4})-(\d{2})/)
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`
+
+  return str
+}
+
 export interface SalesTransaction {
   id: string
   source: 'believe' | 'bandcamp' | 'manual'
@@ -174,15 +192,28 @@ export function parseCSVContent(
         }
       }
 
-      const originalArtist = mappedData.original_artist || ''
-      const netRevenueStr = mappedData.net_revenue || '0'
-      const quantityStr = mappedData.quantity || '0'
-      
-      const netRevenue = parseFloat(netRevenueStr.replace(/[^0-9.-]/g, '')) || 0
-      const quantity = parseInt(quantityStr.replace(/[^0-9]/g, '')) || 0
+      const releaseType = (mappedData.release_type || '').toLowerCase().trim()
+      if (source === 'bandcamp' && releaseType === 'payout') {
+        continue // Ignoriere Label-Auszahlungen komplett!
+      }
 
-      const releaseType = mappedData.release_type || ''
-      const isPhysical = /physical|cd|vinyl|cassette|tape/i.test(releaseType)
+      const isPhysical = /physical|cd|vinyl|cassette|tape|package/i.test(releaseType)
+
+      let finalRevenueStr = mappedData.net_revenue || '0'
+      let finalCurrency = mappedData.currency || 'EUR'
+
+      if (source === 'bandcamp') {
+        const balanceEurStr = mappedData.balance_eur || ''
+        if (balanceEurStr && parseFloat(balanceEurStr.replace(/[^0-9.-]/g, '')) !== 0) {
+          finalRevenueStr = balanceEurStr
+          finalCurrency = 'EUR' // Wenn wir die Balance nutzen, ist es zwingend Euro
+        }
+      }
+      const netRevenue = parseFloat(finalRevenueStr.replace(/[^0-9.-]/g, '')) || 0
+
+      const originalArtist = mappedData.original_artist || ''
+      const quantityStr = mappedData.quantity || '0'
+      const quantity = parseInt(quantityStr.replace(/[^0-9]/g, '')) || 0
 
       if (originalArtist) {
         uniqueArtistsSet.add(originalArtist)
@@ -191,7 +222,7 @@ export function parseCSVContent(
       const transaction: SalesTransaction = {
         id: crypto.randomUUID(),
         source,
-        sales_month: mappedData.sales_month || '',
+        sales_month: normalizeDateToMonth(mappedData.sales_month || ''),
         platform: mappedData.platform || '',
         country: mappedData.country || '',
         main_artist: originalArtist,
@@ -203,7 +234,7 @@ export function parseCSVContent(
         catalog_number: mappedData.catalog_number || '',
         quantity,
         net_revenue: netRevenue,
-        currency: mappedData.currency || 'EUR',
+        currency: finalCurrency,
         is_physical: isPhysical
       }
 
