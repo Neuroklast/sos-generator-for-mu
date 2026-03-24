@@ -36,6 +36,10 @@ export interface ArtistMapping {
   id: string
   featuringName: string
   primaryArtist: string
+  /** Set to true when this mapping was created by the Jaro-Winkler auto-resolver. */
+  autoMapped?: boolean
+  /** Jaro-Winkler similarity score (0–1) for auto-mapped entries. */
+  mappingScore?: number
 }
 
 export interface SplitFee {
