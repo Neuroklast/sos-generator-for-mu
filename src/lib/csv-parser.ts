@@ -34,9 +34,11 @@ export const semanticDictionary: Record<string, string[]> = {
   isrc: ["ISRC", "Track ISRC", "Recording ISRC"],
   catalog_number: ["Release Catalog nb", "Catalog Number", "Cat No", "Cat Number", "Katalognummer", "Catalog"],
   quantity: ["Quantity", "Qty", "Downloads", "Streams", "Units", "Anzahl", "Menge", "Verkäufe"],
-  net_revenue: ["Net Revenue", "Revenue", "Umsatz", "Netto", "Payout", "Net Amount", "Earnings", "Amount"],
-  currency: ["Currency", "Währung", "Curr", "Paid Currency"],
-  release_type: ["Release Type", "Sales Type", "Format", "Product Type", "Physical", "Medium", "Type", "item type", "package"]
+  net_revenue: ["Net Revenue", "Revenue", "Umsatz", "Netto", "Net Amount", "Earnings", "Amount", "net amount", "item price"],
+  currency: ["Currency", "Währung", "Curr", "Paid Currency", "currency code"],
+  release_type: ["Release Type", "Sales Type", "Format", "Product Type", "Physical", "Medium", "Type", "item type"],
+  /** Bandcamp-specific column: pre-converted EUR balance for this transaction row. */
+  balance_eur: ["balance of revenue share (EUR)", "balance (EUR)", "revenue share (EUR)", "eur balance", "EUR Balance"],
 }
 
 function levenshteinDistance(a: string, b: string): number {

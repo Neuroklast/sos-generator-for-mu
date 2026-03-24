@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { FileDown, FileText, Table2, Archive, Search, AlertTriangle } from 'lucide-react'
+import { FileDown, FileText, Table2, Archive, Search } from 'lucide-react'
 import type { ArtistRevenue } from '@/lib/types'
 
 interface ReportingPanelProps {
@@ -23,6 +23,8 @@ const ARTIST_CELL_RESERVED_PX = 32
 const COL_WIDTH_CHECKBOX = 56
 /** Fixed width (px) of the trailing actions column. */
 const COL_WIDTH_ACTIONS = 120
+
+type ColId = 'artist' | 'totalRevenue' | 'payout'
 
 
 
@@ -119,14 +121,6 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
   function exportSelected() { onDownloadSelected(Array.from(selectedArtists)) }
 
   const selectedCount = selectedArtists.size
-
-  // ── Outlier helper ────────────────────────────────────────────────────────
-  function getOutlierInfo(r: ArtistRevenue): { months: string[]; expectedRevenue: number } {
-    const outliers = r.monthlyBreakdown.filter(m => m.isOutlier)
-    // All entries share the same mean (computed once in detectOutliers).
-    const expectedRevenue = outliers[0]?.expectedRevenue ?? 0
-    return { months: outliers.map(m => m.month), expectedRevenue }
-  }
 
   const orderedCols = colOrder.map(id => INITIAL_COLUMNS.find(c => c.id === id)!).filter(Boolean)
 
@@ -238,7 +232,6 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
                 </tr>
               ) : (
                 filtered.map(r => {
-                  const { months: outlierMonths, expectedRevenue: outlierExpected } = getOutlierInfo(r)
                   return (
                     <tr key={r.artist} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                       <td className="w-14 px-4 py-3">
@@ -261,14 +254,6 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
                               >
                                 {r.artist}
                               </span>
-                              {outlierMonths.length > 0 && (
-                                <span
-                                  title={`Statistical outlier in: ${outlierMonths.join(', ')} (expected ≈ ${fmtEur(outlierExpected)})`}
-                                  className="shrink-0 text-amber-400 cursor-help"
-                                >
-                                  <AlertTriangle size={14} />
-                                </span>
-                              )}
                             </div>
                           </td>
                         )

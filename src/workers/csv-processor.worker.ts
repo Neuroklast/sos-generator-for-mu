@@ -26,8 +26,6 @@ import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
 import {
   processTransactionsWithCompilations,
   buildArtistTree,
-  detectOutliers,
-  calculateForecast,
 } from '@/lib/data-processor'
 import { buildArtistCollabTree } from '@/lib/grouping'
 import type { SalesTransaction } from '@/lib/csv-parser'
@@ -41,6 +39,7 @@ import type {
   SplitFee,
   ManualRevenue,
 } from '@/lib/types'
+import type { ExchangeRates } from '@/lib/currency'
 
 // ── Message type definitions ──────────────────────────────────────────────────
 
@@ -50,6 +49,8 @@ export interface WorkerProcessConfig {
   splitFees: SplitFee[]
   manualRevenues: ManualRevenue[]
   excludePhysical: boolean
+  /** ECB exchange rates (1 EUR = N units of foreign currency). */
+  exchangeRates: ExchangeRates
 }
 
 export interface WorkerResult {
@@ -136,9 +137,6 @@ function runProcess(config: WorkerProcessConfig): void {
     // Build the safe (no-raw-transactions) payload to send to the main thread.
     // We compute believeRevenue / bandcampRevenue here before discarding rows.
     const processedData: SafeProcessedArtistData[] = artistData.map(d => {
-      const monthlyWithOutliers = detectOutliers(d.monthlyBreakdown)
-      const { forecastData, quarterForecast } = calculateForecast(monthlyWithOutliers)
-
       return {
         artist: d.artist,
         believeRevenue: d.transactions
@@ -156,10 +154,8 @@ function runProcess(config: WorkerProcessConfig): void {
         totalQuantity: d.totalQuantity,
         platformBreakdown: d.platformBreakdown,
         countryBreakdown: d.countryBreakdown,
-        monthlyBreakdown: monthlyWithOutliers,
+        monthlyBreakdown: d.monthlyBreakdown,
         releaseBreakdown: d.releaseBreakdown,
-        forecastData,
-        quarterForecast,
       }
     })
 

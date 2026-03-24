@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { FileUploadZone } from '@/components/FileUploadZone'
+import { UniversalFileUploadZone } from '@/components/UniversalFileUploadZone'
 import { CompilationFilterManager } from '@/components/CompilationFilterManager'
 import { ArtistMappingManager } from '@/components/ArtistMappingManager'
 import { SplitFeeManager } from '@/components/SplitFeeManager'
@@ -956,37 +957,13 @@ function App() {
                       <h2 className="text-base font-semibold">Upload CSV Files</h2>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-8">
-                      <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
-                        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                          <span className="inline-block w-1.5 h-4 rounded-full bg-primary" />
-                          Believe CSV Files
-                        </h3>
-                        <FileUploadZone
-                          type="believe"
-                          files={believeManager.files}
-                          fileStates={believeManager.fileStates}
-                          onFilesAdded={believeManager.addFiles}
-                          onFileRemoved={believeManager.removeFile}
-                          onFileReplaced={believeManager.replaceFile}
-                        />
-                      </Card>
-
-                      <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
-                        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                          <span className="inline-block w-1.5 h-4 rounded-full bg-cyan-400" />
-                          Bandcamp CSV Files
-                        </h3>
-                        <FileUploadZone
-                          type="bandcamp"
-                          files={bandcampManager.files}
-                          fileStates={bandcampManager.fileStates}
-                          onFilesAdded={bandcampManager.addFiles}
-                          onFileRemoved={bandcampManager.removeFile}
-                          onFileReplaced={bandcampManager.replaceFile}
-                        />
-                      </Card>
-                    </div>
+                    <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+                      <UniversalFileUploadZone
+                        believeManager={believeManager}
+                        bandcampManager={bandcampManager}
+                        onAddAliases={aliases => aliases.forEach(handleAddAlias)}
+                      />
+                    </Card>
 
                     {/* Summary stats after processing */}
                     {!isProcessing && revenues.length > 0 && (
@@ -1166,36 +1143,11 @@ function App() {
                         )}
                       </div>
 
-                      <div className="grid sm:grid-cols-2 gap-6">
-                        <div>
-                          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                            <span className="inline-block w-2 h-2 rounded-full bg-primary shrink-0" />
-                            Believe
-                          </p>
-                          <FileUploadZone
-                            type="believe"
-                            files={believeManager.files}
-                            fileStates={believeManager.fileStates}
-                            onFilesAdded={believeManager.addFiles}
-                            onFileRemoved={believeManager.removeFile}
-                            onFileReplaced={believeManager.replaceFile}
-                          />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                            <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
-                            Bandcamp
-                          </p>
-                          <FileUploadZone
-                            type="bandcamp"
-                            files={bandcampManager.files}
-                            fileStates={bandcampManager.fileStates}
-                            onFilesAdded={bandcampManager.addFiles}
-                            onFileRemoved={bandcampManager.removeFile}
-                            onFileReplaced={bandcampManager.replaceFile}
-                          />
-                        </div>
-                      </div>
+                      <UniversalFileUploadZone
+                        believeManager={believeManager}
+                        bandcampManager={bandcampManager}
+                        onAddAliases={aliases => aliases.forEach(handleAddAlias)}
+                      />
 
                       {revenues.length > 0 && (
                         <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border/40">

@@ -254,11 +254,6 @@ export interface SafeProcessedArtistData {
   totalQuantity: number
   platformBreakdown: PlatformRevenue[]
   countryBreakdown: CountryRevenue[]
-  /** Monthly breakdown with optional outlier flags. */
   monthlyBreakdown: MonthlyRevenue[]
   releaseBreakdown: ReleaseRevenue[]
-  /** Forecast data points for the next quarter (Holt-Winters). */
-  forecastData?: ForecastPoint[]
-  /** Sum of forecasted revenue for the next 3 months. */
-  quarterForecast?: number
 }
