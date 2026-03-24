@@ -19,6 +19,8 @@ import { ArtistTreeView } from '@/components/ArtistTreeView'
 import { CSVColumnMapper } from '@/components/CSVColumnMapper'
 import { HistoryPanel } from '@/components/HistoryPanel'
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
+import { WorkspaceManager } from '@/components/WorkspaceManager'
+import type { WorkspaceBackup } from '@/components/WorkspaceManager'
 import { useFileManager } from '@/hooks/useFileManager'
 import { useCSVProcessor } from '@/hooks/useCSVProcessor'
 import { useExports } from '@/hooks/useExports'
@@ -554,6 +556,18 @@ function App() {
     setClearConfirmOpen(false)
     toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
   }, [believeManager, bandcampManager, setManualRevenues, setPeriodStart, setPeriodEnd])
+
+  const handleWorkspaceImport = useCallback(
+    (backup: WorkspaceBackup) => {
+      setCompilationFilters(backup.compilationFilters ?? [])
+      setArtistMappings(backup.artistMappings ?? [])
+      setSplitFees(backup.splitFees ?? [])
+      setManualRevenues(backup.manualRevenues ?? [])
+      setCsvAliases(backup.csvAliases ?? [])
+      if (backup.labelInfo) setLabelInfo(backup.labelInfo)
+    },
+    [setCompilationFilters, setArtistMappings, setSplitFees, setManualRevenues, setCsvAliases, setLabelInfo]
+  )
 
   const totalNetRevenue = useMemo(
     () => revenues.reduce((s, r) => s + r.finalAmount, 0),
@@ -1673,6 +1687,17 @@ function App() {
               {/* ── Settings ─── */}
               {activeView === 'settings' && (
                 <div className="space-y-8">
+                  {/* Workspace Backup */}
+                  <WorkspaceManager
+                    compilationFilters={compilationFilters ?? []}
+                    artistMappings={artistMappings ?? []}
+                    splitFees={splitFees ?? []}
+                    manualRevenues={manualRevenues ?? []}
+                    csvAliases={csvAliases ?? []}
+                    labelInfo={labelInfo ?? { name: '', address: '' }}
+                    onImport={handleWorkspaceImport}
+                  />
+
                   {/* Clear Workspace */}
                   <Card className="p-8 border border-red-500/20 bg-card backdrop-blur-md rounded-2xl">
                     <div className="flex items-start justify-between gap-4">

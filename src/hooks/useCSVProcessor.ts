@@ -83,6 +83,9 @@ export function useCSVProcessor(
       })
       .catch(err => {
         console.warn('[useCSVProcessor] Exchange rate fetch failed unexpectedly:', err)
+        toast.warning('Wechselkurse konnten nicht geladen werden', {
+          description: 'Es werden Fallback-Kurse verwendet. Währungsumrechnungen können ungenau sein.',
+        })
       })
       .finally(() => {
         setExchangeRatesLoading(false)

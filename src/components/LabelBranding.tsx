@@ -1,4 +1,4 @@
-import { Image as ImageIcon, Buildings, X } from '@phosphor-icons/react'
+import { Image as ImageIcon, Buildings, X, EnvelopeSimple, Bank, FileText, IdentificationCard, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,15 @@ const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+
 interface LabelBrandingProps {
   labelInfo: LabelInfo
   onUpdate: (info: LabelInfo) => void
+}
+
+function SectionHeading({ icon: Icon, title }: { icon: PhosphorIcon; title: string }) {
+  return (
+    <div className="flex items-center gap-2 pb-1 border-b border-border/40">
+      <Icon size={15} weight="bold" className="text-primary shrink-0" />
+      <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</h4>
+    </div>
+  )
 }
 
 export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
@@ -39,7 +48,9 @@ export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
     const reader = new FileReader()
     reader.onload = event => {
       const dataUrl = event.target?.result as string
-      onUpdate({ ...labelInfo, logo: dataUrl })
+      // Keep logo and logoBase64 in sync so both PDF generation and external
+      // consumers see the same image regardless of which field they read.
+      onUpdate({ ...labelInfo, logo: dataUrl, logoBase64: dataUrl })
     }
     reader.onerror = () => {
       toast.error('Failed to read logo file')
@@ -49,8 +60,10 @@ export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
   }
 
   const handleRemoveLogo = () => {
-    onUpdate({ ...labelInfo, logo: undefined })
+    onUpdate({ ...labelInfo, logo: undefined, logoBase64: undefined })
   }
+
+  const currentLogo = labelInfo.logoBase64 ?? labelInfo.logo
 
   return (
     <div className="space-y-4 p-8">
@@ -59,15 +72,16 @@ export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
         <h3 className="font-semibold">Label Branding</h3>
       </div>
 
-      <Card className="p-6 space-y-6">
-        {/* Logo upload */}
-        <div className="space-y-2">
-          <Label>Label Logo</Label>
+      <Card className="p-6 space-y-8">
+
+        {/* ── Markenzeichen ───────────────────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={ImageIcon} title="Markenzeichen" />
           <div className="flex items-start gap-4">
-            {labelInfo.logo ? (
+            {currentLogo ? (
               <div className="relative group flex-shrink-0">
                 <img
-                  src={labelInfo.logo}
+                  src={currentLogo}
                   alt="Label logo"
                   className="w-24 h-24 object-contain rounded border bg-white"
                 />
@@ -108,90 +122,168 @@ export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
 
             <div className="flex-1 space-y-1">
               <p className="text-sm text-muted-foreground">
-                Upload your label logo (PNG, JPG, SVG, or WebP)
+                Logo hochladen (PNG, JPG, SVG oder WebP) — wird als Base64 gespeichert.
               </p>
-              <p className="text-xs text-muted-foreground">
-                Square format recommended · max 5 MB
-              </p>
-              {labelInfo.logo && (
+              <p className="text-xs text-muted-foreground">Quadratisches Format empfohlen · max. 5 MB</p>
+              {currentLogo && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-2"
                   onClick={handleRemoveLogo}
                 >
-                  Remove logo
+                  Logo entfernen
                 </Button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Label name */}
-        <div className="space-y-2">
-          <Label htmlFor="label-name">Label Name</Label>
-          <Input
-            id="label-name"
-            value={labelInfo.name}
-            onChange={e => onUpdate({ ...labelInfo, name: e.target.value })}
-            placeholder="Enter your label name"
-          />
+        {/* ── Stammdaten ──────────────────────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={Buildings} title="Stammdaten" />
+
+          <div className="space-y-2">
+            <Label htmlFor="label-name">Label Name</Label>
+            <Input
+              id="label-name"
+              value={labelInfo.name}
+              onChange={e => onUpdate({ ...labelInfo, name: e.target.value })}
+              placeholder="z.B. Neuroklast Records"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="label-legal-form">Rechtsform &amp; Geschäftsführer</Label>
+            <Input
+              id="label-legal-form"
+              value={labelInfo.legalForm ?? ''}
+              onChange={e => onUpdate({ ...labelInfo, legalForm: e.target.value })}
+              placeholder="z.B. GmbH · Geschäftsführer: Max Mustermann"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="label-address">Anschrift</Label>
+            <Textarea
+              id="label-address"
+              value={labelInfo.address}
+              onChange={e => onUpdate({ ...labelInfo, address: e.target.value })}
+              placeholder="Straße, PLZ, Ort"
+              rows={3}
+            />
+          </div>
         </div>
 
-        {/* Label address */}
-        <div className="space-y-2">
-          <Label htmlFor="label-address">Label Address</Label>
-          <Textarea
-            id="label-address"
-            value={labelInfo.address}
-            onChange={e => onUpdate({ ...labelInfo, address: e.target.value })}
-            placeholder="Enter your label address"
-            rows={3}
-          />
+        {/* ── Kontakt ─────────────────────────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={EnvelopeSimple} title="Kontakt" />
+
+          <div className="space-y-2">
+            <Label htmlFor="label-email">E-Mail-Adresse</Label>
+            <Input
+              id="label-email"
+              type="email"
+              value={labelInfo.email ?? ''}
+              onChange={e => onUpdate({ ...labelInfo, email: e.target.value })}
+              placeholder="kontakt@label.de"
+            />
+          </div>
         </div>
 
-        {/* Tax number */}
-        <div className="space-y-2">
-          <Label htmlFor="label-tax-number">Steuernummer / USt-IdNr.</Label>
-          <Input
-            id="label-tax-number"
-            value={labelInfo.taxNumber ?? ''}
-            onChange={e => onUpdate({ ...labelInfo, taxNumber: e.target.value })}
-            placeholder="z.B. DE123456789"
-          />
-          <p className="text-xs text-muted-foreground">Pflichtangabe auf rechtssicheren EU-Rechnungen</p>
+        {/* ── Steuer & Rechnungsstellung ───────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={IdentificationCard} title="Steuer & Rechnungsstellung" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="label-tax-number">Steuernummer</Label>
+              <Input
+                id="label-tax-number"
+                value={labelInfo.taxNumber ?? ''}
+                onChange={e => onUpdate({ ...labelInfo, taxNumber: e.target.value })}
+                placeholder="z.B. 123/456/78901"
+              />
+              <p className="text-xs text-muted-foreground">Finanzamt-Steuernummer des Labels</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="label-tax-id">Umsatzsteuer-ID (USt-IdNr.)</Label>
+              <Input
+                id="label-tax-id"
+                value={labelInfo.taxId ?? ''}
+                onChange={e => onUpdate({ ...labelInfo, taxId: e.target.value })}
+                placeholder="z.B. DE123456789"
+              />
+              <p className="text-xs text-muted-foreground">Pflichtangabe bei EU-Geschäftsverkehr</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="label-vat-rate">Umsatzsteuersatz (%)</Label>
+              <Input
+                id="label-vat-rate"
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={labelInfo.vatRate ?? ''}
+                onChange={e => {
+                  const val = e.target.value === '' ? undefined : Number(e.target.value)
+                  onUpdate({ ...labelInfo, vatRate: val })
+                }}
+                placeholder="0 = umsatzsteuerbefreit"
+              />
+              <p className="text-xs text-muted-foreground">Z.B. 19 für 19 % MwSt.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="label-invoice-prefix">Rechnungsnummer-Präfix</Label>
+              <Input
+                id="label-invoice-prefix"
+                value={labelInfo.invoiceNumberPrefix ?? ''}
+                onChange={e => onUpdate({ ...labelInfo, invoiceNumberPrefix: e.target.value })}
+                placeholder="z.B. SOS-2025-Q1"
+              />
+              <p className="text-xs text-muted-foreground">Wird mit Künstler-Index kombiniert, z.B. SOS-2025-Q1-0001</p>
+            </div>
+          </div>
         </div>
 
-        {/* Invoice number prefix */}
-        <div className="space-y-2">
-          <Label htmlFor="label-invoice-prefix">Rechnungsnummer-Präfix</Label>
-          <Input
-            id="label-invoice-prefix"
-            value={labelInfo.invoiceNumberPrefix ?? ''}
-            onChange={e => onUpdate({ ...labelInfo, invoiceNumberPrefix: e.target.value })}
-            placeholder="z.B. SOS-2025-Q1"
-          />
-          <p className="text-xs text-muted-foreground">Wird automatisch mit einem Künstler-Suffix kombiniert, z.B. SOS-2025-Q1-0001</p>
+        {/* ── Bankverbindung ──────────────────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={Bank} title="Bankverbindung" />
+
+          <div className="space-y-2">
+            <Label htmlFor="label-bank-account">IBAN &amp; BIC</Label>
+            <Textarea
+              id="label-bank-account"
+              value={labelInfo.bankAccount ?? ''}
+              onChange={e => onUpdate({ ...labelInfo, bankAccount: e.target.value })}
+              placeholder={"IBAN: DE89 XXXX XXXX XXXX XXXX XX\nBIC: XXXXXXXX · Musterbank AG"}
+              rows={2}
+            />
+          </div>
         </div>
 
-        {/* VAT rate */}
-        <div className="space-y-2">
-          <Label htmlFor="label-vat-rate">Umsatzsteuersatz (%)</Label>
-          <Input
-            id="label-vat-rate"
-            type="number"
-            min={0}
-            max={100}
-            step={1}
-            value={labelInfo.vatRate ?? ''}
-            onChange={e => {
-              const val = e.target.value === '' ? undefined : Number(e.target.value)
-              onUpdate({ ...labelInfo, vatRate: val })
-            }}
-            placeholder="0 = umsatzsteuerbefreit"
-          />
-          <p className="text-xs text-muted-foreground">Z.B. 19 für 19 % MwSt. · 0 oder leer = keine USt.</p>
+        {/* ── Fußzeile ────────────────────────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={FileText} title="Rechtliche Fußzeile" />
+
+          <div className="space-y-2">
+            <Label htmlFor="label-footer-text">Hinweistext</Label>
+            <Textarea
+              id="label-footer-text"
+              value={labelInfo.footerText ?? ''}
+              onChange={e => onUpdate({ ...labelInfo, footerText: e.target.value })}
+              placeholder="z.B. Diese Abrechnung wurde maschinell erstellt und ist ohne Unterschrift gültig."
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">Erscheint in der Fußzeile von PDF-Abrechnungen</p>
+          </div>
         </div>
+
       </Card>
     </div>
   )

@@ -57,12 +57,25 @@ export interface ManualRevenue {
 export interface LabelInfo {
   name: string
   address: string
+  /** Legacy logo field (data URL) — used by PDF generation. */
   logo?: string
-  /** Steuernummer or USt-IdNr. of the label (mandatory for EU-compliant invoices). */
+  /** Base64-encoded logo image used for display and export. Kept in sync with logo. */
+  logoBase64?: string
+  /** Steuernummer (domestic German tax number, e.g. "123/456/78901"). */
   taxNumber?: string
+  /** Umsatzsteuer-Identifikationsnummer (EU VAT ID, e.g. "DE123456789"). */
+  taxId?: string
+  /** Rechtsform und Geschäftsführer, e.g. "GmbH · Geschäftsführer: Max Mustermann". */
+  legalForm?: string
+  /** Kontakt-E-Mail-Adresse des Labels. */
+  email?: string
+  /** Bankverbindung im Freitext, z.B. "IBAN: DE89… · BIC: DEUTDEDB". */
+  bankAccount?: string
+  /** Rechtlicher Hinweistext für die Fußzeile von Abrechnungen. */
+  footerText?: string
   /**
-   * VAT rate as an integer percentage, e.g. 19 for 19 % MwSt.
-   * Set to 0 (or leave undefined) when the artist is not VAT-liable.
+   * VAT rate as an integer percentage applied to all artist payouts, e.g. 19 for 19 % MwSt.
+   * Set to 0 (or leave undefined) when the label is not VAT-liable.
    */
   vatRate?: number
   /**
