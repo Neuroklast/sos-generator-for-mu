@@ -469,9 +469,9 @@ export function RevenueDashboard({
       {/* Group By control bar */}
       <div className="flex flex-wrap items-center gap-3 pb-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+          <span className="text-sm font-medium text-muted-foreground">Group by:</span>
           <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupByField)}>
-            <SelectTrigger className="h-8 w-[140px] text-xs">
+            <SelectTrigger className="h-10 w-[160px] text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -485,7 +485,7 @@ export function RevenueDashboard({
         </div>
         <div className="flex items-center gap-2">
           <Switch checked={showGrouped} onCheckedChange={setShowGrouped} id="toggle-grouped" />
-          <Label htmlFor="toggle-grouped" className="text-xs text-muted-foreground cursor-pointer">
+          <Label htmlFor="toggle-grouped" className="text-sm text-muted-foreground cursor-pointer">
             Grouped view
           </Label>
         </div>
@@ -500,12 +500,12 @@ export function RevenueDashboard({
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search artist…"
-              className="pl-9"
+              className="pl-9 h-10"
             />
           </div>
           <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
             <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-2">
+              <Button variant="outline" size="sm" className="h-10 gap-2">
                 <FunnelSimple size={15} />
                 Filter
                 {(minRevenue || selectedPlatforms.length > 0) && (
@@ -601,11 +601,11 @@ export function RevenueDashboard({
             <TableBody>
               {groupedData.map((row) => (
                 <TableRow key={row.key} className="hover:bg-muted/30">
-                  <TableCell className="py-3 px-4 font-medium">{row.key || '—'}</TableCell>
-                  <TableCell className="py-3 px-4 text-right font-mono text-primary font-semibold">
+                  <TableCell className="py-4 px-4 font-medium">{row.key || '—'}</TableCell>
+                  <TableCell className="py-4 px-4 text-right font-mono text-primary font-semibold">
                     {formatCurrency(row.revenue)}
                   </TableCell>
-                  <TableCell className="py-3 px-4 text-right font-mono text-muted-foreground">
+                  <TableCell className="py-4 px-4 text-right font-mono text-muted-foreground">
                     {formatNumber(row.quantity)}
                   </TableCell>
                 </TableRow>
@@ -651,7 +651,7 @@ export function RevenueDashboard({
                     ].join(' ')}
                     onClick={() => hasDetail && toggleExpand(revenue.artist)}
                   >
-                    <TableCell className="w-8 pl-3">
+                    <TableCell className="w-8 pl-4">
                       {hasDetail ? (
                         isExpanded ? (
                           <CaretDown size={14} className="text-primary" />
@@ -660,23 +660,23 @@ export function RevenueDashboard({
                         )
                       ) : null}
                     </TableCell>
-                    <TableCell className="font-semibold text-base">{revenue.artist}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">
+                    <TableCell className="font-semibold text-base py-4">{revenue.artist}</TableCell>
+                    <TableCell className="text-right font-mono text-sm py-4">
                       {formatCurrency(revenue.believeRevenue)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
+                    <TableCell className="text-right font-mono text-sm py-4">
                       {formatCurrency(revenue.bandcampRevenue)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
+                    <TableCell className="text-right font-mono text-sm py-4">
                       {formatCurrency(revenue.manualRevenue)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                    <TableCell className="text-right font-mono text-sm text-muted-foreground py-4">
                       {formatNumber(revenue.totalQuantity ?? 0)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-primary font-semibold">
+                    <TableCell className="text-right font-mono text-sm text-primary font-semibold py-4">
                       {revenue.splitPercentage}%
                     </TableCell>
-                    <TableCell className="text-right font-mono font-bold text-lg text-accent">
+                    <TableCell className="text-right font-mono font-bold text-lg text-accent py-4">
                       {formatCurrency(revenue.finalAmount)}
                     </TableCell>
                     <TableCell className="text-right" onClick={e => e.stopPropagation()}>
@@ -736,6 +736,17 @@ export function RevenueDashboard({
         {filteredRevenues.length === 0 && (
           <div className="p-8 text-center text-muted-foreground">
             No artists match the current filter
+          </div>
+        )}
+
+        {filteredRevenues.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t-2 border-border bg-muted/30">
+            <span className="text-sm font-semibold text-muted-foreground">
+              {filteredRevenues.length} artist{filteredRevenues.length !== 1 ? 's' : ''}
+            </span>
+            <span className="text-base font-bold font-mono text-accent">
+              {formatCurrency(filteredRevenues.reduce((s, r) => s + r.finalAmount, 0))}
+            </span>
           </div>
         )}
       </Card>
