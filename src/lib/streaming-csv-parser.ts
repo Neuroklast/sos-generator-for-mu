@@ -1,3 +1,4 @@
+import Papa from 'papaparse'
 import type { SalesTransaction } from './csv-parser'
 import { mapCSVHeadersToModel, parseCSVLine } from './csv-parser'
 
@@ -17,31 +18,11 @@ export interface StreamingParseResult {
 /** Rows to process per scheduler tick to keep the UI responsive. */
 const CHUNK_SIZE = 5000
 
-/**
- * Detects the most likely delimiter by checking consistency of column counts
- * across the first few non-empty lines. Falls back to comma.
- */
 function detectDelimiter(lines: string[]): string {
-  const candidates = [';', ',']
-  const sampleLines = lines.filter(l => l.trim()).slice(0, 5)
-  if (sampleLines.length === 0) return ','
-
-  let bestDelimiter = ','
-  let bestScore = -1
-
-  for (const delim of candidates) {
-    const counts = sampleLines.map(l => (l.match(new RegExp(`\\${delim}`, 'g')) ?? []).length)
-    const first = counts[0]
-    // Score: consistency (lines with same count as header) × 100 + column count
-    const consistent = counts.filter(c => c === first).length
-    const score = consistent * 100 + first
-    if (score > bestScore) {
-      bestScore = score
-      bestDelimiter = delim
-    }
-  }
-
-  return bestDelimiter
+  const sample = lines.filter(l => l.trim()).slice(0, 6).join('\n')
+  if (!sample) return ','
+  const result = Papa.parse(sample, { delimiter: '', preview: 5 })
+  return (result.meta as { delimiter?: string }).delimiter || ','
 }
 
 /**

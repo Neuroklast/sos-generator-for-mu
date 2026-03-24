@@ -389,6 +389,7 @@ function App() {
     isProcessing,
     detectedPeriodStart,
     detectedPeriodEnd,
+    autoMappings,
   } = useCSVProcessor(
     believeManager.files,
     bandcampManager.files,
@@ -467,6 +468,13 @@ function App() {
     (id: string) => {
       setArtistMappings(current => (current ?? []).filter(m => m.id !== id))
       toast.info('Artist mapping removed')
+    },
+    [setArtistMappings]
+  )
+  const handleUpdateArtistMapping = useCallback(
+    (id: string, update: Omit<ArtistMapping, 'id'>) => {
+      setArtistMappings(current => (current ?? []).map(m => m.id === id ? { ...m, ...update } : m))
+      toast.success('Artist mapping updated')
     },
     [setArtistMappings]
   )
@@ -1106,6 +1114,9 @@ function App() {
                       mappings={artistMappings ?? []}
                       onAddMapping={handleAddArtistMapping}
                       onRemoveMapping={handleRemoveArtistMapping}
+                      onUpdateMapping={handleUpdateArtistMapping}
+                      artists={uniqueArtists}
+                      autoMappings={autoMappings}
                     />
                   </Card>
                 </div>
@@ -1541,6 +1552,9 @@ function App() {
                           mappings={artistMappings ?? []}
                           onAddMapping={handleAddArtistMapping}
                           onRemoveMapping={handleRemoveArtistMapping}
+                          onUpdateMapping={handleUpdateArtistMapping}
+                          artists={uniqueArtists}
+                          autoMappings={autoMappings}
                         />
                       </div>
                     </Card>

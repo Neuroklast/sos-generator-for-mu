@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
+import { computeAutoMappings } from '@/lib/auto-mapping'
 import type {
   UploadedFile,
   CompilationFilter,
@@ -254,8 +255,15 @@ export function useCSVProcessor(
         countryBreakdown: data.countryBreakdown,
         monthlyBreakdown: data.monthlyBreakdown,
         releaseBreakdown: data.releaseBreakdown,
+        forecastData: data.forecastData,
+        quarterForecast: data.quarterForecast,
       })),
     [workerResult.processedData]
+  )
+
+  const autoMappings = useMemo(
+    () => computeAutoMappings(workerResult.uniqueArtists, config.artistMappings),
+    [workerResult.uniqueArtists, config.artistMappings]
   )
 
   return {
@@ -266,6 +274,7 @@ export function useCSVProcessor(
     collabTree: workerResult.collabTree as ArtistCollabNode[],
     filteredCompilations: workerResult.filteredCompilations as FilteredCompilation[],
     revenues,
+    autoMappings,
     detectedPeriodStart: workerResult.periodStart,
     detectedPeriodEnd: workerResult.periodEnd,
   }

@@ -78,6 +78,16 @@ export interface CountryRevenue {
 export interface MonthlyRevenue {
   month: string
   revenue: number
+  /** Set when this month is a statistical outlier (> 2σ from the mean). */
+  isOutlier?: boolean
+  /** Expected revenue value (mean) used to compute the outlier threshold. */
+  expectedRevenue?: number
+}
+
+/** A single forecast data point for future months. */
+export interface ForecastPoint {
+  month: string
+  forecastRevenue: number
 }
 
 /** Revenue aggregated by release (album / single). */
@@ -112,6 +122,10 @@ export interface ArtistRevenue {
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]
   releaseBreakdown: ReleaseRevenue[]
+  /** Forecast data points for the next quarter. */
+  forecastData?: ForecastPoint[]
+  /** Sum of forecasted revenue for the next quarter. */
+  quarterForecast?: number
 }
 
 // ── History ────────────────────────────────────────────────────────────────────
@@ -254,6 +268,11 @@ export interface SafeProcessedArtistData {
   totalQuantity: number
   platformBreakdown: PlatformRevenue[]
   countryBreakdown: CountryRevenue[]
+  /** Monthly breakdown with optional outlier flags. */
   monthlyBreakdown: MonthlyRevenue[]
   releaseBreakdown: ReleaseRevenue[]
+  /** Forecast data points for the next quarter (Holt-Winters). */
+  forecastData?: ForecastPoint[]
+  /** Sum of forecasted revenue for the next 3 months. */
+  quarterForecast?: number
 }

@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { FileDown, FileText, Table2, Archive, Search } from 'lucide-react'
+import { FileDown, FileText, Table2, Archive, Search, AlertTriangle } from 'lucide-react'
 import type { ArtistRevenue } from '@/lib/types'
 
 interface ReportingPanelProps {
@@ -17,10 +17,78 @@ function fmtEur(value: number) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
+type ColId = 'artist' | 'totalRevenue' | 'payout'
+
+interface ColDef {
+  id: ColId
+  label: string
+  defaultWidth: number
+  minWidth: number
+  align: 'left' | 'right'
+}
+
+const INITIAL_COLUMNS: ColDef[] = [
+  { id: 'artist',       label: 'Artist',        defaultWidth: 220, minWidth: 100, align: 'left'  },
+  { id: 'totalRevenue', label: 'Total Revenue',  defaultWidth: 150, minWidth: 90,  align: 'right' },
+  { id: 'payout',       label: 'Payout',         defaultWidth: 150, minWidth: 90,  align: 'right' },
+]
+
 export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDownloadAll, onDownloadSelected }: ReportingPanelProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
 
+  // ── Column state ──────────────────────────────────────────────────────────
+  const [colOrder, setColOrder] = useState<ColId[]>(INITIAL_COLUMNS.map(c => c.id))
+  const [colWidths, setColWidths] = useState<Record<ColId, number>>(
+    Object.fromEntries(INITIAL_COLUMNS.map(c => [c.id, c.defaultWidth])) as Record<ColId, number>
+  )
+
+  // ── Column resize ─────────────────────────────────────────────────────────
+  const resizeRef = useRef<{ id: ColId; startX: number; startW: number } | null>(null)
+
+  const onResizeMouseDown = useCallback((id: ColId, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    resizeRef.current = { id, startX: e.clientX, startW: colWidths[id] }
+
+    function onMove(ev: MouseEvent) {
+      if (!resizeRef.current) return
+      const def = INITIAL_COLUMNS.find(c => c.id === resizeRef.current!.id)!
+      const newW = Math.max(def.minWidth, resizeRef.current.startW + ev.clientX - resizeRef.current.startX)
+      setColWidths(prev => ({ ...prev, [resizeRef.current!.id]: newW }))
+    }
+    function onUp() {
+      resizeRef.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [colWidths])
+
+  // ── Column reorder via drag ───────────────────────────────────────────────
+  const [dragOver, setDragOver] = useState<ColId | null>(null)
+  const dragColRef = useRef<ColId | null>(null)
+
+  function onDragStart(id: ColId) { dragColRef.current = id }
+  function onDragOver(e: React.DragEvent, id: ColId) {
+    e.preventDefault()
+    setDragOver(id)
+    if (!dragColRef.current || dragColRef.current === id) return
+    setColOrder(prev => {
+      const next = [...prev]
+      const from = next.indexOf(dragColRef.current!)
+      const to   = next.indexOf(id)
+      if (from === -1 || to === -1) return prev
+      next.splice(from, 1)
+      next.splice(to, 0, dragColRef.current!)
+      return next
+    })
+    dragColRef.current = id
+  }
+  function onDragEnd() { dragColRef.current = null; setDragOver(null) }
+
+  // ── Filter ────────────────────────────────────────────────────────────────
   const filtered = useMemo(
     () => revenues.filter(r => r.artist.toLowerCase().includes(filter.toLowerCase())),
     [revenues, filter],
@@ -31,34 +99,26 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
 
   function toggleSelectAll() {
     if (allSelected) {
-      setSelectedArtists(prev => {
-        const next = new Set(prev)
-        filtered.forEach(r => next.delete(r.artist))
-        return next
-      })
+      setSelectedArtists(prev => { const n = new Set(prev); filtered.forEach(r => n.delete(r.artist)); return n })
     } else {
-      setSelectedArtists(prev => {
-        const next = new Set(prev)
-        filtered.forEach(r => next.add(r.artist))
-        return next
-      })
+      setSelectedArtists(prev => { const n = new Set(prev); filtered.forEach(r => n.add(r.artist)); return n })
     }
   }
 
   function toggleArtist(artist: string) {
-    setSelectedArtists(prev => {
-      const next = new Set(prev)
-      if (next.has(artist)) next.delete(artist)
-      else next.add(artist)
-      return next
-    })
+    setSelectedArtists(prev => { const n = new Set(prev); n.has(artist) ? n.delete(artist) : n.add(artist); return n })
   }
 
-  function exportSelected() {
-    onDownloadSelected(Array.from(selectedArtists))
-  }
+  function exportSelected() { onDownloadSelected(Array.from(selectedArtists)) }
 
   const selectedCount = selectedArtists.size
+
+  // ── Outlier helper ────────────────────────────────────────────────────────
+  function getOutlierMonths(r: ArtistRevenue): string[] {
+    return r.monthlyBreakdown.filter(m => m.isOutlier).map(m => m.month)
+  }
+
+  const orderedCols = colOrder.map(id => INITIAL_COLUMNS.find(c => c.id === id)!).filter(Boolean)
 
   return (
     <div className="flex flex-col h-full">
@@ -70,35 +130,16 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
               ? `${selectedCount} artist${selectedCount !== 1 ? 's' : ''} selected`
               : 'No artists selected'}
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs h-7"
-            onClick={toggleSelectAll}
-            disabled={filtered.length === 0}
-          >
+          <Button variant="ghost" size="sm" className="text-xs h-7" onClick={toggleSelectAll} disabled={filtered.length === 0}>
             {allSelected ? 'Deselect All' : 'Select All'}
           </Button>
         </div>
-
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 text-xs"
-            disabled={selectedCount === 0}
-            onClick={exportSelected}
-          >
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs" disabled={selectedCount === 0} onClick={exportSelected}>
             <Archive size={14} />
             Export Selected to ZIP
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 text-xs"
-            disabled={revenues.length === 0}
-            onClick={onDownloadAll}
-          >
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs" disabled={revenues.length === 0} onClick={onDownloadAll}>
             <FileDown size={14} />
             Export All
           </Button>
@@ -127,10 +168,18 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
             <p className="text-sm">No revenue data yet. Upload a CSV to get started.</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: colOrder.reduce((s, id) => s + colWidths[id as ColId], 0) + 56 + 120 }}>
+            <colgroup>
+              <col style={{ width: 56 }} />
+              {orderedCols.map(col => (
+                <col key={col.id} style={{ width: colWidths[col.id] }} />
+              ))}
+              <col style={{ width: 120 }} />
+            </colgroup>
             <thead>
               <tr className="border-b border-white/10 bg-white/[0.02]">
-                <th className="w-10 px-4 py-3">
+                {/* Checkbox col — fixed */}
+                <th className="w-14 px-4 py-3">
                   <Checkbox
                     checked={allSelected}
                     ref={el => {
@@ -138,65 +187,109 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
                     }}
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all artists"
+                    className="border-2 border-white/40 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                   />
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Artist</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Total Revenue</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Payout</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
+
+                {/* Reorderable + resizable data columns */}
+                {orderedCols.map(col => (
+                  <th
+                    key={col.id}
+                    className={`py-3 text-${col.align} font-medium text-muted-foreground select-none relative group cursor-grab ${dragOver === col.id ? 'bg-primary/10' : ''}`}
+                    style={{ paddingLeft: 16, paddingRight: 24 }}
+                    draggable
+                    onDragStart={() => onDragStart(col.id)}
+                    onDragOver={e => onDragOver(e, col.id)}
+                    onDragEnd={onDragEnd}
+                  >
+                    <span>{col.label}</span>
+                    {/* Resize handle */}
+                    <span
+                      className="absolute right-0 top-0 h-full w-3 cursor-col-resize flex items-center justify-center opacity-0 group-hover:opacity-100 hover:opacity-100"
+                      onMouseDown={e => onResizeMouseDown(col.id, e)}
+                      draggable={false}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <span className="w-0.5 h-4 bg-white/20 rounded-full" />
+                    </span>
+                  </th>
+                ))}
+
+                {/* Actions col — fixed */}
+                <th className="py-3 text-right font-medium text-muted-foreground px-4">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-xs">
+                  <td colSpan={orderedCols.length + 2} className="px-4 py-8 text-center text-muted-foreground text-xs">
                     No artists match your filter.
                   </td>
                 </tr>
               ) : (
-                filtered.map(r => (
-                  <tr
-                    key={r.artist}
-                    className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                  >
-                    <td className="w-10 px-4 py-3">
-                      <Checkbox
-                        checked={selectedArtists.has(r.artist)}
-                        onCheckedChange={() => toggleArtist(r.artist)}
-                        aria-label={`Select ${r.artist}`}
-                      />
-                    </td>
-                    <td className="px-4 py-3 font-medium">{r.artist}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{fmtEur(r.totalRevenue)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-emerald-400 font-medium">
-                      {fmtEur(r.finalAmount)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 gap-1 text-xs"
-                          onClick={() => onDownloadPDF(r.artist)}
-                          title={`Download PDF for ${r.artist}`}
-                        >
-                          <FileText size={13} />
-                          PDF
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 gap-1 text-xs"
-                          onClick={() => onDownloadExcel(r.artist)}
-                          title={`Download Excel for ${r.artist}`}
-                        >
-                          <Table2 size={13} />
-                          Excel
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filtered.map(r => {
+                  const outlierMonths = getOutlierMonths(r)
+                  return (
+                    <tr key={r.artist} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                      <td className="w-14 px-4 py-3">
+                        <Checkbox
+                          checked={selectedArtists.has(r.artist)}
+                          onCheckedChange={() => toggleArtist(r.artist)}
+                          aria-label={`Select ${r.artist}`}
+                          className="border-2 border-white/40 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                        />
+                      </td>
+
+                      {orderedCols.map(col => {
+                        if (col.id === 'artist') return (
+                          <td key={col.id} className="py-3 font-medium" style={{ paddingLeft: 16, paddingRight: 8 }}>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className="truncate block"
+                                style={{ maxWidth: colWidths.artist - 32 }}
+                                title={r.artist}
+                              >
+                                {r.artist}
+                              </span>
+                              {outlierMonths.length > 0 && (
+                                <span
+                                  title={`Statistical outlier in: ${outlierMonths.join(', ')} (expected ≈ ${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(r.monthlyBreakdown.find(m => m.isOutlier)?.expectedRevenue ?? 0)})`}
+                                  className="shrink-0 text-amber-400 cursor-help"
+                                >
+                                  <AlertTriangle size={14} />
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        )
+                        if (col.id === 'totalRevenue') return (
+                          <td key={col.id} className="py-3 text-right tabular-nums" style={{ paddingLeft: 16, paddingRight: 16 }}>
+                            {fmtEur(r.totalRevenue)}
+                          </td>
+                        )
+                        if (col.id === 'payout') return (
+                          <td key={col.id} className="py-3 text-right tabular-nums text-emerald-400 font-medium" style={{ paddingLeft: 16, paddingRight: 16 }}>
+                            {fmtEur(r.finalAmount)}
+                          </td>
+                        )
+                        return null
+                      })}
+
+                      <td className="py-3 text-right px-4">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs" onClick={() => onDownloadPDF(r.artist)} title={`Download PDF for ${r.artist}`}>
+                            <FileText size={13} />
+                            PDF
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs" onClick={() => onDownloadExcel(r.artist)} title={`Download Excel for ${r.artist}`}>
+                            <Table2 size={13} />
+                            Excel
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

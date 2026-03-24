@@ -9,6 +9,7 @@ import type {
   MonthlyRevenue,
   ReleaseRevenue,
   FilteredCompilation,
+  ForecastPoint,
 } from './types'
 
 export interface ProcessedArtistData {
@@ -377,4 +378,103 @@ export function buildArtistTree(
       releases,
     }
   })
+}
+
+/**
+ * Extracts the main artist and guest artists from a title/artist string.
+ * Handles: feat., ft., featuring, versus, vs., x (standalone word)
+ */
+export function extractCollabs(title: string): { mainArtist: string; guestArtists: string[] } {
+  if (!title || !title.trim()) return { mainArtist: '', guestArtists: [] }
+
+  const featRegex = /\s*[[(]?\s*(?:feat(?:uring)?\.?|ft\.?)\s*/gi
+  const versusRegex = /\s+(?:versus|vs\.?)\s+/gi
+
+  const featParts = title.split(featRegex).map(p => p.replace(/[\])\s]+$/, '').trim()).filter(Boolean)
+  if (featParts.length > 1) {
+    const mainArtist = featParts[0]
+    const guestArtists = featParts.slice(1).flatMap(p =>
+      p.split(/\s*[,&]\s*|\s+and\s+/gi).map(a => a.trim()).filter(Boolean)
+    )
+    return { mainArtist, guestArtists }
+  }
+
+  const versusParts = title.split(versusRegex).map(p => p.trim()).filter(Boolean)
+  if (versusParts.length > 1) {
+    return { mainArtist: versusParts[0], guestArtists: versusParts.slice(1) }
+  }
+
+  return { mainArtist: title.trim(), guestArtists: [] }
+}
+
+/**
+ * Flags monthly revenue entries that deviate by more than 2 standard
+ * deviations from the artist's mean monthly revenue.
+ */
+export function detectOutliers(monthlyBreakdown: MonthlyRevenue[]): MonthlyRevenue[] {
+  if (monthlyBreakdown.length < 3) return monthlyBreakdown
+
+  const revenues = monthlyBreakdown.map(m => m.revenue)
+  const mean = revenues.reduce((s, v) => s + v, 0) / revenues.length
+  const variance = revenues.reduce((s, v) => s + (v - mean) ** 2, 0) / revenues.length
+  const stdDev = Math.sqrt(variance)
+
+  return monthlyBreakdown.map(m => ({
+    ...m,
+    isOutlier: stdDev > 0 && Math.abs(m.revenue - mean) > 2 * stdDev,
+    expectedRevenue: mean,
+  }))
+}
+
+/**
+ * Forecasts the next 3 months of revenue using Holt-Winters double
+ * exponential smoothing (level + trend). Returns both the three
+ * individual monthly forecasts and their sum (the quarterly forecast).
+ */
+export function calculateForecast(
+  monthlyBreakdown: MonthlyRevenue[]
+): { forecastData: ForecastPoint[]; quarterForecast: number } {
+  const sorted = [...monthlyBreakdown].sort((a, b) => a.month.localeCompare(b.month))
+  if (sorted.length < 2) {
+    const base = sorted[0]?.revenue ?? 0
+    return {
+      forecastData: [1, 2, 3].map(i => ({
+        month: `forecast+${i}`,
+        forecastRevenue: parseFloat(base.toFixed(2)),
+      })),
+      quarterForecast: parseFloat((base * 3).toFixed(2)),
+    }
+  }
+
+  const α = 0.3 // level smoothing
+  const β = 0.1 // trend smoothing
+
+  // Initialise
+  let level = sorted[0].revenue
+  let trend = sorted[1].revenue - sorted[0].revenue
+
+  for (let i = 1; i < sorted.length; i++) {
+    const y = sorted[i].revenue
+    const prevLevel = level
+    level = α * y + (1 - α) * (level + trend)
+    trend = β * (level - prevLevel) + (1 - β) * trend
+  }
+
+  // Generate the next 3 calendar months after the last known month
+  const lastMonth = sorted[sorted.length - 1].month
+  const forecastData: ForecastPoint[] = []
+  let quarterForecast = 0
+
+  for (let h = 1; h <= 3; h++) {
+    const forecastRevenue = parseFloat(Math.max(0, level + h * trend).toFixed(2))
+    quarterForecast += forecastRevenue
+
+    // Compute the next calendar month label
+    const [y, m] = lastMonth.split('-').map(Number)
+    const d = new Date(y, m - 1 + h, 1)
+    const monthLabel = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    forecastData.push({ month: monthLabel, forecastRevenue })
+  }
+
+  return { forecastData, quarterForecast: parseFloat(quarterForecast.toFixed(2)) }
 }

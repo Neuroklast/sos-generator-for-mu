@@ -26,6 +26,8 @@ import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
 import {
   processTransactionsWithCompilations,
   buildArtistTree,
+  detectOutliers,
+  calculateForecast,
 } from '@/lib/data-processor'
 import { buildArtistCollabTree } from '@/lib/grouping'
 import type { SalesTransaction } from '@/lib/csv-parser'
@@ -133,26 +135,33 @@ function runProcess(config: WorkerProcessConfig): void {
 
     // Build the safe (no-raw-transactions) payload to send to the main thread.
     // We compute believeRevenue / bandcampRevenue here before discarding rows.
-    const processedData: SafeProcessedArtistData[] = artistData.map(d => ({
-      artist: d.artist,
-      believeRevenue: d.transactions
-        .filter(t => t.source === 'believe')
-        .reduce((s, t) => s + t.net_revenue, 0),
-      bandcampRevenue: d.transactions
-        .filter(t => t.source === 'bandcamp')
-        .reduce((s, t) => s + t.net_revenue, 0),
-      totalDigitalRevenue: d.totalDigitalRevenue,
-      totalPhysicalRevenue: d.totalPhysicalRevenue,
-      manualRevenue: d.manualRevenue,
-      grossRevenue: d.grossRevenue,
-      splitPercentage: d.splitPercentage,
-      finalPayout: d.finalPayout,
-      totalQuantity: d.totalQuantity,
-      platformBreakdown: d.platformBreakdown,
-      countryBreakdown: d.countryBreakdown,
-      monthlyBreakdown: d.monthlyBreakdown,
-      releaseBreakdown: d.releaseBreakdown,
-    }))
+    const processedData: SafeProcessedArtistData[] = artistData.map(d => {
+      const monthlyWithOutliers = detectOutliers(d.monthlyBreakdown)
+      const { forecastData, quarterForecast } = calculateForecast(monthlyWithOutliers)
+
+      return {
+        artist: d.artist,
+        believeRevenue: d.transactions
+          .filter(t => t.source === 'believe')
+          .reduce((s, t) => s + t.net_revenue, 0),
+        bandcampRevenue: d.transactions
+          .filter(t => t.source === 'bandcamp')
+          .reduce((s, t) => s + t.net_revenue, 0),
+        totalDigitalRevenue: d.totalDigitalRevenue,
+        totalPhysicalRevenue: d.totalPhysicalRevenue,
+        manualRevenue: d.manualRevenue,
+        grossRevenue: d.grossRevenue,
+        splitPercentage: d.splitPercentage,
+        finalPayout: d.finalPayout,
+        totalQuantity: d.totalQuantity,
+        platformBreakdown: d.platformBreakdown,
+        countryBreakdown: d.countryBreakdown,
+        monthlyBreakdown: monthlyWithOutliers,
+        releaseBreakdown: d.releaseBreakdown,
+        forecastData,
+        quarterForecast,
+      }
+    })
 
     // Raw transaction arrays and the full ProcessedArtistData (with .transactions)
     // are now only in local scope and will be garbage-collected once this
