@@ -1003,7 +1003,8 @@ function App() {
                           </Label>
                           <Input
                             id="period-start"
-                            type="month"
+                            type="text"
+                            placeholder="YYYY-MM"
                             value={periodStart ?? ''}
                             onChange={e => setPeriodStart(e.target.value)}
                             className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
@@ -1016,7 +1017,8 @@ function App() {
                           </Label>
                           <Input
                             id="period-end"
-                            type="month"
+                            type="text"
+                            placeholder="YYYY-MM"
                             value={periodEnd ?? ''}
                             onChange={e => setPeriodEnd(e.target.value)}
                             className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
@@ -1077,7 +1079,12 @@ function App() {
               {/* ── Reports ─── */}
               {activeView === 'reports' && (
                 <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
-                  <ReportingPanel revenues={revenues} />
+                  <ReportingPanel
+                    revenues={revenues}
+                    onDownloadPDF={handleDownloadPDF}
+                    onDownloadExcel={handleDownloadExcel}
+                    onDownloadAll={handleDownloadAll}
+                  />
                 </Card>
               )}
 
@@ -1435,14 +1442,16 @@ function App() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Input
-                            type="month"
+                            type="text"
+                            placeholder="YYYY-MM"
                             value={periodStart ?? ''}
                             onChange={e => setPeriodStart(e.target.value)}
                             className="w-38 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
                           />
                           <span className="text-muted-foreground text-sm">→</span>
                           <Input
-                            type="month"
+                            type="text"
+                            placeholder="YYYY-MM"
                             value={periodEnd ?? ''}
                             onChange={e => setPeriodEnd(e.target.value)}
                             className="w-38 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
