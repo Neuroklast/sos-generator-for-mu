@@ -71,6 +71,18 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'history', label: 'History', icon: History },
   { id: 'branding', label: 'Branding', icon: Tag },
 ]
+const STEP_ITEMS = [
+  { id: 'ingest', label: 'Upload', icon: UploadCloud, step: 1 },
+  { id: 'settings', label: 'Configure', icon: Settings, step: 2 },
+  { id: 'analytics', label: 'Analyze', icon: BarChart2, step: 3 },
+  { id: 'reports', label: 'Export', icon: FileText, step: 4 },
+]
+const SECONDARY_ITEMS: NavItem[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'artists', label: 'Artists', icon: Users },
+  { id: 'history', label: 'History', icon: History },
+  { id: 'branding', label: 'Branding', icon: Tag },
+]
 
 const pageVariants = {
   initial: { opacity: 0, y: 10 },
@@ -157,6 +169,72 @@ function SideNavItem({
       />
       {!collapsed && <span className="truncate relative z-10">{item.label}</span>}
       {!collapsed && active && <ChevronRight className="ml-auto text-primary relative z-10 shrink-0" size={13} />}
+    </motion.button>
+  )
+}
+
+// ── Step nav item ─────────────────────────────────────────────────────────────
+
+function StepNavItem({
+  item,
+  stepNum,
+  active,
+  onClick,
+  collapsed,
+  completed,
+}: {
+  item: { id: string; label: string; icon: React.ComponentType<{ className?: string; size?: number }> }
+  stepNum: number
+  active: boolean
+  onClick: () => void
+  collapsed: boolean
+  completed: boolean
+}) {
+  const Icon = item.icon
+  const badgeClass = completed
+    ? 'bg-emerald-500 text-white'
+    : active
+    ? 'bg-primary text-primary-foreground'
+    : 'bg-muted text-muted-foreground'
+
+  return (
+    <motion.button
+      onClick={onClick}
+      whileTap={{ scale: 0.96 }}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative
+        ${active
+          ? 'bg-primary/15 text-primary border border-primary/25 shadow-md shadow-primary/10'
+          : 'text-muted-foreground hover:text-foreground hover:bg-white/5 border border-transparent'
+        }`}
+      title={collapsed ? item.label : undefined}
+    >
+      {active && (
+        <motion.div
+          aria-hidden="true"
+          layoutId="step-nav-pill"
+          className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
+          transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+        />
+      )}
+      <div className="relative shrink-0 z-10">
+        <Icon
+          className={`transition-colors ${active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}
+          size={17}
+        />
+        {collapsed && (
+          <span className={`absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${badgeClass}`}>
+            {completed ? '✓' : stepNum}
+          </span>
+        )}
+      </div>
+      {!collapsed && (
+        <>
+          <span className="truncate relative z-10 flex-1">{item.label}</span>
+          <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center relative z-10 shrink-0 ${badgeClass}`}>
+            {completed ? '✓' : stepNum}
+          </span>
+        </>
+      )}
     </motion.button>
   )
 }
@@ -402,6 +480,11 @@ function App() {
     () => believeManager.files.length + bandcampManager.files.length,
     [believeManager.files.length, bandcampManager.files.length]
   )
+  const currentStep = useMemo(() => {
+    if (totalFiles > 0 && revenues.length > 0) return 3
+    if (totalFiles > 0) return 2
+    return 1
+  }, [totalFiles, revenues.length])
   const topPlatform = useMemo(() => {
     const map: Record<string, number> = {}
     revenues.forEach(r => r.platformBreakdown.forEach(p => {
@@ -446,8 +529,33 @@ function App() {
             )}
           </div>
 
+          {!sidebarCollapsed && (
+            <div className="px-3 pt-3 pb-1">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Workflow</p>
+              <div className="flex items-center gap-1">
+                {STEP_ITEMS.map((_, i) => (
+                  <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i + 1 <= currentStep ? 'bg-primary' : 'bg-border/50'}`} />
+                ))}
+              </div>
+            </div>
+          )}
+
           <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-            {NAV_ITEMS.map(item => (
+            {/* Workflow steps */}
+            {STEP_ITEMS.map(item => (
+              <StepNavItem
+                key={item.id}
+                item={item}
+                stepNum={item.step}
+                active={activeView === item.id}
+                onClick={() => navigate(item.id)}
+                collapsed={sidebarCollapsed}
+                completed={currentStep > item.step}
+              />
+            ))}
+            <div className="my-2 border-t border-border/30" />
+            {/* Secondary nav */}
+            {SECONDARY_ITEMS.map(item => (
               <SideNavItem
                 key={item.id}
                 item={item}
@@ -533,7 +641,21 @@ function App() {
                 </div>
 
                 <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-                  {NAV_ITEMS.map(item => (
+                  {/* Workflow steps */}
+                  {STEP_ITEMS.map(item => (
+                    <StepNavItem
+                      key={item.id}
+                      item={item}
+                      stepNum={item.step}
+                      active={activeView === item.id}
+                      onClick={() => navigate(item.id)}
+                      collapsed={false}
+                      completed={currentStep > item.step}
+                    />
+                  ))}
+                  <div className="my-2 border-t border-border/30" />
+                  {/* Secondary nav */}
+                  {SECONDARY_ITEMS.map(item => (
                     <SideNavItem
                       key={item.id}
                       item={item}
@@ -669,6 +791,34 @@ function App() {
                       delay={0.18}
                     />
                   </div>
+
+                  {revenues.length === 0 && !isProcessing && (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      {STEP_ITEMS.map((step) => (
+                        <motion.button
+                          key={step.id}
+                          onClick={() => navigate(step.id)}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`relative flex flex-col items-start gap-2 p-4 rounded-2xl border text-left transition-all duration-200 group
+                            ${currentStep > step.step ? 'border-emerald-500/30 bg-emerald-500/5' :
+                              activeView === step.id || currentStep === step.step ? 'border-primary/40 bg-primary/5' :
+                              'border-border/40 bg-card/50 hover:border-primary/20 hover:bg-primary/3'}`}
+                        >
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+                            ${currentStep > step.step ? 'bg-emerald-500 text-white' :
+                              currentStep === step.step ? 'bg-primary text-primary-foreground' :
+                              'bg-muted text-muted-foreground'}`}>
+                            {currentStep > step.step ? '✓' : step.step}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">Step {step.step}</p>
+                            <p className="text-sm font-bold">{step.label}</p>
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Period info banner */}
                   {(periodStart || periodEnd) && revenues.length > 0 && (

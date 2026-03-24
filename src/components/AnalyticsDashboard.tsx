@@ -28,6 +28,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { ArtistRevenue } from '@/lib/types'
+import { formatMonthTick } from '@/lib/utils'
 
 interface AnalyticsDashboardProps {
   revenues: ArtistRevenue[]
@@ -43,6 +44,8 @@ const CHART_COLORS = [
   'oklch(0.68 0.29 288)',
   'oklch(0.58 0.24 297)',
 ]
+
+const TAB_TRIGGER_CLASS = 'rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm'
 
 export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
   const [selectedArtist, setSelectedArtist] = useState<string>('all')
@@ -262,7 +265,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <Card className="p-6 md:p-8 border-primary/20 bg-gradient-to-br from-card to-card/50">
+        <Card className="p-5 border-primary/20 bg-gradient-to-br from-card to-primary/3">
           <div className="flex items-center gap-3 mb-2">
             <CurrencyEur size={24} weight="duotone" className="text-primary" />
             <h3 className="text-sm font-medium text-muted-foreground">Total Revenue</h3>
@@ -270,7 +273,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           <p className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</p>
         </Card>
 
-        <Card className="p-6 md:p-8 border-primary/20 bg-gradient-to-br from-card to-card/50">
+        <Card className="p-5 border-primary/20 bg-gradient-to-br from-card to-primary/3">
           <div className="flex items-center gap-3 mb-2">
             <Users size={24} weight="duotone" className="text-accent" />
             <h3 className="text-sm font-medium text-muted-foreground">Artists</h3>
@@ -278,7 +281,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           <p className="text-2xl font-bold">{stats.artistCount}</p>
         </Card>
 
-        <Card className="p-6 md:p-8 border-primary/20 bg-gradient-to-br from-card to-card/50">
+        <Card className="p-5 border-primary/20 bg-gradient-to-br from-card to-primary/3">
           <div className="flex items-center gap-3 mb-2">
             <Storefront size={24} weight="duotone" className="text-primary" />
             <h3 className="text-sm font-medium text-muted-foreground">Platforms</h3>
@@ -286,7 +289,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           <p className="text-2xl font-bold">{stats.platformCount}</p>
         </Card>
 
-        <Card className="p-6 md:p-8 border-primary/20 bg-gradient-to-br from-card to-card/50">
+        <Card className="p-5 border-primary/20 bg-gradient-to-br from-card to-primary/3">
           <div className="flex items-center gap-3 mb-2">
             <MusicNote size={24} weight="duotone" className="text-accent" />
             <h3 className="text-sm font-medium text-muted-foreground">Total Units</h3>
@@ -296,13 +299,13 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
       </div>
 
       <Tabs defaultValue="monthly" className="space-y-6">
-        <TabsList className="bg-card/70 backdrop-blur-md border border-primary/20">
-          <TabsTrigger value="monthly">Monthly</TabsTrigger>
-          <TabsTrigger value="artists">Artists</TabsTrigger>
-          <TabsTrigger value="platforms">Platforms</TabsTrigger>
-          <TabsTrigger value="countries">Countries</TabsTrigger>
-          <TabsTrigger value="sources">Sources</TabsTrigger>
-          <TabsTrigger value="types">Types</TabsTrigger>
+        <TabsList className="bg-muted/50 p-1 rounded-full border border-border/30 h-auto flex-wrap">
+          <TabsTrigger value="monthly" className={TAB_TRIGGER_CLASS}>Monthly</TabsTrigger>
+          <TabsTrigger value="artists" className={TAB_TRIGGER_CLASS}>Artists</TabsTrigger>
+          <TabsTrigger value="platforms" className={TAB_TRIGGER_CLASS}>Platforms</TabsTrigger>
+          <TabsTrigger value="countries" className={TAB_TRIGGER_CLASS}>Countries</TabsTrigger>
+          <TabsTrigger value="sources" className={TAB_TRIGGER_CLASS}>Sources</TabsTrigger>
+          <TabsTrigger value="types" className={TAB_TRIGGER_CLASS}>Types</TabsTrigger>
         </TabsList>
 
         <TabsContent value="monthly" className="space-y-6">
@@ -312,7 +315,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
               Revenue Trend
             </h3>
             <ResponsiveContainer width="100%" height={400}>
-              <AreaChart data={monthlyData}>
+              <AreaChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="oklch(0.65 0.28 295)" stopOpacity={0.8}/>
@@ -323,6 +326,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
                 <XAxis 
                   dataKey="month" 
                   stroke="oklch(0.55 0.01 285)"
+                  tickFormatter={formatMonthTick}
                 />
                 <YAxis 
                   stroke="oklch(0.55 0.01 285)"
@@ -386,9 +390,9 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
               Revenue by Platform
             </h3>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={platformData}>
+              <BarChart data={platformData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.20 0.03 285)" />
-                <XAxis dataKey="name" stroke="oklch(0.55 0.01 285)" angle={-45} textAnchor="end" height={100} />
+                <XAxis dataKey="name" stroke="oklch(0.55 0.01 285)" angle={-40} textAnchor="end" height={70} />
                 <YAxis stroke="oklch(0.55 0.01 285)" tickFormatter={(value) => `€${value}`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="revenue" fill="oklch(0.70 0.30 290)" radius={[8, 8, 0, 0]} />
@@ -404,12 +408,12 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
               Top Countries by Revenue
             </h3>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={countryData}>
+              <BarChart data={countryData} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.20 0.03 285)" />
-                <XAxis dataKey="name" stroke="oklch(0.55 0.01 285)" />
-                <YAxis stroke="oklch(0.55 0.01 285)" tickFormatter={(value) => `€${value}`} />
+                <XAxis type="number" stroke="oklch(0.55 0.01 285)" tickFormatter={(value) => `€${value}`} />
+                <YAxis type="category" dataKey="name" stroke="oklch(0.55 0.01 285)" width={120} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="revenue" fill="oklch(0.60 0.25 300)" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="revenue" fill="oklch(0.60 0.25 300)" radius={[0, 8, 8, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>

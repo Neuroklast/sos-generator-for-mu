@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { motion, AnimatePresence } from 'framer-motion'
 import { buildArtistTree } from '@/lib/data-processor'
+import { buildArtistCollabTree } from '@/lib/grouping'
 import type { ProcessedArtistData } from '@/lib/data-processor'
 import type { ArtistTreeNode } from '@/lib/types'
 
@@ -187,8 +188,17 @@ export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
   const [search, setSearch] = useState('')
   const [expandAll, setExpandAll] = useState<boolean | undefined>(undefined)
   const [sortBy, setSortBy] = useState<'payout' | 'artist' | 'quantity'>('payout')
+  const [showCollabs, setShowCollabs] = useState(false)
 
   const treeNodes = useMemo(() => buildArtistTree(processedData), [processedData])
+  const allTransactions = useMemo(() => 
+    processedData.flatMap(p => p.transactions ?? []), 
+    [processedData]
+  )
+  const collabTree = useMemo(() => 
+    showCollabs ? buildArtistCollabTree(allTransactions, []) : [],
+    [showCollabs, allTransactions]
+  )
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -284,6 +294,14 @@ export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
               Units
             </Button>
           </div>
+          <Button
+            variant={showCollabs ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowCollabs(c => !c)}
+            className="h-9 text-xs gap-1.5"
+          >
+            {showCollabs ? 'Hide Collabs' : 'Show Collabs'}
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExpandAll} className="h-9 text-xs">
             Expand All
           </Button>
@@ -298,6 +316,44 @@ export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
         <p className="text-sm text-muted-foreground">
           Showing {filtered.length} of {treeNodes.length} artists
         </p>
+      )}
+
+      {/* Collab Groups */}
+      {showCollabs && collabTree.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Collab Groups</h3>
+            <Badge variant="secondary">{collabTree.length}</Badge>
+          </div>
+          {collabTree.filter(n => n.collabEntries.length > 0).map(node => (
+            <Card key={node.primaryArtist} className="overflow-hidden border border-border/50">
+              <div className="flex items-center gap-3 p-3 bg-card">
+                <div className="p-1.5 rounded-lg bg-primary/10">
+                  <User size={16} className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">{node.primaryArtist}</p>
+                  <p className="text-xs text-muted-foreground">{node.collabEntries.length} collab{node.collabEntries.length !== 1 ? 's' : ''}</p>
+                </div>
+                <span className="text-sm font-mono font-semibold text-primary">{fmtEur(node.revenue)}</span>
+              </div>
+              <div className="border-t border-border/30 bg-muted/10">
+                {node.collabEntries.map(entry => (
+                  <div key={entry.name} className="flex items-center gap-3 px-3 py-2 border-b border-border/20 last:border-0 hover:bg-muted/20">
+                    <div className="w-4 ml-3 flex-shrink-0" />
+                    <span className="text-xs text-muted-foreground">feat.</span>
+                    <span className="text-sm flex-1 truncate">{entry.name}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{fmtNum(entry.quantity)}</span>
+                    <span className="text-xs font-mono text-primary">{fmtEur(entry.revenue)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+          <div className="border-t border-border/30 pt-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">All Artists</h3>
+          </div>
+        </div>
       )}
 
       {/* Tree */}
