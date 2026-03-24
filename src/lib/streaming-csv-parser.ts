@@ -36,21 +36,60 @@ function stripBOM(text: string): string {
 }
 
 /**
- * Normalises a Bandcamp date string to a YYYY-MM month key.
+ * Converts any incoming date string to a canonical `YYYY-MM` month key.
  *
- * Bandcamp exports dates in the format "M/D/YY H:MMam" or "M/D/YY H:MMpm"
- * (e.g. "7/1/25 2:10am"). We extract only the month/year portion so that
- * all transactions within the same calendar month group together.
+ * Handles:
+ *  - Already ISO: "2024-09" → "2024-09"
+ *  - ISO with day:  "2024-09-01" → "2024-09"
+ *  - European (DD/MM/YYYY):  "01/09/2024" → "2024-09"
+ *  - Bandcamp (M/D/YY h:mma): "9/30/25 5:39pm" → "2025-09"
+ *  - American (M/D/YYYY): "9/30/2025" → "2025-09"
  */
-function normalizeBandcampDate(dateStr: string): string {
+export function normalizeDateToMonth(dateStr: string): string {
   if (!dateStr) return ''
-  // Matches "M/D/YY" or "M/D/YYYY" — captures month (group 1) and year (group 2), ignoring day
-  const match = dateStr.match(/^(\d{1,2})\/\d{1,2}\/(\d{2,4})/)
-  if (!match) return dateStr
-  const month = parseInt(match[1], 10)
-  const rawYear = parseInt(match[2], 10)
-  const year = rawYear < 100 ? 2000 + rawYear : rawYear
-  return `${year}-${String(month).padStart(2, '0')}`
+  const s = dateStr.trim()
+  if (!s) return ''
+
+  // Already YYYY-MM or YYYY-MM-DD
+  const isoMatch = s.match(/^(\d{4})-(\d{2})(?:-\d{2})?/)
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`
+
+  // Slash-separated: X/Y/Z [optional time]
+  const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/)
+  if (slashMatch) {
+    const a = parseInt(slashMatch[1], 10)
+    const b = parseInt(slashMatch[2], 10)
+    const rawYear = parseInt(slashMatch[3], 10)
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear
+
+    // If the second part > 12 it cannot be a month → format is M/D/Y (American/Bandcamp)
+    if (b > 12) {
+      if (a >= 1 && a <= 12) return `${year}-${String(a).padStart(2, '0')}`
+      return ''
+    }
+    // If the year is 2-digit → American/Bandcamp format M/D/YY, first part is month
+    if (rawYear < 100) {
+      if (a >= 1 && a <= 12) return `${year}-${String(a).padStart(2, '0')}`
+      return ''
+    }
+    // 4-digit year: treat as European DD/MM/YYYY → second part is month
+    if (b >= 1 && b <= 12) return `${year}-${String(b).padStart(2, '0')}`
+    return ''
+  }
+
+  // Dot-separated (DE): "01.09.2024"
+  const dotMatch = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/)
+  if (dotMatch) {
+    const year = parseInt(dotMatch[3], 10)
+    const month = parseInt(dotMatch[2], 10)
+    if (month >= 1 && month <= 12) {
+      return `${year}-${String(month).padStart(2, '0')}`
+    }
+  }
+
+  // Fallback: return empty string for unrecognised formats so invalid dates
+  // don't silently propagate through the system as 'Unknown' month keys.
+  return ''
 }
 
 /**
@@ -139,19 +178,52 @@ function processChunk(
       }
 
       const originalArtist = (mappedData.original_artist ?? '').trim()
-      const netRevenue = parseRevenue(mappedData.net_revenue ?? '')
-      const quantity = parseQuantity(mappedData.quantity ?? '')
-      const releaseType = mappedData.release_type ?? ''
-      const isPhysical = /physical|cd|vinyl|cassette|tape/i.test(releaseType)
+      const releaseType = (mappedData.release_type ?? '').trim().toLowerCase()
 
-      // Bandcamp: skip payout/transfer rows (no artist and no revenue)
+      // ── Bandcamp-specific row filters ──────────────────────────────────────
+      // Skip payout rows: these are label-internal transfers, not sales income.
+      if (source === 'bandcamp' && releaseType === 'payout') continue
+
+      // ── Revenue resolution ─────────────────────────────────────────────────
+      // For Bandcamp: prefer the pre-converted EUR balance column when present.
+      // This avoids currency mixing (USD/GBP/PLN blindly summed in EUR fields).
+      let netRevenue: number
+      let currency: string
+      if (source === 'bandcamp') {
+        const eurBalance = parseRevenue(mappedData.balance_eur ?? '')
+        if (eurBalance !== 0) {
+          // Pre-converted EUR value is available — use it directly.
+          netRevenue = eurBalance
+          currency = 'EUR'
+        } else {
+          // No pre-converted balance; keep the raw amount + currency for
+          // later conversion in the data-processor (exchange rates are applied
+          // at process time when the full config including rates is available).
+          netRevenue = parseRevenue(mappedData.net_revenue ?? '')
+          currency = (mappedData.currency ?? 'EUR').trim() || 'EUR'
+        }
+      } else {
+        netRevenue = parseRevenue(mappedData.net_revenue ?? '')
+        currency = (mappedData.currency ?? 'EUR').trim() || 'EUR'
+      }
+
+      const quantity = parseQuantity(mappedData.quantity ?? '')
+
+      // ── Physical product detection ─────────────────────────────────────────
+      // Bandcamp uses item type "package" for physical merch/vinyl/CD orders,
+      // but may also include other physical identifiers; combine both checks.
+      const isPhysical = source === 'bandcamp'
+        ? releaseType === 'package' || /physical|cd|vinyl|cassette|tape/i.test(releaseType)
+        : /physical|cd|vinyl|cassette|tape/i.test(releaseType)
+
+      // Skip rows with no artist and no revenue (Bandcamp transfer rows)
       if (!originalArtist && netRevenue === 0) continue
 
       if (originalArtist) artists.add(originalArtist)
 
-      // Bandcamp date format is "M/D/YY H:MMam" — normalise to "YYYY-MM".
+      // Normalise the date to YYYY-MM for all sources.
       const rawMonth = (mappedData.sales_month ?? '').trim()
-      const salesMonth = source === 'bandcamp' ? normalizeBandcampDate(rawMonth) : rawMonth
+      const salesMonth = normalizeDateToMonth(rawMonth)
 
       // Bandcamp CSVs have no dedicated platform column; default to "Bandcamp".
       const platform = (mappedData.platform ?? '').trim() || (source === 'bandcamp' ? 'Bandcamp' : '')
@@ -171,7 +243,7 @@ function processChunk(
         catalog_number: (mappedData.catalog_number ?? '').trim(),
         quantity,
         net_revenue: netRevenue,
-        currency: (mappedData.currency ?? 'EUR').trim() || 'EUR',
+        currency,
         is_physical: isPhysical,
       })
     } catch (err) {

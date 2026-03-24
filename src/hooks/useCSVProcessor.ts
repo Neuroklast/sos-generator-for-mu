@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
 import { computeAutoMappings } from '@/lib/auto-mapping'
+import { fetchExchangeRates } from '@/lib/currency'
+import type { ExchangeRates } from '@/lib/currency'
 import type {
   UploadedFile,
   CompilationFilter,
@@ -69,6 +71,13 @@ export function useCSVProcessor(
 
   const [workerResult, setWorkerResult] = useState<WorkerResult>(EMPTY_RESULT)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
+
+  // ── Fetch ECB exchange rates once on mount ────────────────────────────────────
+
+  useEffect(() => {
+    fetchExchangeRates().then(rates => setExchangeRates(rates))
+  }, [])
 
   // ── Build stable derivative keys ─────────────────────────────────────────────
 
@@ -91,6 +100,7 @@ export function useCSVProcessor(
     config.splitFees.map(s => `${s.artist}:${s.percentage}`).join(','),
     config.manualRevenues.map(r => r.id).join(','),
     String(config.excludePhysical),
+    Object.keys(exchangeRates).length > 0 ? 'rates' : 'no-rates',
   ].join('|')
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -101,7 +111,8 @@ export function useCSVProcessor(
     splitFees: config.splitFees,
     manualRevenues: config.manualRevenues,
     excludePhysical: config.excludePhysical,
-  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.excludePhysical])
+    exchangeRates,
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.excludePhysical, exchangeRates])
 
   const sendProcess = useCallback(() => {
     const cfg = latestConfigRef.current ?? buildConfig()
@@ -255,8 +266,6 @@ export function useCSVProcessor(
         countryBreakdown: data.countryBreakdown,
         monthlyBreakdown: data.monthlyBreakdown,
         releaseBreakdown: data.releaseBreakdown,
-        forecastData: data.forecastData,
-        quarterForecast: data.quarterForecast,
       })),
     [workerResult.processedData]
   )

@@ -9,8 +9,9 @@ import type {
   MonthlyRevenue,
   ReleaseRevenue,
   FilteredCompilation,
-  ForecastPoint,
 } from './types'
+import { convertToEur } from './currency'
+import type { ExchangeRates } from './currency'
 
 export interface ProcessedArtistData {
   artist: string
@@ -34,6 +35,9 @@ export interface DataProcessorConfig {
   splitFees: SplitFee[]
   manualRevenues: ManualRevenue[]
   excludePhysical?: boolean
+  /** Exchange rates map (1 EUR = N units of foreign currency). Used to convert
+   *  non-EUR Bandcamp transactions to EUR at processing time. */
+  exchangeRates?: ExchangeRates
 }
 
 export interface ProcessorResult {
@@ -118,17 +122,8 @@ function buildCountryBreakdown(transactions: SalesTransaction[]): CountryRevenue
 
 function parseMonthToDate(month: string): number {
   if (!month || month === 'Unknown') return 0
-  // DD/MM/YYYY or D/M/YYYY
-  const dmyMatch = month.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (dmyMatch) {
-    return new Date(
-      parseInt(dmyMatch[3]),
-      parseInt(dmyMatch[2]) - 1,
-      parseInt(dmyMatch[1])
-    ).getTime()
-  }
-  // YYYY-MM or YYYY-MM-DD
-  const d = new Date(month)
+  // Dates are normalised to YYYY-MM by the streaming parser.
+  const d = new Date(month + '-01')
   return isNaN(d.getTime()) ? 0 : d.getTime()
 }
 
@@ -247,12 +242,22 @@ export function processTransactionsWithCompilations(
   // Build per-artist data with all breakdowns
   const artistData: ProcessedArtistData[] = []
 
+  const rates = config.exchangeRates ?? {}
+
   for (const [artist, artistTransactions] of artistGroups.entries()) {
     let digitalRevenue = 0
     let physicalRevenue = 0
     let totalQuantity = 0
 
-    for (const t of artistTransactions) {
+    // Create EUR-normalised versions of the transactions for breakdown functions.
+    const eurTransactions = artistTransactions.map(t => {
+      const revenueEur = t.source === 'bandcamp' && t.currency !== 'EUR'
+        ? convertToEur(t.net_revenue, t.currency, rates)
+        : t.net_revenue
+      return { ...t, net_revenue: revenueEur }
+    })
+
+    for (const t of eurTransactions) {
       totalQuantity += t.quantity
       if (t.is_physical) {
         physicalRevenue += t.net_revenue
@@ -270,7 +275,7 @@ export function processTransactionsWithCompilations(
     const splitFee = config.splitFees.find(sf => sf.artist === artist)
     const splitPercentage = clampSplitPercentage(splitFee?.percentage ?? 100)
 
-    // Bug 10 fix: split percentage applies only to streaming/physical revenue;
+    // Split percentage applies only to streaming/physical revenue;
     // manual revenues (sync deals, etc.) are passed through in full.
     const finalPayout = (digitalRevenue + physicalRevenue) * (splitPercentage / 100) + manualRevenue
 
@@ -284,10 +289,10 @@ export function processTransactionsWithCompilations(
       splitPercentage,
       finalPayout,
       totalQuantity,
-      platformBreakdown: buildPlatformBreakdown(artistTransactions),
-      countryBreakdown: buildCountryBreakdown(artistTransactions),
-      monthlyBreakdown: buildMonthlyBreakdown(artistTransactions),
-      releaseBreakdown: buildReleaseBreakdown(artistTransactions),
+      platformBreakdown: buildPlatformBreakdown(eurTransactions),
+      countryBreakdown: buildCountryBreakdown(eurTransactions),
+      monthlyBreakdown: buildMonthlyBreakdown(eurTransactions),
+      releaseBreakdown: buildReleaseBreakdown(eurTransactions),
     })
   }
 
@@ -407,79 +412,4 @@ export function extractCollabs(title: string): { mainArtist: string; guestArtist
   return { mainArtist: title.trim(), guestArtists: [] }
 }
 
-/**
- * Flags monthly revenue entries that deviate by more than 2 standard
- * deviations from the artist's mean monthly revenue.
- */
-export function detectOutliers(monthlyBreakdown: MonthlyRevenue[]): MonthlyRevenue[] {
-  if (monthlyBreakdown.length < 3) return monthlyBreakdown
 
-  const revenues = monthlyBreakdown.map(m => m.revenue)
-  const mean = revenues.reduce((s, v) => s + v, 0) / revenues.length
-  const variance = revenues.reduce((s, v) => s + (v - mean) ** 2, 0) / revenues.length
-  const stdDev = Math.sqrt(variance)
-
-  return monthlyBreakdown.map(m => ({
-    ...m,
-    isOutlier: stdDev > 0 && Math.abs(m.revenue - mean) > 2 * stdDev,
-    expectedRevenue: mean,
-  }))
-}
-
-/** Advances a YYYY-MM month string by `h` months and returns the new YYYY-MM label. */
-function addMonths(yearMonthStr: string, h: number): string {
-  const [y, m] = yearMonthStr.includes('-')
-    ? yearMonthStr.split('-').map(Number)
-    : [new Date().getFullYear(), new Date().getMonth() + 1]
-  const d = new Date(y, m - 1 + h, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-/**
- * Forecasts the next 3 months of revenue using Holt-Winters double
- * exponential smoothing (level + trend). Returns both the three
- * individual monthly forecasts and their sum (the quarterly forecast).
- */
-export function calculateForecast(
-  monthlyBreakdown: MonthlyRevenue[]
-): { forecastData: ForecastPoint[]; quarterForecast: number } {
-  const sorted = [...monthlyBreakdown].sort((a, b) => a.month.localeCompare(b.month))
-  if (sorted.length < 2) {
-    const base = sorted[0]?.revenue ?? 0
-    const baseMonth = sorted[0]?.month ?? 'unknown'
-    return {
-      forecastData: [1, 2, 3].map(i => ({
-        month: addMonths(baseMonth, i),
-        forecastRevenue: parseFloat(base.toFixed(2)),
-      })),
-      quarterForecast: parseFloat((base * 3).toFixed(2)),
-    }
-  }
-
-  const α = 0.3 // level smoothing
-  const β = 0.1 // trend smoothing
-
-  // Initialise
-  let level = sorted[0].revenue
-  let trend = sorted[1].revenue - sorted[0].revenue
-
-  for (let i = 1; i < sorted.length; i++) {
-    const y = sorted[i].revenue
-    const prevLevel = level
-    level = α * y + (1 - α) * (level + trend)
-    trend = β * (level - prevLevel) + (1 - β) * trend
-  }
-
-  // Generate the next 3 calendar months after the last known month
-  const lastMonth = sorted[sorted.length - 1].month
-  const forecastData: ForecastPoint[] = []
-  let quarterForecast = 0
-
-  for (let h = 1; h <= 3; h++) {
-    const forecastRevenue = parseFloat(Math.max(0, level + h * trend).toFixed(2))
-    quarterForecast += forecastRevenue
-    forecastData.push({ month: addMonths(lastMonth, h), forecastRevenue })
-  }
-
-  return { forecastData, quarterForecast: parseFloat(quarterForecast.toFixed(2)) }
-}
