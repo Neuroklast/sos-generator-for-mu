@@ -14,13 +14,13 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { motion, AnimatePresence } from 'framer-motion'
-import { buildArtistTree } from '@/lib/data-processor'
-import { buildArtistCollabTree } from '@/lib/grouping'
-import type { ProcessedArtistData } from '@/lib/data-processor'
-import type { ArtistTreeNode } from '@/lib/types'
+import type { ArtistTreeNode, ArtistCollabNode } from '@/lib/types'
 
 interface ArtistTreeViewProps {
-  processedData: ProcessedArtistData[]
+  /** Pre-computed artist → release → track hierarchy from the Web Worker. */
+  treeNodes: ArtistTreeNode[]
+  /** Pre-computed collab graph from the Web Worker. */
+  collabTree: ArtistCollabNode[]
 }
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
@@ -188,21 +188,14 @@ function ArtistRow({ node, forceOpen }: { node: ArtistTreeNode; forceOpen?: bool
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
+export function ArtistTreeView({ treeNodes, collabTree }: ArtistTreeViewProps) {
   const [search, setSearch] = useState('')
   const [expandAll, setExpandAll] = useState<boolean | undefined>(undefined)
   const [sortBy, setSortBy] = useState<'payout' | 'artist' | 'quantity'>('payout')
   const [showCollabs, setShowCollabs] = useState(false)
 
-  const treeNodes = useMemo(() => buildArtistTree(processedData), [processedData])
-  const allTransactions = useMemo(() =>
-    processedData.flatMap(p => p.transactions ?? []),
-    [processedData]
-  )
-  const collabTree = useMemo(() =>
-    showCollabs ? buildArtistCollabTree(allTransactions, []) : [],
-    [showCollabs, allTransactions]
-  )
+  // treeNodes and collabTree are pre-computed by the Web Worker — no
+  // main-thread transaction access needed here.
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -244,7 +237,7 @@ export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
   const handleExpandAll = useCallback(() => setExpandAll(true), [])
   const handleCollapseAll = useCallback(() => setExpandAll(false), [])
 
-  if (processedData.length === 0) {
+  if (treeNodes.length === 0) {
     return (
       <div className="p-8 flex flex-col items-center justify-center text-center gap-4 min-h-64">
         <div className="p-4 bg-primary/10 rounded-full">

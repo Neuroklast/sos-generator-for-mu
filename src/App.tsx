@@ -52,6 +52,7 @@ import {
   Sparkles,
   Download,
   CalendarDays,
+  Layers,
 } from 'lucide-react'
 import { Toaster } from 'sonner'
 
@@ -64,6 +65,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'ingest', label: 'Ingestion', icon: UploadCloud },
+  { id: 'process', label: 'Cockpit', icon: Layers },
   { id: 'analytics', label: 'Analytics', icon: BarChart2 },
   { id: 'artists', label: 'Artists', icon: Users },
   { id: 'reports', label: 'Reports', icon: FileText },
@@ -73,13 +75,14 @@ const NAV_ITEMS: NavItem[] = [
 ]
 const STEP_ITEMS = [
   { id: 'ingest', label: 'Upload', icon: UploadCloud, step: 1 },
-  { id: 'settings', label: 'Configure', icon: Settings, step: 2 },
+  { id: 'process', label: 'Cockpit', icon: Layers, step: 2 },
   { id: 'analytics', label: 'Analyze', icon: BarChart2, step: 3 },
   { id: 'reports', label: 'Export', icon: FileText, step: 4 },
 ]
 const SECONDARY_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'artists', label: 'Artists', icon: Users },
+  { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'history', label: 'History', icon: History },
   { id: 'branding', label: 'Branding', icon: Tag },
 ]
@@ -366,6 +369,8 @@ function App() {
   const {
     uniqueArtists,
     processedData,
+    artistTrees,
+    collabTree,
     filteredCompilations,
     revenues,
     isProcessing,
@@ -1083,7 +1088,7 @@ function App() {
               {activeView === 'artists' && (
                 <div className="space-y-4">
                   <Card className="border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl overflow-hidden">
-                    <ArtistTreeView processedData={processedData} />
+                    <ArtistTreeView treeNodes={artistTrees} collabTree={collabTree} />
                   </Card>
                   <Card className="p-5 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl">
                     <ArtistMappingManager
@@ -1100,6 +1105,218 @@ function App() {
                 <Card className="border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl overflow-hidden">
                   <ReportingPanel revenues={revenues} />
                 </Card>
+              )}
+
+              {/* ── Process Cockpit ─── */}
+              {activeView === 'process' && (
+                <div className="flex flex-col min-h-full -mx-4 md:-mx-8 lg:-mx-12 -my-6 md:-my-8">
+                  {/* Title */}
+                  <div className="px-6 pt-6 pb-4 border-b border-border/50">
+                    <h2 className="text-2xl font-bold font-['Space_Grotesk']">Process Cockpit</h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Upload data, configure rules, and generate statements in one place.
+                    </p>
+                  </div>
+
+                  {/* 4-card grid — full viewport width, no column restriction */}
+                  <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 pb-4">
+
+                    {/* ─ Card 1: Data Ingest ─ */}
+                    <Card className="p-6 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl flex flex-col gap-5">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shrink-0 shadow-lg shadow-emerald-500/25">
+                          <UploadCloud size={20} className="text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Data Ingest</h3>
+                          <p className="text-xs text-muted-foreground">Upload CSV files from your distributors</p>
+                        </div>
+                        {totalFiles > 0 && (
+                          <div className="ml-auto shrink-0 text-right">
+                            <p className="text-xs font-semibold text-emerald-400">{totalFiles} file{totalFiles !== 1 ? 's' : ''} loaded</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-primary shrink-0" />
+                            Believe
+                          </p>
+                          <FileUploadZone
+                            type="believe"
+                            files={believeManager.files}
+                            fileStates={believeManager.fileStates}
+                            onFilesAdded={believeManager.addFiles}
+                            onFileRemoved={believeManager.removeFile}
+                            onFileReplaced={believeManager.replaceFile}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
+                            Bandcamp
+                          </p>
+                          <FileUploadZone
+                            type="bandcamp"
+                            files={bandcampManager.files}
+                            fileStates={bandcampManager.fileStates}
+                            onFilesAdded={bandcampManager.addFiles}
+                            onFileRemoved={bandcampManager.removeFile}
+                            onFileReplaced={bandcampManager.replaceFile}
+                          />
+                        </div>
+                      </div>
+
+                      {revenues.length > 0 && (
+                        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border/40">
+                          <div className="text-center p-3 rounded-xl bg-muted/30">
+                            <p className="text-xl font-mono font-bold">{uniqueArtists.length}</p>
+                            <p className="text-xs text-muted-foreground">Artists</p>
+                          </div>
+                          <div className="text-center p-3 rounded-xl bg-muted/30">
+                            <p className="text-base font-mono font-bold text-primary">
+                              {revenues.reduce((s, r) => s + r.finalAmount, 0)
+                                .toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Total Payout</p>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+
+                    {/* ─ Card 2: Compilations & Rules ─ */}
+                    <Card className="p-6 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl flex flex-col gap-5 overflow-hidden">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shrink-0 shadow-lg shadow-violet-500/25">
+                          <Settings size={20} className="text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Compilations & Rules</h3>
+                          <p className="text-xs text-muted-foreground">Exclude compilations and label exceptions</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-muted/20 border border-border/40">
+                        <div>
+                          <p className="text-sm font-medium">Exclude Physical Products</p>
+                          <p className="text-xs text-muted-foreground">Skip CD, Vinyl, Cassette from revenue</p>
+                        </div>
+                        <Switch
+                          checked={excludePhysical ?? false}
+                          onCheckedChange={checked => setExcludePhysical(checked)}
+                        />
+                      </div>
+                      <div className="flex-1 overflow-y-auto min-h-0">
+                        <CompilationFilterManager
+                          filters={compilationFilters ?? []}
+                          onAddFilter={handleAddCompilationFilter}
+                          onRemoveFilter={handleRemoveCompilationFilter}
+                        />
+                      </div>
+                    </Card>
+
+                    {/* ─ Card 3: Artist Assignments & Split Fees ─ */}
+                    <Card className="p-6 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl flex flex-col gap-5 overflow-hidden">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent shrink-0 shadow-lg shadow-primary/25">
+                          <Users size={20} className="text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Artist Assignments & Split Fees</h3>
+                          <p className="text-xs text-muted-foreground">Set revenue splits and collab mappings</p>
+                        </div>
+                      </div>
+                      <div className="flex-1 overflow-y-auto min-h-0 space-y-6">
+                        <SplitFeeManager
+                          splitFees={splitFees ?? []}
+                          onUpdateSplitFee={handleUpdateSplitFee}
+                        />
+                        <ArtistMappingManager
+                          mappings={artistMappings ?? []}
+                          onAddMapping={handleAddArtistMapping}
+                          onRemoveMapping={handleRemoveArtistMapping}
+                        />
+                      </div>
+                    </Card>
+
+                    {/* ─ Card 4: Manual Revenue ─ */}
+                    <Card className="p-6 border border-border/60 bg-card/70 backdrop-blur-md rounded-2xl flex flex-col gap-5 overflow-hidden">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shrink-0 shadow-lg shadow-amber-500/25">
+                          <Download size={20} className="text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Manual Revenue</h3>
+                          <p className="text-xs text-muted-foreground">Darkmerch, sync deals & other income</p>
+                        </div>
+                      </div>
+                      <div className="flex-1 overflow-y-auto min-h-0">
+                        <ManualRevenueManager
+                          revenues={manualRevenues ?? []}
+                          artists={uniqueArtists}
+                          onAddRevenue={handleAddManualRevenue}
+                          onRemoveRevenue={handleRemoveManualRevenue}
+                        />
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── Sticky bottom action bar ── */}
+                  <div className="sticky bottom-0 z-20 bg-card/95 backdrop-blur-xl border-t border-border/60 px-6 py-4 mt-2">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      <div className="flex items-center gap-3 flex-1 flex-wrap">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <CalendarDays size={16} className="text-muted-foreground" />
+                          <span className="text-sm font-medium text-muted-foreground">Report Period</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="month"
+                            value={periodStart ?? ''}
+                            onChange={e => setPeriodStart(e.target.value)}
+                            className="w-38 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
+                          />
+                          <span className="text-muted-foreground text-sm">→</span>
+                          <Input
+                            type="month"
+                            value={periodEnd ?? ''}
+                            onChange={e => setPeriodEnd(e.target.value)}
+                            className="w-38 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
+                          />
+                        </div>
+                        {detectedPeriodStart && detectedPeriodEnd &&
+                          (periodStart !== detectedPeriodStart || periodEnd !== detectedPeriodEnd) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-amber-400 hover:text-amber-300 gap-1 text-xs h-7"
+                            onClick={() => {
+                              setPeriodStart(detectedPeriodStart)
+                              setPeriodEnd(detectedPeriodEnd)
+                              toast.success('Period applied from CSV data')
+                            }}
+                          >
+                            <Sparkles size={12} />
+                            Use detected ({detectedPeriodStart} → {detectedPeriodEnd})
+                          </Button>
+                        )}
+                      </div>
+
+                      <Button
+                        size="lg"
+                        onClick={() => navigate('analytics')}
+                        disabled={revenues.length === 0}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 font-bold px-8 h-12 text-base shadow-lg shadow-primary/25 shrink-0 disabled:opacity-50"
+                      >
+                        {isProcessing
+                          ? <TrendingUp size={18} className="animate-pulse" />
+                          : <Zap size={18} />}
+                        {isProcessing ? 'Processing…' : 'Process Data'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* ── Settings ─── */}

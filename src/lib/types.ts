@@ -223,3 +223,33 @@ export interface ArtistCollabNode {
     quantity: number
   }>
 }
+
+/**
+ * Worker-safe version of ProcessedArtistData.
+ *
+ * Raw `SalesTransaction[]` rows are intentionally omitted so they can be
+ * discarded inside the Web Worker after aggregation.  The two revenue split
+ * fields (believeRevenue / bandcampRevenue) are pre-computed by the worker
+ * before the transaction array is dropped.
+ *
+ * All other fields are fully serialisable and can be safely transferred via
+ * postMessage without triggering memory issues on the main thread.
+ */
+export interface SafeProcessedArtistData {
+  artist: string
+  /** Revenue from Believe-sourced rows (pre-computed in worker). */
+  believeRevenue: number
+  /** Revenue from Bandcamp-sourced rows (pre-computed in worker). */
+  bandcampRevenue: number
+  totalDigitalRevenue: number
+  totalPhysicalRevenue: number
+  manualRevenue: number
+  grossRevenue: number
+  splitPercentage: number
+  finalPayout: number
+  totalQuantity: number
+  platformBreakdown: PlatformRevenue[]
+  countryBreakdown: CountryRevenue[]
+  monthlyBreakdown: MonthlyRevenue[]
+  releaseBreakdown: ReleaseRevenue[]
+}
