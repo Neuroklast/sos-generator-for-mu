@@ -96,14 +96,17 @@ function PieTooltip({ active, payload }: { active?: boolean; payload?: {name: st
 
 function ChartSection({ title, icon, children, description }: { title: string; icon: React.ReactNode; children: React.ReactNode; description?: string }) {
   return (
-    <Card className="p-6 md:p-8 border-2">
-      <div className="flex items-center gap-2 mb-1">
-        <div className="p-2 rounded-lg bg-primary/10">{icon}</div>
-        <h3 className="text-lg font-semibold">{title}</h3>
+    <Card className="overflow-hidden border-2">
+      <div className="px-6 py-3 bg-gradient-to-r from-primary/10 to-transparent border-b border-border/30">
+        <div className="flex items-center gap-2">
+          <div className="p-2 rounded-lg bg-primary/10">{icon}</div>
+          <h3 className="text-lg font-semibold">{title}</h3>
+        </div>
+        {description && <p className="text-sm text-muted-foreground mt-1 ml-11">{description}</p>}
       </div>
-      {description && <p className="text-sm text-muted-foreground mb-5 ml-11">{description}</p>}
-      {!description && <div className="mb-5" />}
-      {children}
+      <div className="p-6 md:p-8">
+        {children}
+      </div>
     </Card>
   )
 }
@@ -304,8 +307,8 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
           icon={<ChartLine size={20} className="text-primary" />}
           description="Cumulative revenue across all artists over time"
         >
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={monthlyData} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+          <ResponsiveContainer width="100%" height={400}>
+            <AreaChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
               <defs>
                 <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.3} />
@@ -313,7 +316,7 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" strokeOpacity={0.5} />
-              <XAxis dataKey="month" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={(v: string) => { const [y, m] = v.split('-'); const d = new Date(+y, +m-1); return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) }} />
               <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtEurShort} width={72} />
               <Tooltip content={<CurrencyTooltip />} />
               <Area
@@ -342,8 +345,8 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
             icon={<MusicNote size={20} className="text-primary" />}
             description="Top 15 artists ranked by total payout"
           >
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={artistComparison} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={artistComparison} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" strokeOpacity={0.5} />
                 <XAxis type="number" tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtEurShort} />
                 <YAxis dataKey="artist" type="category" tick={{ ...AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} width={120} />
@@ -380,7 +383,7 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
             icon={<ChartBar size={20} className="text-primary" />}
             description="Distribution across Believe, Bandcamp, and manual entries"
           >
-            <ResponsiveContainer width="100%" height={320}>
+            <ResponsiveContainer width="100%" height={400}>
               <PieChart>
                 <Pie
                   data={sourceData}
@@ -414,17 +417,18 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
           icon={<ChartBar size={20} className="text-primary" />}
           description="Top 12 DSPs and stores by aggregated revenue"
         >
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={platformData} margin={{ top: 8, right: 16, left: 8, bottom: 60 }}>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={platformData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" strokeOpacity={0.5} />
               <XAxis
                 dataKey="platform"
                 tick={{ ...AXIS_STYLE, fontSize: 10 }}
                 axisLine={false}
                 tickLine={false}
-                angle={-45}
+                angle={-40}
                 textAnchor="end"
                 interval={0}
+                height={70}
               />
               <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtEurShort} width={72} />
               <Tooltip
@@ -459,11 +463,11 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
           icon={<Globe size={20} className="text-primary" />}
           description="Geographic distribution of streaming and sales revenue"
         >
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={countryData} layout="vertical" margin={{ top: 4, right: 80, left: 8, bottom: 4 }}>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={countryData} layout="vertical" margin={{ top: 20, right: 80, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" strokeOpacity={0.5} />
               <XAxis type="number" tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtEurShort} />
-              <YAxis dataKey="country" type="category" tick={AXIS_STYLE} axisLine={false} tickLine={false} width={80} />
+              <YAxis dataKey="country" type="category" tick={AXIS_STYLE} axisLine={false} tickLine={false} width={120} />
               <Tooltip
                 content={({ active, payload, label }: { active?: boolean; payload?: {value: number}[]; label?: string }) => {
                   if (!active || !payload?.length) return null

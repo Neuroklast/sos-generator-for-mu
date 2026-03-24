@@ -188,3 +188,38 @@ export interface ArtistTreeNode {
   quantity: number
   releases: ReleaseWithTracks[]
 }
+
+// ── Grouping / filtering ───────────────────────────────────────────────────────
+
+export type GroupByField = 'artist' | 'album' | 'song' | 'platform' | 'country' | 'month'
+
+export interface GroupNode {
+  key: string
+  label: string
+  revenue: number
+  quantity: number
+  transactionCount: number
+  children?: GroupNode[]
+}
+
+export interface FilterState {
+  searchQuery: string
+  selectedPlatforms: string[]
+  selectedCountries: string[]
+  selectedSources: ('believe' | 'bandcamp' | 'manual')[]
+  minRevenue: number
+  maxRevenue: number
+  dateFrom: string
+  dateTo: string
+}
+
+export interface ArtistCollabNode {
+  primaryArtist: string
+  revenue: number
+  quantity: number
+  collabEntries: Array<{
+    name: string
+    revenue: number
+    quantity: number
+  }>
+}

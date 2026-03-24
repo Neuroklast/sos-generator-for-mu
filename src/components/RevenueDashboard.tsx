@@ -43,6 +43,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { ArtistRevenue, FilteredCompilation, DashboardSortField, SortDirection } from '@/lib/types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import type { GroupByField } from '@/lib/grouping'
 
 interface RevenueDashboardProps {
   revenues: ArtistRevenue[]
@@ -275,6 +278,8 @@ export function RevenueDashboard({
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortField, setSortField] = useState<DashboardSortField>('finalAmount')
   const [sortDir, setSortDir] = useState<SortDirection>('desc')
+  const [groupBy, setGroupBy] = useState<GroupByField>('artist')
+  const [showGrouped, setShowGrouped] = useState(false)
 
   // ── Available platforms ───────────────────────────────────────────────────
 
@@ -328,6 +333,43 @@ export function RevenueDashboard({
       setSortDir('desc')
     }
   }
+
+  // ── Grouped data ──────────────────────────────────────────────────────────
+
+  const groupedData = useMemo(() => {
+    if (!showGrouped || groupBy === 'artist') return []
+    const map = new Map<string, { revenue: number; quantity: number; count: number }>()
+    revenues.forEach(r => {
+      if (groupBy === 'platform') {
+        r.platformBreakdown.forEach(p => {
+          const e = map.get(p.platform) ?? { revenue: 0, quantity: 0, count: 0 }
+          e.revenue += p.revenue; e.quantity += p.quantity; e.count += 1
+          map.set(p.platform, e)
+        })
+      } else if (groupBy === 'country') {
+        r.countryBreakdown.forEach(c => {
+          const e = map.get(c.country) ?? { revenue: 0, quantity: 0, count: 0 }
+          e.revenue += c.revenue; e.quantity += c.quantity; e.count += 1
+          map.set(c.country, e)
+        })
+      } else if (groupBy === 'album') {
+        r.releaseBreakdown.forEach(rel => {
+          const e = map.get(rel.releaseTitle) ?? { revenue: 0, quantity: 0, count: 0 }
+          e.revenue += rel.revenue; e.quantity += rel.quantity; e.count += 1
+          map.set(rel.releaseTitle, e)
+        })
+      } else if (groupBy === 'month') {
+        r.monthlyBreakdown.forEach(m => {
+          const e = map.get(m.month) ?? { revenue: 0, quantity: 0, count: 0 }
+          e.revenue += m.revenue; e.quantity += 0; e.count += 1
+          map.set(m.month, e)
+        })
+      }
+    })
+    return Array.from(map.entries())
+      .map(([key, val]) => ({ key, ...val }))
+      .sort((a, b) => b.revenue - a.revenue)
+  }, [revenues, groupBy, showGrouped])
 
   // ── Totals ────────────────────────────────────────────────────────────────
 
@@ -423,6 +465,31 @@ export function RevenueDashboard({
 
       {/* Compilations panel */}
       <CompilationsPanel compilations={filteredCompilations} />
+
+      {/* Group By control bar */}
+      <div className="flex flex-wrap items-center gap-3 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+          <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupByField)}>
+            <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="artist">Artist</SelectItem>
+              <SelectItem value="album">Album</SelectItem>
+              <SelectItem value="platform">Platform</SelectItem>
+              <SelectItem value="country">Country</SelectItem>
+              <SelectItem value="month">Month</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={showGrouped} onCheckedChange={setShowGrouped} id="toggle-grouped" />
+          <Label htmlFor="toggle-grouped" className="text-xs text-muted-foreground cursor-pointer">
+            Grouped view
+          </Label>
+        </div>
+      </div>
 
       {/* Search + Filter controls */}
       <div className="space-y-3">
@@ -520,7 +587,33 @@ export function RevenueDashboard({
 
       <Separator />
 
-      {/* Artist table */}
+      {/* Artist table or grouped view */}
+      {showGrouped && groupBy !== 'artist' ? (
+        <Card className="overflow-hidden border border-border/60">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="font-semibold capitalize">{groupBy}</TableHead>
+                <TableHead className="text-right font-semibold">Revenue</TableHead>
+                <TableHead className="text-right font-semibold">Quantity</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groupedData.map((row) => (
+                <TableRow key={row.key} className="hover:bg-muted/30">
+                  <TableCell className="py-3 px-4 font-medium">{row.key || '—'}</TableCell>
+                  <TableCell className="py-3 px-4 text-right font-mono text-primary font-semibold">
+                    {formatCurrency(row.revenue)}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-right font-mono text-muted-foreground">
+                    {formatNumber(row.quantity)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : (
       <Card className="overflow-hidden border-2">
         <Table>
           <TableHeader>
@@ -646,6 +739,7 @@ export function RevenueDashboard({
           </div>
         )}
       </Card>
+      )}
     </div>
   )
 }
