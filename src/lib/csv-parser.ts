@@ -28,7 +28,7 @@ export const semanticDictionary: Record<string, string[]> = {
   platform: ["Platform", "Store", "Shop", "Plattform", "Provider", "Service", "DSP"],
   country: ["Country/Region", "Country", "Region", "Territory", "Land", "Territorium"],
   original_artist: ["Artist Name", "Artist", "Band", "Künstler", "Main Artist", "Track Artist"],
-  release_title: ["Release title", "Release", "Album", "Album Title", "Titel", "Project Name"],
+  release_title: ["Release title", "Release", "Album", "Album Title", "Titel", "Project Name", "item name"],
   track_title: ["Track title", "Track", "Song", "Title", "Track Name", "Songtitel"],
   upc_ean: ["UPC", "EAN", "Barcode", "GTIN", "Release UPC"],
   isrc: ["ISRC", "Track ISRC", "Recording ISRC"],
@@ -36,7 +36,7 @@ export const semanticDictionary: Record<string, string[]> = {
   quantity: ["Quantity", "Qty", "Downloads", "Streams", "Units", "Anzahl", "Menge", "Verkäufe"],
   net_revenue: ["Net Revenue", "Revenue", "Umsatz", "Netto", "Payout", "Net Amount", "Earnings", "Amount"],
   currency: ["Currency", "Währung", "Curr", "Paid Currency"],
-  release_type: ["Release Type", "Sales Type", "Format", "Product Type", "Physical", "Medium", "Type"]
+  release_type: ["Release Type", "Sales Type", "Format", "Product Type", "Physical", "Medium", "Type", "item type", "package"]
 }
 
 function levenshteinDistance(a: string, b: string): number {
