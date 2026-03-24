@@ -1,11 +1,5 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
-import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
-import {
-  processTransactionsWithCompilations,
-  getUniqueArtistsFromTransactions,
-} from '@/lib/data-processor'
-import type { SalesTransaction } from '@/lib/csv-parser'
 import type {
   UploadedFile,
   CompilationFilter,
@@ -14,7 +8,12 @@ import type {
   ManualRevenue,
   ArtistRevenue,
   CSVColumnAlias,
+  SafeProcessedArtistData,
+  ArtistTreeNode,
+  ArtistCollabNode,
+  FilteredCompilation,
 } from '@/lib/types'
+import type { WorkerRequest, WorkerResponse, WorkerProcessConfig, WorkerResult } from '@/workers/csv-processor.worker'
 
 interface CSVProcessorConfig {
   compilationFilters: CompilationFilter[]
@@ -26,23 +25,52 @@ interface CSVProcessorConfig {
   csvAliases: CSVColumnAlias[]
 }
 
+const EMPTY_RESULT: WorkerResult = {
+  processedData: [],
+  artistTrees: [],
+  collabTree: [],
+  filteredCompilations: [],
+  uniqueArtists: [],
+  periodStart: '',
+  periodEnd: '',
+}
+
 /**
- * Parses all uploaded CSV files and runs the full data processing pipeline.
+ * Drives the CSV Processor Web Worker.
  *
- * A cancellation flag prevents stale state updates when files change while a
- * previous parse is still in flight. The dependency string is intentionally
- * derived from file IDs + data lengths to avoid re-running the effect when
- * only unrelated state changes.
+ * Key properties of this design
+ * ──────────────────────────────
+ * • Raw SalesTransaction objects never enter main-thread React state.
+ *   They live only inside the worker until discarded after aggregation.
+ * • The worker is a long-lived singleton; file content is sent once per file
+ *   (on add) and config-only re-processing is cheap (no re-parse).
+ * • `knownFileIdsRef` tracks which files have already been sent to the
+ *   worker so that incremental adds/removes work correctly.
+ * • When csvAliases change the entire worker cache is reset and all files
+ *   are re-parsed with the new column mappings.
+ * • `pendingParsesRef` ensures we only send a 'process' message after all
+ *   in-flight parses have completed (handles batch file drops gracefully).
  */
 export function useCSVProcessor(
   believeFiles: UploadedFile[],
   bandcampFiles: UploadedFile[],
   config: CSVProcessorConfig
 ) {
-  const [allTransactions, setAllTransactions] = useState<SalesTransaction[]>([])
+  const workerRef = useRef<Worker | null>(null)
+  /** IDs of files that have been successfully sent to the worker for parsing. */
+  const knownFileIdsRef = useRef(new Set<string>())
+  /** Number of 'add-file' messages still awaiting 'parse-done' from the worker. */
+  const pendingParsesRef = useRef(0)
+  /** Latest config snapshot — updated synchronously so the parse-done handler uses it. */
+  const latestConfigRef = useRef<WorkerProcessConfig | null>(null)
+  /** The alias key that was in effect the last time files were synced with the worker. */
+  const prevAliasKeyRef = useRef<string | undefined>(undefined)
+
+  const [workerResult, setWorkerResult] = useState<WorkerResult>(EMPTY_RESULT)
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // Build a stable map of field → additional synonyms from user-defined aliases
+  // ── Build stable derivative keys ─────────────────────────────────────────────
+
   const customAliases = useMemo(() => {
     const map: Record<string, string[]> = {}
     for (const alias of config.csvAliases) {
@@ -52,107 +80,170 @@ export function useCSVProcessor(
     return map
   }, [config.csvAliases])
 
-  // Stable alias key: re-parse when user changes column mappings
   const aliasKey = config.csvAliases.map(a => `${a.fieldName}:${a.synonym}`).join(',')
-
-  // Stable keys: re-parse only when file content actually changes
   const believeKey = believeFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
   const bandcampKey = bandcampFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
 
+  const configKey = [
+    config.compilationFilters.map(f => f.id).join(','),
+    config.artistMappings.map(m => m.id).join(','),
+    config.splitFees.map(s => `${s.artist}:${s.percentage}`).join(','),
+    config.manualRevenues.map(r => r.id).join(','),
+    String(config.excludePhysical),
+  ].join('|')
+
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+
+  const buildConfig = useCallback((): WorkerProcessConfig => ({
+    compilationFilters: config.compilationFilters,
+    artistMappings: config.artistMappings,
+    splitFees: config.splitFees,
+    manualRevenues: config.manualRevenues,
+    excludePhysical: config.excludePhysical,
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.excludePhysical])
+
+  const sendProcess = useCallback(() => {
+    const cfg = latestConfigRef.current ?? buildConfig()
+    workerRef.current?.postMessage({ type: 'process', config: cfg } satisfies WorkerRequest)
+    setIsProcessing(true)
+  }, [buildConfig])
+
+  // ── Worker lifecycle ──────────────────────────────────────────────────────────
+
   useEffect(() => {
-    const allFiles = [...believeFiles, ...bandcampFiles]
-    let cancelled = false
+    const worker = new Worker(
+      new URL('../workers/csv-processor.worker.ts', import.meta.url),
+      { type: 'module' }
+    )
+    workerRef.current = worker
 
-    if (allFiles.length === 0) {
-      setAllTransactions([])
-      return
-    }
+    worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+      const msg = event.data
+      switch (msg.type) {
+        case 'parse-progress':
+          // Progress updates are currently consumed by useFileManager's own
+          // parsing pass for the UI progress bars; we don't duplicate them here.
+          break
 
-    const parseAll = async () => {
-      setIsProcessing(true)
-      const collected: SalesTransaction[] = []
-
-      try {
-        for (const file of allFiles) {
-          if (cancelled) break
-          if (!file.data) continue
-
-          const result = await parseCSVContentStreaming(
-            file.data,
-            file.type,
-            undefined,
-            undefined,
-            customAliases
-          )
-
-          if (cancelled) break
-
-          if (result.errors.length > 0) {
-            console.warn(`Parse warnings for "${file.name}":`, result.errors)
-            toast.warning(`${result.errors.length} row(s) skipped in "${file.name}"`)
+        case 'parse-done':
+          pendingParsesRef.current = Math.max(0, pendingParsesRef.current - 1)
+          if (pendingParsesRef.current === 0) {
+            sendProcess()
           }
+          break
 
-          for (const t of result.transactions) collected.push(t)
-        }
-
-        if (!cancelled) {
-          setAllTransactions(collected)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const message = err instanceof Error ? err.message : 'Unknown error during CSV processing'
-          console.error('CSV processing failed:', err)
-          toast.error('Failed to process CSV data', { description: message })
-        }
-      } finally {
-        if (!cancelled) {
+        case 'result':
+          setWorkerResult(msg.data)
           setIsProcessing(false)
-        }
+          break
+
+        case 'error':
+          console.error('CSV Worker error:', msg.message)
+          toast.error('CSV processing error', { description: msg.message })
+          setIsProcessing(false)
+          break
       }
     }
 
-    parseAll()
+    worker.onerror = (err) => {
+      console.error('CSV Worker uncaught error:', err)
+      toast.error('Worker crashed', { description: err.message ?? 'Unknown error' })
+      setIsProcessing(false)
+    }
 
     return () => {
-      cancelled = true
+      worker.terminate()
+      workerRef.current = null
+      knownFileIdsRef.current.clear()
+      pendingParsesRef.current = 0
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Effect: sync files with worker ────────────────────────────────────────────
+  // Triggers when file content changes or when column aliases change.
+
+  useEffect(() => {
+    const worker = workerRef.current
+    if (!worker) return
+
+    const allFiles = [...believeFiles, ...bandcampFiles]
+    const currentFileMap = new Map(
+      allFiles.filter(f => f.data).map(f => [f.id, f])
+    )
+
+    // When aliases change, reset the worker's internal cache and re-send all files
+    // (because column mappings affect which CSV columns get parsed).
+    if (prevAliasKeyRef.current !== aliasKey) {
+      const isFirstRun = prevAliasKeyRef.current === undefined
+      prevAliasKeyRef.current = aliasKey
+      if (!isFirstRun) {
+        // Aliases actually changed — reset the worker cache.
+        worker.postMessage({ type: 'reset' } satisfies WorkerRequest)
+        knownFileIdsRef.current.clear()
+        pendingParsesRef.current = 0
+      }
+    }
+
+    // Remove files that are no longer present
+    for (const id of knownFileIdsRef.current) {
+      if (!currentFileMap.has(id)) {
+        worker.postMessage({ type: 'remove-file', fileId: id } satisfies WorkerRequest)
+        knownFileIdsRef.current.delete(id)
+      }
+    }
+
+    // Send newly added files (with data) to the worker
+    let newFilesQueued = 0
+    for (const [id, file] of currentFileMap.entries()) {
+      if (!knownFileIdsRef.current.has(id) && file.data) {
+        knownFileIdsRef.current.add(id)
+        pendingParsesRef.current++
+        newFilesQueued++
+        worker.postMessage({
+          type: 'add-file',
+          fileId: id,
+          content: file.data,
+          source: file.type,
+          customAliases,
+        } satisfies WorkerRequest)
+        setIsProcessing(true)
+      }
+    }
+
+    // If all files were already known (no new adds) and there are no pending
+    // parses, trigger a process with the current config immediately.
+    if (newFilesQueued === 0 && pendingParsesRef.current === 0) {
+      if (currentFileMap.size === 0) {
+        // No files left — return empty result
+        setWorkerResult(EMPTY_RESULT)
+        setIsProcessing(false)
+      } else {
+        sendProcess()
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [believeKey, bandcampKey, aliasKey])
 
-  const uniqueArtists = useMemo(
-    () => getUniqueArtistsFromTransactions(allTransactions, config.artistMappings),
-    [allTransactions, config.artistMappings]
-  )
+  // ── Effect: re-process when config changes (no re-parse needed) ───────────────
 
-  const { artistData: processedData, filteredCompilations } = useMemo(
-    () =>
-      processTransactionsWithCompilations(allTransactions, {
-        compilationFilters: config.compilationFilters,
-        artistMappings: config.artistMappings,
-        splitFees: config.splitFees,
-        manualRevenues: config.manualRevenues,
-        excludePhysical: config.excludePhysical,
-      }),
-    [
-      allTransactions,
-      config.compilationFilters,
-      config.artistMappings,
-      config.splitFees,
-      config.manualRevenues,
-      config.excludePhysical,
-    ]
-  )
+  useEffect(() => {
+    const cfg = buildConfig()
+    latestConfigRef.current = cfg
+    if (workerRef.current && pendingParsesRef.current === 0 && knownFileIdsRef.current.size > 0) {
+      sendProcess()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configKey])
+
+  // ── Derived values ─────────────────────────────────────────────────────────────
 
   const revenues: ArtistRevenue[] = useMemo(
     () =>
-      processedData.map(data => ({
+      workerResult.processedData.map(data => ({
         artist: data.artist,
-        believeRevenue: data.transactions
-          .filter(t => t.source === 'believe')
-          .reduce((sum, t) => sum + t.net_revenue, 0),
-        bandcampRevenue: data.transactions
-          .filter(t => t.source === 'bandcamp')
-          .reduce((sum, t) => sum + t.net_revenue, 0),
+        believeRevenue: data.believeRevenue,
+        bandcampRevenue: data.bandcampRevenue,
         manualRevenue: data.manualRevenue,
         totalRevenue: data.grossRevenue,
         splitPercentage: data.splitPercentage,
@@ -163,30 +254,19 @@ export function useCSVProcessor(
         monthlyBreakdown: data.monthlyBreakdown,
         releaseBreakdown: data.releaseBreakdown,
       })),
-    [processedData]
+    [workerResult.processedData]
   )
-
-  /**
-   * Automatically detected period boundaries derived from the `sales_month`
-   * field across all parsed transactions. Format: "YYYY-MM" (the native value
-   * of an <input type="month">). Empty string when no transactions are loaded.
-   */
-  const sortedMonths = useMemo(
-    () => allTransactions.map(t => t.sales_month).filter(Boolean).sort(),
-    [allTransactions]
-  )
-
-  const detectedPeriodStart = sortedMonths[0] ?? ''
-  const detectedPeriodEnd = sortedMonths[sortedMonths.length - 1] ?? ''
 
   return {
-    allTransactions,
     isProcessing,
-    uniqueArtists,
-    processedData,
-    filteredCompilations,
+    uniqueArtists: workerResult.uniqueArtists,
+    processedData: workerResult.processedData as SafeProcessedArtistData[],
+    artistTrees: workerResult.artistTrees as ArtistTreeNode[],
+    collabTree: workerResult.collabTree as ArtistCollabNode[],
+    filteredCompilations: workerResult.filteredCompilations as FilteredCompilation[],
     revenues,
-    detectedPeriodStart,
-    detectedPeriodEnd,
+    detectedPeriodStart: workerResult.periodStart,
+    detectedPeriodEnd: workerResult.periodEnd,
   }
 }
+

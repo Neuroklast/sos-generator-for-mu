@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import * as XLSX from 'xlsx'
-import type { ProcessedArtistData } from './data-processor'
-import type { LabelInfo } from './types'
+import type { SafeProcessedArtistData } from '@/lib/types'
+import type { LabelInfo } from '@/lib/types'
 
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('de-DE', {
@@ -11,7 +11,7 @@ export function formatCurrency(value: number): string {
 }
 
 export function generatePDF(
-  artistData: ProcessedArtistData,
+  artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string
@@ -26,7 +26,7 @@ export function generatePDF(
 }
 
 function buildPDF(
-  artistData: ProcessedArtistData,
+  artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string
@@ -105,63 +105,64 @@ function buildPDF(
   doc.line(margin, yPos, 190, yPos)
   yPos += 10
 
+  // Release breakdown (replaces raw transaction rows — aggregated data is more
+  // meaningful on a statement and does not require keeping raw rows in memory)
   doc.setFont('helvetica', 'bold')
-  doc.text('Transactions', margin, yPos)
+  doc.text('Release Summary', margin, yPos)
   yPos += 6
 
-  doc.setLineWidth(0.3)
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'bold')
+  const releaseHeaders = ['Release Title', 'Revenue', 'Qty', 'Type']
+  const releaseColWidths = [90, 35, 20, 25]
+  let xPos = margin
+  releaseHeaders.forEach((h, i) => { doc.text(h, xPos, yPos); xPos += releaseColWidths[i] })
   yPos += 5
+  doc.setFont('helvetica', 'normal')
 
-  if (artistData.transactions.length > 0) {
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-
-    const headers = ['Platform', 'Release', 'Track', 'Quantity', 'Revenue', 'Type']
-    const colWidths = [30, 50, 50, 20, 25, 20]
-    let xPos = margin
-
-    headers.forEach((header, i) => {
-      doc.text(header, xPos, yPos)
-      xPos += colWidths[i] || 20
+  const maxReleases = 30
+  const releases = artistData.releaseBreakdown.slice(0, maxReleases)
+  for (const rel of releases) {
+    if (yPos > 270) { doc.addPage(); yPos = 20 }
+    xPos = margin
+    const rowData = [
+      (rel.releaseTitle || '-').substring(0, 38),
+      formatCurrency(rel.revenue),
+      String(rel.quantity),
+      rel.isPhysical ? 'Physical' : 'Digital',
+    ]
+    rowData.forEach((cell, idx) => {
+      doc.text(cell, xPos, yPos)
+      xPos += releaseColWidths[idx]
     })
+    yPos += 5
+  }
 
-    yPos += 6
+  if (artistData.releaseBreakdown.length > maxReleases) {
+    doc.setFont('helvetica', 'italic')
+    doc.text(
+      `... and ${artistData.releaseBreakdown.length - maxReleases} more releases`,
+      margin,
+      yPos
+    )
+    yPos += 5
+  }
+
+  // Platform breakdown
+  if (artistData.platformBreakdown.length > 0) {
+    yPos += 5
+    if (yPos > 260) { doc.addPage(); yPos = 20 }
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('Platform Breakdown', margin, yPos)
+    yPos += 5
     doc.setFont('helvetica', 'normal')
-    const maxTransactions = 25
-
-    for (let i = 0; i < Math.min(artistData.transactions.length, maxTransactions); i++) {
-      const transaction = artistData.transactions[i]
-      
-      if (yPos > 270) {
-        doc.addPage()
-        yPos = 20
-      }
-
-      const rowData = [
-        transaction.platform || '-',
-        transaction.release_title?.substring(0, 20) || '-',
-        transaction.track_title?.substring(0, 20) || '-',
-        String(transaction.quantity || 0),
-        formatCurrency(transaction.net_revenue || 0),
-        transaction.is_physical ? 'Physical' : 'Digital'
-      ]
-
-      xPos = margin
-      rowData.forEach((cell, idx) => {
-        doc.text(cell, xPos, yPos)
-        xPos += colWidths[idx] || 20
-      })
-
-      yPos += 5
-    }
-
-    if (artistData.transactions.length > maxTransactions) {
-      doc.setFont('helvetica', 'italic')
-      doc.text(
-        `... and ${artistData.transactions.length - maxTransactions} more transactions`,
-        margin,
-        yPos
-      )
+    doc.setFontSize(8)
+    for (const p of artistData.platformBreakdown.slice(0, 10)) {
+      if (yPos > 270) { doc.addPage(); yPos = 20 }
+      doc.text(p.platform || 'Unknown', margin, yPos)
+      doc.text(formatCurrency(p.revenue), margin + 80, yPos)
+      yPos += 4
     }
   }
 
@@ -174,7 +175,7 @@ function buildPDF(
 }
 
 export function generateExcel(
-  artistData: ProcessedArtistData,
+  artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string
@@ -189,7 +190,7 @@ export function generateExcel(
 }
 
 function buildExcel(
-  artistData: ProcessedArtistData,
+  artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string
@@ -206,6 +207,8 @@ function buildExcel(
     ['Period', periodStart && periodEnd ? `${periodStart} - ${periodEnd}` : ''],
     [],
     ['Revenue Summary'],
+    ['Believe Revenue', artistData.believeRevenue],
+    ['Bandcamp Revenue', artistData.bandcampRevenue],
     ['Digital Revenue', artistData.totalDigitalRevenue],
     ['Physical Revenue', artistData.totalPhysicalRevenue],
     ['Manual Revenue', artistData.manualRevenue],
@@ -216,70 +219,67 @@ function buildExcel(
 
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
   summarySheet['!cols'] = [{ wch: 25 }, { wch: 25 }]
-  
+
   if (summarySheet['A1']) {
-    summarySheet['A1'].s = {
-      font: { bold: true, sz: 14 }
-    }
+    summarySheet['A1'].s = { font: { bold: true, sz: 14 } }
   }
 
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
 
-  if (artistData.transactions.length > 0) {
-    const transactionHeaders = [
-      'Sales Month',
-      'Platform',
-      'Country',
-      'Release Title',
-      'Track Title',
-      'UPC/EAN',
-      'ISRC',
-      'Catalog Number',
-      'Quantity',
-      'Net Revenue',
-      'Currency',
-      'Type',
+  // Release breakdown sheet (aggregated, memory-efficient alternative to raw rows)
+  if (artistData.releaseBreakdown.length > 0) {
+    const releaseHeaders = [
+      'Release Title', 'UPC/EAN', 'Catalog Number', 'Revenue', 'Quantity', 'Type',
     ]
-
-    const transactionRows = artistData.transactions.map((t) => [
-      t.sales_month || '',
-      t.platform || '',
-      t.country || '',
-      t.release_title || '',
-      t.track_title || '',
-      t.upc_ean || '',
-      t.isrc || '',
-      t.catalog_number || '',
-      t.quantity || 0,
-      t.net_revenue || 0,
-      t.currency || 'EUR',
-      t.is_physical ? 'Physical' : 'Digital',
+    const releaseRows = artistData.releaseBreakdown.map(r => [
+      r.releaseTitle || '',
+      r.upcEan || '',
+      r.catalogNumber || '',
+      r.revenue,
+      r.quantity,
+      r.isPhysical ? 'Physical' : 'Digital',
     ])
-
-    const transactionData = [transactionHeaders, ...transactionRows]
-    const transactionSheet = XLSX.utils.aoa_to_sheet(transactionData)
-
-    transactionSheet['!cols'] = [
-      { wch: 15 },
-      { wch: 20 },
-      { wch: 15 },
-      { wch: 30 },
-      { wch: 30 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 10 },
-      { wch: 15 },
-      { wch: 10 },
-      { wch: 10 },
+    const releaseSheet = XLSX.utils.aoa_to_sheet([releaseHeaders, ...releaseRows])
+    releaseSheet['!cols'] = [
+      { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 10 },
     ]
+    XLSX.utils.book_append_sheet(workbook, releaseSheet, 'Releases')
+  }
 
-    XLSX.utils.book_append_sheet(workbook, transactionSheet, 'Transactions')
+  // Platform breakdown sheet
+  if (artistData.platformBreakdown.length > 0) {
+    const platformHeaders = ['Platform', 'Revenue', 'Quantity']
+    const platformRows = artistData.platformBreakdown.map(p => [
+      p.platform || 'Unknown', p.revenue, p.quantity,
+    ])
+    const platformSheet = XLSX.utils.aoa_to_sheet([platformHeaders, ...platformRows])
+    platformSheet['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(workbook, platformSheet, 'Platforms')
+  }
+
+  // Country breakdown sheet
+  if (artistData.countryBreakdown.length > 0) {
+    const countryHeaders = ['Country', 'Revenue', 'Quantity']
+    const countryRows = artistData.countryBreakdown.map(c => [
+      c.country || 'Unknown', c.revenue, c.quantity,
+    ])
+    const countrySheet = XLSX.utils.aoa_to_sheet([countryHeaders, ...countryRows])
+    countrySheet['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(workbook, countrySheet, 'Countries')
+  }
+
+  // Monthly breakdown sheet
+  if (artistData.monthlyBreakdown.length > 0) {
+    const monthHeaders = ['Month', 'Revenue']
+    const monthRows = artistData.monthlyBreakdown.map(m => [m.month, m.revenue])
+    const monthSheet = XLSX.utils.aoa_to_sheet([monthHeaders, ...monthRows])
+    monthSheet['!cols'] = [{ wch: 12 }, { wch: 15 }]
+    XLSX.utils.book_append_sheet(workbook, monthSheet, 'Monthly')
   }
 
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
-  return new Blob([excelBuffer], { 
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  return new Blob([excelBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
 }
 
@@ -298,17 +298,37 @@ export function downloadBlob(blob: Blob, filename: string): void {
   }
 }
 
+/**
+ * Generates a ZIP of PDF and/or Excel statements for all artists.
+ *
+ * Artists are processed sequentially (one per event-loop turn via
+ * `setTimeout(0)` yields) so that:
+ *  1. The browser UI remains fully responsive during a large export.
+ *  2. Memory consumption stays bounded — only one artist's document is live
+ *     at a time before it is handed off to JSZip.
+ *
+ * @param onProgress  Optional callback fired after each artist is processed.
+ *                    Receives (done, total) so callers can show a progress bar.
+ */
 export async function generateZipOfAllStatements(
-  artistsData: ProcessedArtistData[],
+  artistsData: SafeProcessedArtistData[],
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string,
-  format: 'pdf' | 'excel' | 'both' = 'both'
+  format: 'pdf' | 'excel' | 'both' = 'both',
+  onProgress?: (done: number, total: number) => void
 ): Promise<Blob> {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
+  const total = artistsData.length
 
-  for (const artistData of artistsData) {
+  for (let i = 0; i < artistsData.length; i++) {
+    const artistData = artistsData[i]
+
+    // Yield to the event loop so the main thread can paint progress updates
+    // and remain interactive between each document generation.
+    await new Promise<void>(resolve => setTimeout(resolve, 0))
+
     const safeArtistName = artistData.artist.replace(/[^a-z0-9]/gi, '_')
 
     if (format === 'pdf' || format === 'both') {
@@ -320,6 +340,8 @@ export async function generateZipOfAllStatements(
       const excelBlob = generateExcel(artistData, labelInfo, periodStart, periodEnd)
       zip.file(`${safeArtistName}_statement.xlsx`, excelBlob)
     }
+
+    onProgress?.(i + 1, total)
   }
 
   return await zip.generateAsync({ type: 'blob' })

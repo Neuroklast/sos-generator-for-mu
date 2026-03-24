@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { useCallback, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 import type { UploadedFile, FileProcessingState } from '@/lib/types'
 
 interface FileUploadZoneProps {
@@ -141,7 +142,9 @@ export function FileUploadZone({
   }, [])
 
   const showTypeError = useCallback((rejectedCount: number) => {
-    setTypeError(`${rejectedCount} file${rejectedCount !== 1 ? 's' : ''} rejected — only CSV files are accepted.`)
+    const msg = `${rejectedCount} file${rejectedCount !== 1 ? 's' : ''} rejected — only CSV files are accepted.`
+    setTypeError(msg)
+    toast.error('Invalid file type', { description: msg })
     setTimeout(() => setTypeError(null), 6000)
   }, [])
 

@@ -7,14 +7,15 @@ import {
   generateZipOfAllStatements,
 } from '@/lib/export-utils'
 import { createSafeFilename } from '@/lib/utils'
-import type { ProcessedArtistData } from '@/lib/data-processor'
+import type { SafeProcessedArtistData } from '@/lib/types'
 import type { LabelInfo } from '@/lib/types'
 
 /**
  * Provides PDF, Excel and ZIP export actions with error handling.
+ * Uses the safe (no raw-transaction) artist data from the Web Worker.
  */
 export function useExports(
-  processedData: ProcessedArtistData[],
+  processedData: SafeProcessedArtistData[],
   labelInfo: LabelInfo,
   periodStart: string,
   periodEnd: string
@@ -71,22 +72,35 @@ export function useExports(
     [processedData, labelInfo, periodStart, periodEnd]
   )
 
+  /**
+   * Queued batch export — generates one document at a time so the browser
+   * never tries to build hundreds of PDFs simultaneously. Progress is shown
+   * via an updating sonner toast so the user sees exactly how far along the
+   * export is without the tab freezing.
+   */
   const handleDownloadAll = useCallback(async () => {
     if (processedData.length === 0) {
       toast.info('No revenue data to export')
       return
     }
 
-    const toastId = toast.loading('Generating all statements...')
+    const total = processedData.length
+    const toastId = toast.loading(`Preparing 1 / ${total} statements…`)
     try {
       const blob = await generateZipOfAllStatements(
         processedData,
         labelInfo,
         periodStart || undefined,
-        periodEnd || undefined
+        periodEnd || undefined,
+        'both',
+        (done, tot) => {
+          if (done < tot) {
+            toast.loading(`Generating ${done + 1} / ${tot} statements…`, { id: toastId })
+          }
+        }
       )
       downloadBlob(blob, 'artist_statements.zip')
-      toast.success('All statements downloaded', { id: toastId })
+      toast.success(`All ${total} statements downloaded`, { id: toastId })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       toast.error('ZIP export failed', { id: toastId, description: message })
