@@ -17,7 +17,10 @@ function fmtEur(value: number) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
-type ColId = 'artist' | 'totalRevenue' | 'payout'
+/** Total horizontal padding + icon gap reserved inside the artist cell. */
+const ARTIST_CELL_RESERVED_PX = 32
+
+
 
 interface ColDef {
   id: ColId
@@ -246,14 +249,14 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span
                                 className="truncate block"
-                                style={{ maxWidth: colWidths.artist - 32 }}
+                                style={{ maxWidth: colWidths.artist - ARTIST_CELL_RESERVED_PX }}
                                 title={r.artist}
                               >
                                 {r.artist}
                               </span>
                               {outlierMonths.length > 0 && (
                                 <span
-                                  title={`Statistical outlier in: ${outlierMonths.join(', ')} (expected ≈ ${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(r.monthlyBreakdown.find(m => m.isOutlier)?.expectedRevenue ?? 0)})`}
+                                  title={`Statistical outlier in: ${outlierMonths.join(', ')} (expected ≈ ${fmtEur(r.monthlyBreakdown.find(m => m.isOutlier)?.expectedRevenue ?? 0)})`}
                                   className="shrink-0 text-amber-400 cursor-help"
                                 >
                                   <AlertTriangle size={14} />

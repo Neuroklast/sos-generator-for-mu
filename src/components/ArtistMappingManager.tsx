@@ -95,9 +95,10 @@ export function ArtistMappingManager({
     setMergeSearch('')
   }
 
+  const existingFeaturingNamesLower = new Set(mappings.map(m => m.featuringName.toLowerCase()))
   const allMappings = [
     ...mappings,
-    ...autoMappings.filter(am => !mappings.some(m => m.featuringName.toLowerCase() === am.featuringName.toLowerCase())),
+    ...autoMappings.filter(am => !existingFeaturingNamesLower.has(am.featuringName.toLowerCase())),
   ]
 
   return (

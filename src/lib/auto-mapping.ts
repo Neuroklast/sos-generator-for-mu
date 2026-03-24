@@ -21,20 +21,24 @@ export function computeAutoMappings(
 
   if (primaryArtists.length === 0) return []
 
+  // Pre-compute lowercase primaries to avoid repeated conversion in the inner loop
+  const primaryArtistsLower = primaryArtists.map(p => p.toLowerCase())
+
   const result: ArtistMapping[] = []
 
   for (const artist of uniqueArtists) {
-    if (existingKeys.has(artist.toLowerCase())) continue
-    if (primaryArtists.some(p => p.toLowerCase() === artist.toLowerCase())) continue
+    const artistLower = artist.toLowerCase()
+    if (existingKeys.has(artistLower)) continue
+    if (primaryArtistsLower.some(p => p === artistLower)) continue
 
     let bestScore = 0
     let bestPrimary = ''
 
-    for (const primary of primaryArtists) {
-      const score = JaroWinklerDistance(artist.toLowerCase(), primary.toLowerCase())
+    for (let i = 0; i < primaryArtists.length; i++) {
+      const score = JaroWinklerDistance(artistLower, primaryArtistsLower[i])
       if (score > bestScore) {
         bestScore = score
-        bestPrimary = primary
+        bestPrimary = primaryArtists[i]
       }
     }
 
