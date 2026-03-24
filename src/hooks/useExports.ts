@@ -108,5 +108,45 @@ export function useExports(
     }
   }, [processedData, labelInfo, periodStart, periodEnd])
 
-  return { handleDownloadPDF, handleDownloadExcel, handleDownloadAll }
+  /**
+   * Queued batch export for a specific subset of artists — same async queue
+   * as handleDownloadAll but filters processedData to only the provided names.
+   */
+  const handleDownloadSelected = useCallback(async (selectedArtistNames: string[]) => {
+    if (selectedArtistNames.length === 0) {
+      toast.info('No artists selected for export')
+      return
+    }
+
+    const subset = processedData.filter(d => selectedArtistNames.includes(d.artist))
+    if (subset.length === 0) {
+      toast.error('No matching processed data for selected artists')
+      return
+    }
+
+    const total = subset.length
+    const toastId = toast.loading(`Preparing 1 / ${total} statements…`)
+    try {
+      const blob = await generateZipOfAllStatements(
+        subset,
+        labelInfo,
+        periodStart || undefined,
+        periodEnd || undefined,
+        'both',
+        (done, tot) => {
+          if (done < tot) {
+            toast.loading(`Generating ${done + 1} / ${tot} statements…`, { id: toastId })
+          }
+        }
+      )
+      downloadBlob(blob, 'selected_artist_statements.zip')
+      toast.success(`${total} selected statement${total !== 1 ? 's' : ''} downloaded`, { id: toastId })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      toast.error('ZIP export failed', { id: toastId, description: message })
+      console.error('ZIP export error:', err)
+    }
+  }, [processedData, labelInfo, periodStart, periodEnd])
+
+  return { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected }
 }
