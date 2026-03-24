@@ -10,13 +10,14 @@ interface ReportingPanelProps {
   onDownloadPDF: (artist: string) => void
   onDownloadExcel: (artist: string) => void
   onDownloadAll: () => void
+  onDownloadSelected: (artistNames: string[]) => void
 }
 
 function fmtEur(value: number) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
-export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDownloadAll }: ReportingPanelProps) {
+export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDownloadAll, onDownloadSelected }: ReportingPanelProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
 
@@ -54,10 +55,7 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
   }
 
   function exportSelected() {
-    selectedArtists.forEach(artist => {
-      onDownloadPDF(artist)
-      onDownloadExcel(artist)
-    })
+    onDownloadSelected(Array.from(selectedArtists))
   }
 
   const selectedCount = selectedArtists.size

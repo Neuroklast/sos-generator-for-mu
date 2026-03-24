@@ -47,6 +47,7 @@ import {
   X,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Disc3,
   Zap,
   TrendingUp,
@@ -54,6 +55,9 @@ import {
   Download,
   CalendarDays,
   Layers,
+  Search,
+  Copy,
+  ArrowUpDown,
 } from 'lucide-react'
 import { Toaster } from 'sonner'
 
@@ -431,7 +435,7 @@ function App() {
 
   useSplitFeeSync(uniqueArtists, stableSplitFees, setSplitFees)
 
-  const { handleDownloadPDF, handleDownloadExcel, handleDownloadAll } = useExports(
+  const { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected } = useExports(
     processedData,
     labelInfo ?? { name: '', address: '' },
     periodStart ?? '',
@@ -555,6 +559,37 @@ function App() {
       return next
     })
   }, [])
+
+  // ── Finance Master Table search + sort ─────────────────────────────────────
+  const [masterSearch, setMasterSearch] = useState('')
+  type MasterSortField = 'artist' | 'totalQuantity' | 'totalRevenue' | 'finalAmount'
+  type MasterSortDir = 'asc' | 'desc'
+  const [masterSortField, setMasterSortField] = useState<MasterSortField>('artist')
+  const [masterSortDir, setMasterSortDir] = useState<MasterSortDir>('asc')
+
+  const toggleMasterSort = useCallback((field: MasterSortField) => {
+    setMasterSortField(prev => {
+      if (prev === field) {
+        setMasterSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        return prev
+      }
+      setMasterSortDir('asc')
+      return field
+    })
+  }, [])
+
+  const masterTableRevenues = useMemo(() => {
+    const q = masterSearch.toLowerCase()
+    const filtered = q ? revenues.filter(r => r.artist.toLowerCase().includes(q)) : revenues
+    return [...filtered].sort((a, b) => {
+      let diff = 0
+      if (masterSortField === 'artist') diff = a.artist.localeCompare(b.artist)
+      else if (masterSortField === 'totalQuantity') diff = a.totalQuantity - b.totalQuantity
+      else if (masterSortField === 'totalRevenue') diff = a.totalRevenue - b.totalRevenue
+      else if (masterSortField === 'finalAmount') diff = a.finalAmount - b.finalAmount
+      return masterSortDir === 'asc' ? diff : -diff
+    })
+  }, [revenues, masterSearch, masterSortField, masterSortDir])
 
   // UX 4: 4 core mobile nav items. Constructed from named ids instead of slice()
   // so items remain correct even if the NAV_ITEMS order changes.
@@ -1084,6 +1119,7 @@ function App() {
                     onDownloadPDF={handleDownloadPDF}
                     onDownloadExcel={handleDownloadExcel}
                     onDownloadAll={handleDownloadAll}
+                    onDownloadSelected={handleDownloadSelected}
                   />
                 </Card>
               )}
@@ -1229,21 +1265,71 @@ function App() {
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
+                          {/* Search bar */}
+                          <div className="px-6 pb-4">
+                            <div className="relative max-w-xs">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                              <Input
+                                type="text"
+                                placeholder="Search artists…"
+                                value={masterSearch}
+                                onChange={e => setMasterSearch(e.target.value)}
+                                className="pl-8 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
+                              />
+                            </div>
+                          </div>
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-y border-white/10 bg-white/[0.02]">
                                 <th className="py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground w-8"></th>
-                                <th className="py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Artist</th>
-                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Units</th>
+                                <th
+                                  className="py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+                                  onClick={() => toggleMasterSort('artist')}
+                                >
+                                  <span className="inline-flex items-center gap-1">
+                                    Artist
+                                    {masterSortField === 'artist' ? (masterSortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={12} className="opacity-40" />}
+                                  </span>
+                                </th>
+                                <th
+                                  className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+                                  onClick={() => toggleMasterSort('totalQuantity')}
+                                >
+                                  <span className="inline-flex items-center justify-end gap-1">
+                                    Units
+                                    {masterSortField === 'totalQuantity' ? (masterSortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={12} className="opacity-40" />}
+                                  </span>
+                                </th>
                                 <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Solo Revenue</th>
                                 <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Collab Revenue</th>
-                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Revenue</th>
+                                <th
+                                  className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+                                  onClick={() => toggleMasterSort('totalRevenue')}
+                                >
+                                  <span className="inline-flex items-center justify-end gap-1">
+                                    Total Revenue
+                                    {masterSortField === 'totalRevenue' ? (masterSortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={12} className="opacity-40" />}
+                                  </span>
+                                </th>
                                 <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Split Rate</th>
-                                <th className="py-3 px-8 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payout</th>
+                                <th
+                                  className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+                                  onClick={() => toggleMasterSort('finalAmount')}
+                                >
+                                  <span className="inline-flex items-center justify-end gap-1">
+                                    Payout
+                                    {masterSortField === 'finalAmount' ? (masterSortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={12} className="opacity-40" />}
+                                  </span>
+                                </th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {revenues.map(rev => {
+                              {masterTableRevenues.length === 0 ? (
+                                <tr>
+                                  <td colSpan={9} className="py-8 text-center text-sm text-muted-foreground">No artists match your search.</td>
+                                </tr>
+                              ) : masterTableRevenues.map(rev => {
                                 const isExpanded = expandedArtists.has(rev.artist)
                                 const collabNode = collabTree.find(c => c.primaryArtist === rev.artist)
                                 const collabRevenue = collabNode?.collabEntries.reduce((s, e) => s + e.revenue, 0) ?? 0
@@ -1262,7 +1348,19 @@ function App() {
                                           className={`transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
                                         />
                                       </td>
-                                      <td className="py-4 px-4 font-medium text-foreground whitespace-nowrap">{rev.artist}</td>
+                                      <td className="py-4 px-4 font-medium text-foreground whitespace-nowrap">
+                                        <span className="inline-flex items-center gap-1.5">
+                                          {rev.artist}
+                                          <button
+                                            type="button"
+                                            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(rev.artist).then(() => toast.success(`"${rev.artist}" copied`)) }}
+                                            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                                            title="Copy artist name"
+                                          >
+                                            <Copy size={12} />
+                                          </button>
+                                        </span>
+                                      </td>
                                       <td className="py-4 px-4 text-right font-mono tabular-nums text-muted-foreground">{rev.totalQuantity.toLocaleString('de-DE')}</td>
                                       <td className="py-4 px-4 text-right font-mono tabular-nums text-foreground/80">€{fmtEur(soloRevenue)}</td>
                                       <td className="py-4 px-4 text-right font-mono tabular-nums text-foreground/60">
@@ -1270,13 +1368,37 @@ function App() {
                                       </td>
                                       <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.totalRevenue)}</td>
                                       <td className="py-4 px-4 text-right font-mono tabular-nums text-primary">{rev.splitPercentage.toFixed(1)}%</td>
-                                      <td className="py-4 px-8 text-right font-mono tabular-nums font-bold text-primary">€{fmtEur(rev.finalAmount)}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums font-bold text-primary">€{fmtEur(rev.finalAmount)}</td>
+                                      <td className="py-4 px-4 text-right" onClick={e => e.stopPropagation()}>
+                                        <div className="inline-flex items-center gap-1">
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 px-2 gap-1 text-xs"
+                                            onClick={() => handleDownloadPDF(rev.artist)}
+                                            title={`PDF for ${rev.artist}`}
+                                          >
+                                            <FileText size={12} />
+                                            PDF
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 px-2 gap-1 text-xs"
+                                            onClick={() => handleDownloadExcel(rev.artist)}
+                                            title={`Excel for ${rev.artist}`}
+                                          >
+                                            <Download size={12} />
+                                            XLS
+                                          </Button>
+                                        </div>
+                                      </td>
                                     </tr>
 
                                     {/* Sub Row (expanded) */}
                                     {isExpanded && (
                                       <tr>
-                                        <td colSpan={8} className="p-0">
+                                        <td colSpan={9} className="p-0">
                                           <div className="bg-white/5 shadow-inner border-b border-white/10">
                                             <div className="px-8 lg:px-12 py-6 space-y-5">
 
@@ -1316,7 +1438,19 @@ function App() {
                                                       <tbody>
                                                         {collabNode.collabEntries.map(entry => (
                                                           <tr key={entry.name} className="border-t border-white/5">
-                                                            <td className="py-2.5 px-4 text-foreground/80">{entry.name}</td>
+                                                            <td className="py-2.5 px-4 text-foreground/80">
+                                                              <span className="inline-flex items-center gap-1.5">
+                                                                {entry.name}
+                                                                <button
+                                                                  type="button"
+                                                                  onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(entry.name).then(() => toast.success(`"${entry.name}" copied`)) }}
+                                                                  className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                                                                  title="Copy artist name"
+                                                                >
+                                                                  <Copy size={12} />
+                                                                </button>
+                                                              </span>
+                                                            </td>
                                                             <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{entry.quantity.toLocaleString('de-DE')}</td>
                                                             <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground/70">€{fmtEur(entry.revenue)}</td>
                                                             <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">
@@ -1391,9 +1525,10 @@ function App() {
                                   €{revenues.reduce((s, r) => s + r.totalRevenue, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                                 <td className="py-4 px-4"></td>
-                                <td className="py-4 px-8 text-right font-mono tabular-nums font-bold text-primary text-base">
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-bold text-primary text-base">
                                   €{revenues.reduce((s, r) => s + r.finalAmount, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
+                                <td className="py-4 px-4"></td>
                               </tr>
                             </tfoot>
                           </table>
