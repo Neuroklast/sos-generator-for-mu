@@ -124,7 +124,10 @@ function runProcess(config: WorkerProcessConfig): void {
 
     // Pre-compute tree structures while we still have raw transactions in scope
     const artistTrees: ArtistTreeNode[] = buildArtistTree(artistData)
-    const collabTree: ArtistCollabNode[] = buildArtistCollabTree(allTransactions, config.artistMappings)
+    const collabTransactions = config.excludePhysical
+      ? allTransactions.filter(t => !t.is_physical)
+      : allTransactions
+    const collabTree: ArtistCollabNode[] = buildArtistCollabTree(collabTransactions, config.artistMappings)
 
     const uniqueArtists = artistData.map(d => d.artist).sort()
 

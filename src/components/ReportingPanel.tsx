@@ -151,7 +151,7 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
         platformBreakdown: rev.platformBreakdown.filter(p => p.platform === selectedPlatform),
         finalAmount: rev.platformBreakdown
           .filter(p => p.platform === selectedPlatform)
-          .reduce((s, p) => s + p.revenue, 0),
+          .reduce((s, p) => s + p.revenue, 0) * (rev.splitPercentage / 100),
         believeRevenue: selectedPlatform ? 0 : rev.believeRevenue,
         bandcampRevenue: selectedPlatform ? 0 : rev.bandcampRevenue,
       }))

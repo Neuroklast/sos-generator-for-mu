@@ -75,6 +75,7 @@ export function resolveMainArtist(
   originalArtist: string,
   mappings: ArtistMapping[]
 ): string {
+  if (!originalArtist) return ''
   const lower = originalArtist.toLowerCase()
   const mapping = mappings.find(m => m.featuringName.toLowerCase() === lower)
   return mapping ? mapping.primaryArtist : originalArtist
@@ -114,6 +115,22 @@ function buildCountryBreakdown(transactions: SalesTransaction[]): CountryRevenue
     .sort((a, b) => b.revenue - a.revenue)
 }
 
+function parseMonthToDate(month: string): number {
+  if (!month || month === 'Unknown') return 0
+  // DD/MM/YYYY or D/M/YYYY
+  const dmyMatch = month.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (dmyMatch) {
+    return new Date(
+      parseInt(dmyMatch[3]),
+      parseInt(dmyMatch[2]) - 1,
+      parseInt(dmyMatch[1])
+    ).getTime()
+  }
+  // YYYY-MM or YYYY-MM-DD
+  const d = new Date(month)
+  return isNaN(d.getTime()) ? 0 : d.getTime()
+}
+
 function buildMonthlyBreakdown(transactions: SalesTransaction[]): MonthlyRevenue[] {
   const map = new Map<string, number>()
   for (const t of transactions) {
@@ -122,7 +139,7 @@ function buildMonthlyBreakdown(transactions: SalesTransaction[]): MonthlyRevenue
   }
   return Array.from(map.entries())
     .map(([month, revenue]) => ({ month, revenue }))
-    .sort((a, b) => a.month.localeCompare(b.month))
+    .sort((a, b) => parseMonthToDate(a.month) - parseMonthToDate(b.month))
 }
 
 function buildReleaseBreakdown(transactions: SalesTransaction[]): ReleaseRevenue[] {
