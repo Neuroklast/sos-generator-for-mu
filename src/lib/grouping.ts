@@ -1,46 +1,9 @@
 import type { SalesTransaction } from './csv-parser'
 import { extractFeaturedArtistsDetailed } from './csv-parser'
+import type { GroupByField, GroupNode, FilterState, ArtistCollabNode, ArtistMapping } from './types'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export type GroupByField = 'artist' | 'album' | 'song' | 'platform' | 'country' | 'month'
-
-export interface GroupNode {
-  key: string
-  label: string
-  revenue: number
-  quantity: number
-  transactionCount: number
-  children?: GroupNode[]
-}
-
-export interface FilterState {
-  searchQuery: string
-  selectedPlatforms: string[]
-  selectedCountries: string[]
-  selectedSources: ('believe' | 'bandcamp' | 'manual')[]
-  minRevenue: number
-  maxRevenue: number
-  dateFrom: string
-  dateTo: string
-}
-
-export interface ArtistCollabNode {
-  primaryArtist: string
-  revenue: number
-  quantity: number
-  collabEntries: Array<{
-    name: string
-    revenue: number
-    quantity: number
-  }>
-}
-
-export interface ArtistMapping {
-  id: string
-  featuringName: string
-  primaryArtist: string
-}
+// Re-export all grouping-related types from the canonical types.ts location
+export type { GroupByField, GroupNode, FilterState, ArtistCollabNode, ArtistMapping } from './types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

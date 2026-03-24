@@ -300,7 +300,7 @@ export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
             onClick={() => setShowCollabs(c => !c)}
             className="h-9 text-xs gap-1.5"
           >
-            {showCollabs ? 'Flat View' : 'Show Collabs'}
+            {showCollabs ? 'Hide Collabs' : 'Show Collabs'}
           </Button>
           <Button variant="outline" size="sm" onClick={handleExpandAll} className="h-9 text-xs">
             Expand All

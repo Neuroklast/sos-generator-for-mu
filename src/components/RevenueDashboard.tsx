@@ -361,7 +361,7 @@ export function RevenueDashboard({
       } else if (groupBy === 'month') {
         r.monthlyBreakdown.forEach(m => {
           const e = map.get(m.month) ?? { revenue: 0, quantity: 0, count: 0 }
-          e.revenue += m.revenue; e.quantity += 0; e.count += 1
+          e.revenue += m.revenue; e.count += 1
           map.set(m.month, e)
         })
       }
