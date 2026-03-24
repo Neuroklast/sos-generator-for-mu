@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useKV } from '@/hooks/useLocalKV'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card } from '@/components/ui/card'
@@ -93,6 +93,14 @@ const pageVariants = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' } },
   exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
 }
+
+// ── Formatting helpers ────────────────────────────────────────────────────────
+
+const fmtEur = (n: number) =>
+  n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+const fmtPct = (part: number, total: number) =>
+  total > 0 ? ((part / total) * 100).toFixed(1) : '0.0'
 
 // ── KPI stat card ─────────────────────────────────────────────────────────────
 
@@ -1234,10 +1242,9 @@ function App() {
                                 const collabNode = collabTree.find(c => c.primaryArtist === rev.artist)
                                 const collabRevenue = collabNode?.collabEntries.reduce((s, e) => s + e.revenue, 0) ?? 0
                                 const soloRevenue = rev.totalRevenue - collabRevenue
-                                const fmtEur = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
                                 return (
-                                  <React.Fragment key={rev.artist}>
+                                  <Fragment key={rev.artist}>
                                     {/* Master Row */}
                                     <tr
                                       onClick={() => toggleArtistExpanded(rev.artist)}
@@ -1307,7 +1314,7 @@ function App() {
                                                             <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{entry.quantity.toLocaleString('de-DE')}</td>
                                                             <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground/70">€{fmtEur(entry.revenue)}</td>
                                                             <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">
-                                                              {rev.totalRevenue > 0 ? ((entry.revenue / rev.totalRevenue) * 100).toFixed(1) : '0.0'}%
+                                                              {fmtPct(entry.revenue, rev.totalRevenue)}%
                                                             </td>
                                                           </tr>
                                                         ))}
@@ -1326,8 +1333,14 @@ function App() {
                                                     min={0}
                                                     max={100}
                                                     step={0.1}
-                                                    value={rev.splitPercentage}
-                                                    onChange={e => handleUpdateSplitFee(rev.artist, Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                                                    defaultValue={rev.splitPercentage}
+                                                    key={`${rev.artist}-${rev.splitPercentage}`}
+                                                    onBlur={e => {
+                                                      const val = parseFloat(e.target.value)
+                                                      if (!Number.isNaN(val)) {
+                                                        handleUpdateSplitFee(rev.artist, Math.min(100, Math.max(0, val)))
+                                                      }
+                                                    }}
                                                     className="w-24 h-8 text-sm font-mono tabular-nums text-right border-white/10 bg-white/5 focus:border-primary/60"
                                                   />
                                                   <span className="text-xs text-muted-foreground">%</span>
@@ -1343,7 +1356,7 @@ function App() {
                                         </td>
                                       </tr>
                                     )}
-                                  </React.Fragment>
+                                  </Fragment>
                                 )
                               })}
                             </tbody>
