@@ -45,17 +45,22 @@ const emptyConfig: DataProcessorConfig = {
 // ── isCompilation ─────────────────────────────────────────────────────────────
 
 describe('isCompilation', () => {
-  const eanFilter: CompilationFilter = { id: '1', type: 'ean', identifier: '999999' }
-  const titleFilter: CompilationFilter = { id: '2', type: 'title', identifier: 'Various' }
-  const catalogFilter: CompilationFilter = { id: '3', type: 'catalog', identifier: 'VA-' }
+  const eanFilter: CompilationFilter = { id: '1', label: 'Test EAN', type: 'ean', identifier: '999999' }
+  const titleFilter: CompilationFilter = { id: '2', label: 'Various', type: 'title', identifier: 'Various' }
+  const catalogFilter: CompilationFilter = { id: '3', label: 'VA Cat', type: 'catalog', identifier: 'VA-' }
 
   it('returns false when no filters are configured', () => {
     expect(isCompilation(makeTx(), [])).toBe(false)
   })
 
-  it('detects compilation by EAN match', () => {
-    const tx = makeTx({ upc_ean: '999999-001' })
+  it('detects compilation by EAN match (exact)', () => {
+    const tx = makeTx({ upc_ean: '999999' })
     expect(isCompilation(tx, [eanFilter])).toBe(true)
+  })
+
+  it('does not match EAN by partial substring (exact match required)', () => {
+    const tx = makeTx({ upc_ean: '999999-001' })
+    expect(isCompilation(tx, [eanFilter])).toBe(false)
   })
 
   it('detects compilation by title match (case-insensitive)', () => {
@@ -63,9 +68,14 @@ describe('isCompilation', () => {
     expect(isCompilation(tx, [titleFilter])).toBe(true)
   })
 
-  it('detects compilation by catalog number match', () => {
-    const tx = makeTx({ catalog_number: 'VA-2024-001' })
+  it('detects compilation by catalog number match (exact)', () => {
+    const tx = makeTx({ catalog_number: 'VA-' })
     expect(isCompilation(tx, [catalogFilter])).toBe(true)
+  })
+
+  it('does not match catalog number by partial substring (exact match required)', () => {
+    const tx = makeTx({ catalog_number: 'VA-2024-001' })
+    expect(isCompilation(tx, [catalogFilter])).toBe(false)
   })
 
   it('returns false when no filter matches', () => {
@@ -160,6 +170,20 @@ describe('processTransactions', () => {
     expect(result[0].grossRevenue).toBeCloseTo(35)
   })
 
+  it('applies split % only to digital/physical revenue, not manual revenue (Bug 10)', () => {
+    const splitFees: SplitFee[] = [{ artist: 'Omnimar', percentage: 70 }]
+    const manualRevenues: ManualRevenue[] = [
+      { id: '1', artist: 'Omnimar', description: 'Sync Deal', amount: 100 },
+    ]
+    const txs = [makeTx({ original_artist: 'Omnimar', net_revenue: 100 })]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees, manualRevenues })
+    // Split applies only to the €100 streaming revenue → €70.
+    // Manual sync revenue of €100 is passed through in full.
+    // Total payout = €70 + €100 = €170.
+    expect(result[0].finalPayout).toBeCloseTo(170)
+    // Before the fix this would have been (100 + 100) * 70% = 140.
+  })
+
   it('excludes physical transactions when excludePhysical is true', () => {
     const txs = [
       makeTx({ original_artist: 'Omnimar', net_revenue: 10, is_physical: false }),
@@ -184,16 +208,19 @@ describe('processTransactions', () => {
 // ── processTransactionsWithCompilations ───────────────────────────────────────
 
 describe('processTransactionsWithCompilations', () => {
-  it('filters out compilation transactions', () => {
-    const filter: CompilationFilter = { id: '1', type: 'ean', identifier: 'COMP-EAN' }
+  it('reports compilation transactions separately but still counts them in artist revenue', () => {
+    const filter: CompilationFilter = { id: '1', label: 'Test', type: 'ean', identifier: 'COMP-EAN' }
     const txs = [
       makeTx({ original_artist: 'Omnimar', upc_ean: 'COMP-EAN', net_revenue: 10 }),
       makeTx({ original_artist: 'Omnimar', upc_ean: 'NORMAL-EAN', net_revenue: 20 }),
     ]
     const result = processTransactionsWithCompilations(txs, { ...emptyConfig, compilationFilters: [filter] })
+    // Compilation revenue is surfaced in the info panel …
     expect(result.filteredCompilations).toHaveLength(1)
+    expect(result.filteredCompilations[0].revenue).toBeCloseTo(10)
+    // … but the artist still receives the full amount (Bug 3b fix).
     const omnimar = result.artistData.find(a => a.artist === 'Omnimar')
-    expect(omnimar!.grossRevenue).toBeCloseTo(20)
+    expect(omnimar!.grossRevenue).toBeCloseTo(30)
   })
 
   it('returns empty filteredCompilations when no filters configured', () => {
@@ -203,7 +230,7 @@ describe('processTransactionsWithCompilations', () => {
   })
 
   it('summarizes compilation revenue in filteredCompilations', () => {
-    const filter: CompilationFilter = { id: '1', type: 'title', identifier: 'VA' }
+    const filter: CompilationFilter = { id: '1', label: 'VA', type: 'title', identifier: 'VA' }
     const txs = [
       makeTx({ release_title: 'VA - Club Anthems', net_revenue: 5 }),
       makeTx({ release_title: 'VA - Club Anthems', net_revenue: 8 }),

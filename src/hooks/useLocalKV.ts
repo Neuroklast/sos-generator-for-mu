@@ -21,10 +21,14 @@ function notify(key: string) {
 export function useLocalKV<T = string>(
   key: string,
   initialValue?: T
-): readonly [T | undefined, Setter<T>, Deleter] {
+): readonly [T | undefined, Setter<T>, Deleter, boolean] {
   const [value, setLocalValue] = useState<T | undefined>(() =>
     cache.has(key) ? (cache.get(key) as T) : initialValue
   )
+  // isLoaded becomes true once the IndexedDB read has resolved (regardless of
+  // whether a stored value was found), preventing race conditions where the
+  // initial empty value is mistaken for "no data has ever been saved".
+  const [isLoaded, setIsLoaded] = useState(() => cache.has(key))
   const valueRef = useRef<T | undefined>(value)
   valueRef.current = value
 
@@ -57,8 +61,11 @@ export function useLocalKV<T = string>(
           console.warn(`[useLocalKV] Failed to persist default value for "${key}":`, err)
         })
       }
+      // Mark as loaded after the IndexedDB round-trip completes.
+      setIsLoaded(true)
     }).catch(err => {
       console.warn(`[useLocalKV] Failed to read "${key}" from IndexedDB:`, err)
+      setIsLoaded(true) // Still mark as loaded so callers are not stuck waiting.
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,7 +96,7 @@ export function useLocalKV<T = string>(
     })
   }, [key])
 
-  return [value, setter, deleter] as const
+  return [value, setter, deleter, isLoaded] as const
 }
 
 // Convenience re-export so callers can do:

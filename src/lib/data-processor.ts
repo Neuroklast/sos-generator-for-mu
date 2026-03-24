@@ -49,12 +49,21 @@ export function isCompilation(
   for (const filter of filters) {
     switch (filter.type) {
       case 'ean':
-        if (transaction.upc_ean?.toLowerCase().includes(filter.identifier.toLowerCase())) return true
+        // Exact match to prevent a short code from matching unrelated releases.
+        if (
+          transaction.upc_ean &&
+          transaction.upc_ean.toLowerCase() === filter.identifier.toLowerCase()
+        ) return true
         break
       case 'catalog':
-        if (transaction.catalog_number?.toLowerCase().includes(filter.identifier.toLowerCase())) return true
+        // Exact match for the same reason.
+        if (
+          transaction.catalog_number &&
+          transaction.catalog_number.toLowerCase() === filter.identifier.toLowerCase()
+        ) return true
         break
       case 'title':
+        // Substring match is appropriate for human-readable titles.
         if (transaction.release_title?.toLowerCase().includes(filter.identifier.toLowerCase())) return true
         break
     }
@@ -151,25 +160,24 @@ export function processTransactionsWithCompilations(
   transactions: SalesTransaction[],
   config: DataProcessorConfig
 ): ProcessorResult {
-  // Separate compilations first so we can report them
-  const compilationTransactions: SalesTransaction[] = []
-  const nonCompilationTransactions: SalesTransaction[] = []
-
+  // Identify compilation transactions for reporting purposes only.
+  // They still count toward artist revenue (Bug 3b fix).
+  const compilationTransactionIds = new Set<string>()
   for (const t of transactions) {
     if (isCompilation(t, config.compilationFilters)) {
-      compilationTransactions.push(t)
-    } else {
-      nonCompilationTransactions.push(t)
+      compilationTransactionIds.add(t.id)
     }
   }
 
-  // Build filtered compilation summary
+  // Build filtered compilation summary (informational panel only)
   const compilationMap = new Map<string, FilteredCompilation>()
-  for (const t of compilationTransactions) {
+  for (const t of transactions) {
+    if (!compilationTransactionIds.has(t.id)) continue
+
     const matchingFilter = config.compilationFilters.find(f => {
       switch (f.type) {
-        case 'ean': return t.upc_ean?.toLowerCase().includes(f.identifier.toLowerCase())
-        case 'catalog': return t.catalog_number?.toLowerCase().includes(f.identifier.toLowerCase())
+        case 'ean': return t.upc_ean?.toLowerCase() === f.identifier.toLowerCase()
+        case 'catalog': return t.catalog_number?.toLowerCase() === f.identifier.toLowerCase()
         case 'title': return t.release_title?.toLowerCase().includes(f.identifier.toLowerCase())
         default: return false
       }
@@ -196,10 +204,10 @@ export function processTransactionsWithCompilations(
     (a, b) => b.revenue - a.revenue
   )
 
-  // Apply physical exclusion
+  // Apply physical exclusion to all transactions (compilations are still counted)
   const workingTransactions = config.excludePhysical
-    ? nonCompilationTransactions.filter(t => !t.is_physical)
-    : nonCompilationTransactions
+    ? transactions.filter(t => !t.is_physical)
+    : transactions
 
   // Resolve artist names via mappings
   const resolved = workingTransactions.map(t => ({
@@ -243,7 +251,10 @@ export function processTransactionsWithCompilations(
 
     const splitFee = config.splitFees.find(sf => sf.artist === artist)
     const splitPercentage = clampSplitPercentage(splitFee?.percentage ?? 100)
-    const finalPayout = grossRevenue * (splitPercentage / 100)
+
+    // Bug 10 fix: split percentage applies only to streaming/physical revenue;
+    // manual revenues (sync deals, etc.) are passed through in full.
+    const finalPayout = (digitalRevenue + physicalRevenue) * (splitPercentage / 100) + manualRevenue
 
     artistData.push({
       artist,

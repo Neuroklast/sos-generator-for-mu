@@ -32,7 +32,7 @@
   ---break---
 */
 :root {
-  --radius: 0.75rem;
+  --radius: 0.875rem;
   --background: oklch(0.06 0.015 285);
   --foreground: oklch(0.98 0.005 285);
   --card: oklch(0.10 0.02 285);
@@ -44,12 +44,12 @@
   --secondary: oklch(0.15 0.03 285);
   --secondary-foreground: oklch(0.98 0.005 285);
   --muted: oklch(0.13 0.02 285);
-  --muted-foreground: oklch(0.55 0.01 285);
+  --muted-foreground: oklch(0.62 0.01 285);
   --accent: oklch(0.70 0.30 290);
   --accent-foreground: oklch(0.98 0.005 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.20 0.03 285);
+  --border: oklch(0.26 0.03 285);
   --input: oklch(0.15 0.025 285);
   --ring: oklch(0.65 0.28 295);
   --chart-1: oklch(0.65 0.28 295);
@@ -186,9 +186,14 @@
     background: linear-gradient(135deg, oklch(0.08 0.02 285) 0%, oklch(0.05 0.015 290) 50%, oklch(0.06 0.02 280) 100%);
     background-attachment: fixed;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    scroll-behavior: smooth;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', sans-serif;
+  }
+
+  button, a[role="button"], [role="button"] {
+    min-height: 36px;
   }
 }

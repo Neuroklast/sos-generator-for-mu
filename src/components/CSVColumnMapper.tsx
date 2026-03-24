@@ -55,12 +55,21 @@ export function CSVColumnMapper({ aliases, onAddAlias, onRemoveAlias }: CSVColum
       setError('Please enter a column header name')
       return
     }
-    // Check for exact duplicate
+    // Check for exact duplicate on the same field
     const isDuplicate = aliases.some(
       a => a.fieldName === selectedField && a.synonym.toLowerCase() === trimmed.toLowerCase()
     )
     if (isDuplicate) {
       setError('This synonym already exists for this field')
+      return
+    }
+    // Prevent the same synonym from being mapped to a different field —
+    // the parser would produce unpredictable results in that case.
+    const usedOnOtherField = aliases.find(
+      a => a.fieldName !== selectedField && a.synonym.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (usedOnOtherField) {
+      setError(`"${trimmed}" is already mapped to "${FIELD_LABELS[usedOnOtherField.fieldName] ?? usedOnOtherField.fieldName}"`)
       return
     }
     onAddAlias({ fieldName: selectedField, synonym: trimmed })
