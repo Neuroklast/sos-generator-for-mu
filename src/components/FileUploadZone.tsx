@@ -109,6 +109,7 @@ export function FileUploadZone({
 }: FileUploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [sizeWarning, setSizeWarning] = useState<string | null>(null)
+  const [typeError, setTypeError] = useState<string | null>(null)
   const replaceRefs = useRef<Map<string, HTMLInputElement>>(new Map())
 
   // Stable ref-setter factory: creates one stable callback per file.id
@@ -125,7 +126,10 @@ export function FileUploadZone({
     s => s.status === 'uploading' || s.status === 'processing'
   )
 
-  const filterCSV = (raw: File[]) => raw.filter(f => f.name.toLowerCase().endsWith('.csv'))
+  const filterCSV = (raw: File[]): { valid: File[]; rejected: number } => {
+    const valid = raw.filter(f => f.name.toLowerCase().endsWith('.csv'))
+    return { valid, rejected: raw.length - valid.length }
+  }
 
   const warnIfLarge = useCallback((csvFiles: File[]) => {
     const LARGE_THRESHOLD = 50 * 1024 * 1024 // 50 MB
@@ -134,6 +138,11 @@ export function FileUploadZone({
       setSizeWarning(`"${large.name}" is ${formatFileSize(large.size)}. Large files may take a minute to process.`)
       setTimeout(() => setSizeWarning(null), 8000)
     }
+  }, [])
+
+  const showTypeError = useCallback((rejectedCount: number) => {
+    setTypeError(`${rejectedCount} file${rejectedCount !== 1 ? 's' : ''} rejected — only CSV files are accepted.`)
+    setTimeout(() => setTypeError(null), 6000)
   }, [])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -147,27 +156,31 @@ export function FileUploadZone({
     (e: React.DragEvent) => {
       e.preventDefault()
       setIsDragging(false)
-      const csvFiles = filterCSV(Array.from(e.dataTransfer.files))
-      if (csvFiles.length > 0) {
-        warnIfLarge(csvFiles)
-        onFilesAdded(csvFiles)
+      const all = Array.from(e.dataTransfer.files)
+      const { valid, rejected } = filterCSV(all)
+      if (rejected > 0) showTypeError(rejected)
+      if (valid.length > 0) {
+        warnIfLarge(valid)
+        onFilesAdded(valid)
       }
     },
-    [onFilesAdded, warnIfLarge]
+    [onFilesAdded, warnIfLarge, showTypeError]
   )
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files) return
-      const csvFiles = filterCSV(Array.from(e.target.files))
-      if (csvFiles.length > 0) {
-        warnIfLarge(csvFiles)
-        onFilesAdded(csvFiles)
+      const all = Array.from(e.target.files)
+      const { valid, rejected } = filterCSV(all)
+      if (rejected > 0) showTypeError(rejected)
+      if (valid.length > 0) {
+        warnIfLarge(valid)
+        onFilesAdded(valid)
       }
       // Reset so the same file can be re-selected
       e.target.value = ''
     },
-    [onFilesAdded, warnIfLarge]
+    [onFilesAdded, warnIfLarge, showTypeError]
   )
 
   const handleReplaceInput = useCallback(
@@ -252,6 +265,22 @@ export function FileUploadZone({
           >
             <Warning size={14} className="shrink-0 mt-0.5" />
             <span>{sizeWarning}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Non-CSV file rejection error */}
+      <AnimatePresence>
+        {typeError && (
+          <motion.div
+            role="alert"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex items-start gap-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs"
+          >
+            <WarningCircle size={14} className="shrink-0 mt-0.5" aria-hidden="true" />
+            <span>{typeError}</span>
           </motion.div>
         )}
       </AnimatePresence>

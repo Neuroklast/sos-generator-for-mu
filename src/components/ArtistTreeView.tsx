@@ -54,8 +54,10 @@ function TrackRow({ track }: { track: ArtistTreeNode['releases'][number]['tracks
 
 // ── Release row ───────────────────────────────────────────────────────────────
 
-function ReleaseRow({ release }: { release: ArtistTreeNode['releases'][number] }) {
+function ReleaseRow({ release, forceOpen }: { release: ArtistTreeNode['releases'][number]; forceOpen?: boolean }) {
   const [open, setOpen] = useState(false)
+  // When forceOpen is provided (e.g. a search is active), respect it; otherwise use local state.
+  const isOpen = forceOpen !== undefined ? forceOpen : open
 
   return (
     <div>
@@ -64,7 +66,7 @@ function ReleaseRow({ release }: { release: ArtistTreeNode['releases'][number] }
         onClick={() => setOpen(o => !o)}
       >
         <div className="w-5 flex-shrink-0 flex justify-center">
-          {open
+          {isOpen
             ? <CaretDown size={13} className="text-accent" />
             : <CaretRight size={13} className="text-muted-foreground" />}
         </div>
@@ -85,7 +87,7 @@ function ReleaseRow({ release }: { release: ArtistTreeNode['releases'][number] }
       </div>
 
       <AnimatePresence>
-        {open && release.tracks.length > 0 && (
+        {isOpen && release.tracks.length > 0 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -101,8 +103,9 @@ function ReleaseRow({ release }: { release: ArtistTreeNode['releases'][number] }
               <span className="w-16 text-right">Qty</span>
               <span className="w-24 text-right">Revenue</span>
             </div>
+            {/* Bug 9 fix: prefix index to guarantee key uniqueness even for tracks without ISRC or with identical titles */}
             {release.tracks.map((track, i) => (
-              <TrackRow key={track.isrc || track.trackTitle || i} track={track} />
+              <TrackRow key={`${i}-${track.isrc}-${track.trackTitle}`} track={track} />
             ))}
           </motion.div>
         )}
@@ -171,8 +174,9 @@ function ArtistRow({ node, forceOpen }: { node: ArtistTreeNode; forceOpen?: bool
               <span className="w-24 text-right">Revenue</span>
             </div>
             <div className="px-2 pb-2 pt-1 space-y-0.5">
+              {/* Bug 9 fix: prefix index so releases without UPC/EAN and with duplicate titles don't clash */}
               {node.releases.map((rel, i) => (
-                <ReleaseRow key={rel.upcEan || rel.releaseTitle || i} release={rel} />
+                <ReleaseRow key={`${i}-${rel.upcEan}-${rel.releaseTitle}`} release={rel} forceOpen={forceOpen} />
               ))}
             </div>
           </motion.div>
@@ -220,6 +224,10 @@ export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
       }
     })
   }, [treeNodes, search, sortBy])
+
+  // Bug 7 fix: when a search is active, force all matched artist rows and their
+  // releases to be expanded so the user can immediately see the matching tracks.
+  const searchForceOpen = search.trim().length > 0 ? true : undefined
 
   const handleExpandAll = useCallback(() => setExpandAll(true), [])
   const handleCollapseAll = useCallback(() => setExpandAll(false), [])
@@ -344,7 +352,10 @@ export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
                     <span className="text-xs text-muted-foreground">feat.</span>
                     <span className="text-sm flex-1 truncate">{entry.name}</span>
                     <span className="text-xs font-mono text-muted-foreground">{fmtNum(entry.quantity)}</span>
-                    <span className="text-xs font-mono text-primary">{fmtEur(entry.revenue)}</span>
+                    <span className="text-xs font-mono text-muted-foreground/60">
+                      {fmtEur(entry.revenue)}{' '}
+                      <span className="opacity-60 text-[10px]" aria-label="track revenue (informational, not a separate payout)">track rev.</span>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -362,7 +373,7 @@ export function ArtistTreeView({ processedData }: ArtistTreeViewProps) {
           <ArtistRow
             key={node.artist}
             node={node}
-            forceOpen={expandAll}
+            forceOpen={expandAll ?? searchForceOpen}
           />
         ))}
       </div>

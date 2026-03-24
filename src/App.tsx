@@ -327,8 +327,10 @@ function App() {
   const [manualRevenues, setManualRevenues] = useKV<ManualRevenue[]>('manual-revenues', [])
   const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', { name: '', address: '' })
   const [excludePhysical, setExcludePhysical] = useKV<boolean>('exclude-physical', false)
-  const [periodStart, setPeriodStart] = useKV<string>('period-start', '')
-  const [periodEnd, setPeriodEnd] = useKV<string>('period-end', '')
+  // isLoaded flags prevent the auto-period effect from running before IndexedDB
+  // has confirmed whether a saved period exists (Bug 5 fix).
+  const [periodStart, setPeriodStart, , periodStartLoaded] = useKV<string>('period-start', '')
+  const [periodEnd, setPeriodEnd, , periodEndLoaded] = useKV<string>('period-end', '')
   const [csvAliases, setCsvAliases] = useKV<CSVColumnAlias[]>('csv-aliases', [])
 
   const { entries: historyEntries, addEntry, markRemoved, clearHistory } = useHistoryLog()
@@ -352,6 +354,15 @@ function App() {
     onFileRemoved: markRemoved,
   })
 
+  // Bug 1 fix: memoize stable empty-array fallbacks so `?? []` never creates a
+  // new reference on every render (which would trigger infinite re-computations
+  // in useCSVProcessor's memos when KV values are still loading from IndexedDB).
+  const stableCompilationFilters = useMemo(() => compilationFilters ?? [], [compilationFilters])
+  const stableArtistMappings = useMemo(() => artistMappings ?? [], [artistMappings])
+  const stableSplitFees = useMemo(() => splitFees ?? [], [splitFees])
+  const stableManualRevenues = useMemo(() => manualRevenues ?? [], [manualRevenues])
+  const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
+
   const {
     uniqueArtists,
     processedData,
@@ -364,18 +375,21 @@ function App() {
     believeManager.files,
     bandcampManager.files,
     {
-      compilationFilters: compilationFilters ?? [],
-      artistMappings: artistMappings ?? [],
-      splitFees: splitFees ?? [],
-      manualRevenues: manualRevenues ?? [],
+      compilationFilters: stableCompilationFilters,
+      artistMappings: stableArtistMappings,
+      splitFees: stableSplitFees,
+      manualRevenues: stableManualRevenues,
       excludePhysical: excludePhysical ?? false,
-      csvAliases: csvAliases ?? [],
+      csvAliases: stableCsvAliases,
     }
   )
 
   // Auto-apply detected period when new files are loaded and period is empty.
   // We use a ref to capture the current period values so the effect only
   // depends on the detected values (avoiding a potential circular dependency).
+  // Bug 5 fix: also require that both period KV values have been confirmed
+  // loaded from IndexedDB before checking, to avoid overwriting a saved period
+  // during the brief loading window where the value is still at its default ''.
   const periodStartRef = useRef(periodStart)
   const periodEndRef = useRef(periodEnd)
   useEffect(() => { periodStartRef.current = periodStart }, [periodStart])
@@ -388,6 +402,9 @@ function App() {
     prevDetectedRef.current = key
 
     if (!detectedPeriodStart || !detectedPeriodEnd) return
+    // Wait until both KV values have been confirmed by IndexedDB before
+    // deciding whether to auto-apply, to avoid overwriting a saved period.
+    if (!periodStartLoaded || !periodEndLoaded) return
     if (!periodStartRef.current && !periodEndRef.current) {
       setPeriodStart(detectedPeriodStart)
       setPeriodEnd(detectedPeriodEnd)
@@ -396,9 +413,9 @@ function App() {
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detectedPeriodStart, detectedPeriodEnd])
+  }, [detectedPeriodStart, detectedPeriodEnd, periodStartLoaded, periodEndLoaded])
 
-  useSplitFeeSync(uniqueArtists, splitFees ?? [], setSplitFees)
+  useSplitFeeSync(uniqueArtists, stableSplitFees, setSplitFees)
 
   const { handleDownloadPDF, handleDownloadExcel, handleDownloadAll } = useExports(
     processedData,
@@ -437,9 +454,16 @@ function App() {
   )
   const handleUpdateSplitFee = useCallback(
     (artist: string, percentage: number) => {
-      setSplitFees(current =>
-        (current ?? []).map(sf => (sf.artist === artist ? { ...sf, percentage } : sf))
-      )
+      setSplitFees(current => {
+        const fees = current ?? []
+        const exists = fees.some(sf => sf.artist === artist)
+        // Bug 4 fix: upsert — add the artist if they are not yet in the list
+        // instead of silently dropping the update.
+        if (exists) {
+          return fees.map(sf => (sf.artist === artist ? { ...sf, percentage } : sf))
+        }
+        return [...fees, { artist, percentage }]
+      })
     },
     [setSplitFees]
   )
@@ -480,6 +504,16 @@ function App() {
     () => believeManager.files.length + bandcampManager.files.length,
     [believeManager.files.length, bandcampManager.files.length]
   )
+
+  // UX 1: auto-navigate to the analytics view the first time files are ready
+  // and revenue data is available, so users land directly on actionable data.
+  const prevTotalFiles = useRef(0)
+  useEffect(() => {
+    if (totalFiles > 0 && prevTotalFiles.current === 0 && revenues.length > 0) {
+      setActiveView('analytics')
+    }
+    prevTotalFiles.current = totalFiles
+  }, [totalFiles, revenues.length])
   const currentStep = useMemo(() => {
     if (totalFiles > 0 && revenues.length > 0) return 3
     if (totalFiles > 0) return 2
@@ -499,8 +533,12 @@ function App() {
     setMobileMenuOpen(false)
   }, [])
 
-  // Mobile nav items — only first 5 to fit bottom bar
-  const mobileNavItems = NAV_ITEMS.slice(0, 5)
+  // UX 4: 4 core mobile nav items. Constructed from named ids instead of slice()
+  // so items remain correct even if the NAV_ITEMS order changes.
+  const mobileNavItems = useMemo(() => {
+    const ids = ['ingest', 'analytics', 'reports', 'settings']
+    return ids.map(id => NAV_ITEMS.find(n => n.id === id)).filter((n): n is typeof NAV_ITEMS[number] => n !== undefined)
+  }, [])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
