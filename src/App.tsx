@@ -533,8 +533,8 @@ function App() {
             <div className="px-3 pt-3 pb-1">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Workflow</p>
               <div className="flex items-center gap-1">
-                {[1,2,3,4].map(n => (
-                  <div key={n} className={`h-1 flex-1 rounded-full transition-colors ${n <= currentStep ? 'bg-primary' : 'bg-border/50'}`} />
+                {STEP_ITEMS.map((_, i) => (
+                  <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i + 1 <= currentStep ? 'bg-primary' : 'bg-border/50'}`} />
                 ))}
               </div>
             </div>

@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { ChartLine, ChartBar, Globe, MusicNote, TrendUp } from '@phosphor-icons/react'
 import type { ArtistRevenue } from '@/lib/types'
+import { formatMonthTick } from '@/lib/utils'
 
 interface ReportingPanelProps {
   revenues: ArtistRevenue[]
@@ -63,12 +64,6 @@ const TOOLTIP_STYLE = {
 }
 
 const AXIS_STYLE = { fontSize: 11, fill: 'var(--muted-foreground)' }
-
-function formatMonthTick(v: string): string {
-  const [y, m] = v.split('-')
-  const d = new Date(+y, +m - 1)
-  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-}
 
 // ── Custom tooltip components ──────────────────────────────────────────────────
 

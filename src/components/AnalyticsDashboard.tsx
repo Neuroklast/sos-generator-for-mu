@@ -28,6 +28,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { ArtistRevenue } from '@/lib/types'
+import { formatMonthTick } from '@/lib/utils'
 
 interface AnalyticsDashboardProps {
   revenues: ArtistRevenue[]
@@ -45,12 +46,6 @@ const CHART_COLORS = [
 ]
 
 const TAB_TRIGGER_CLASS = 'rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm'
-
-function formatMonthTick(v: string): string {
-  const [y, m] = v.split('-')
-  const d = new Date(+y, +m - 1)
-  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-}
 
 export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
   const [selectedArtist, setSelectedArtist] = useState<string>('all')
