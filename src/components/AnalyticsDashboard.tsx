@@ -44,6 +44,14 @@ const CHART_COLORS = [
   'oklch(0.58 0.24 297)',
 ]
 
+const TAB_TRIGGER_CLASS = 'rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm'
+
+function formatMonthTick(v: string): string {
+  const [y, m] = v.split('-')
+  const d = new Date(+y, +m - 1)
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+}
+
 export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
   const [selectedArtist, setSelectedArtist] = useState<string>('all')
   const [selectedCountry, setSelectedCountry] = useState<string>('all')
@@ -297,12 +305,12 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
 
       <Tabs defaultValue="monthly" className="space-y-6">
         <TabsList className="bg-muted/50 p-1 rounded-full border border-border/30 h-auto flex-wrap">
-          <TabsTrigger value="monthly" className="rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Monthly</TabsTrigger>
-          <TabsTrigger value="artists" className="rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Artists</TabsTrigger>
-          <TabsTrigger value="platforms" className="rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Platforms</TabsTrigger>
-          <TabsTrigger value="countries" className="rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Countries</TabsTrigger>
-          <TabsTrigger value="sources" className="rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Sources</TabsTrigger>
-          <TabsTrigger value="types" className="rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Types</TabsTrigger>
+          <TabsTrigger value="monthly" className={TAB_TRIGGER_CLASS}>Monthly</TabsTrigger>
+          <TabsTrigger value="artists" className={TAB_TRIGGER_CLASS}>Artists</TabsTrigger>
+          <TabsTrigger value="platforms" className={TAB_TRIGGER_CLASS}>Platforms</TabsTrigger>
+          <TabsTrigger value="countries" className={TAB_TRIGGER_CLASS}>Countries</TabsTrigger>
+          <TabsTrigger value="sources" className={TAB_TRIGGER_CLASS}>Sources</TabsTrigger>
+          <TabsTrigger value="types" className={TAB_TRIGGER_CLASS}>Types</TabsTrigger>
         </TabsList>
 
         <TabsContent value="monthly" className="space-y-6">
@@ -323,7 +331,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
                 <XAxis 
                   dataKey="month" 
                   stroke="oklch(0.55 0.01 285)"
-                  tickFormatter={(v: string) => { const [y, m] = v.split('-'); const d = new Date(+y, +m-1); return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) }}
+                  tickFormatter={formatMonthTick}
                 />
                 <YAxis 
                   stroke="oklch(0.55 0.01 285)"

@@ -64,6 +64,12 @@ const TOOLTIP_STYLE = {
 
 const AXIS_STYLE = { fontSize: 11, fill: 'var(--muted-foreground)' }
 
+function formatMonthTick(v: string): string {
+  const [y, m] = v.split('-')
+  const d = new Date(+y, +m - 1)
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+}
+
 // ── Custom tooltip components ──────────────────────────────────────────────────
 
 function CurrencyTooltip({ active, payload, label }: { active?: boolean; payload?: {name: string; value: number; color: string}[]; label?: string }) {
@@ -316,7 +322,7 @@ export function ReportingPanel({ revenues }: ReportingPanelProps) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" strokeOpacity={0.5} />
-              <XAxis dataKey="month" tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={(v: string) => { const [y, m] = v.split('-'); const d = new Date(+y, +m-1); return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) }} />
+              <XAxis dataKey="month" tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={formatMonthTick} />
               <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={fmtEurShort} width={72} />
               <Tooltip content={<CurrencyTooltip />} />
               <Area
