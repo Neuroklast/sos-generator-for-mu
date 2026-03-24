@@ -15,10 +15,11 @@ export function generatePDF(
   artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
-  periodEnd?: string
+  periodEnd?: string,
+  invoiceNumber?: string
 ): Blob {
   try {
-    return buildPDF(artistData, labelInfo, periodStart, periodEnd)
+    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber)
   } catch (err) {
     throw new Error(
       `PDF generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
@@ -30,7 +31,8 @@ function buildPDF(
   artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
-  periodEnd?: string
+  periodEnd?: string,
+  invoiceNumber?: string
 ): Blob {
   const doc = new jsPDF()
   const margin = 20
@@ -62,12 +64,23 @@ function buildPDF(
       yPos += 5
     })
   }
+
+  if (labelInfo.taxNumber) {
+    doc.text(`Steuernummer: ${labelInfo.taxNumber}`, margin, yPos)
+    yPos += 5
+  }
   
   yPos += 5
 
+  if (invoiceNumber) {
+    doc.setFontSize(10)
+    doc.text(`Rechnungsnummer: ${invoiceNumber}`, margin, yPos)
+    yPos += 5
+  }
+
   if (periodStart && periodEnd) {
     doc.setFontSize(10)
-    doc.text(`Period: ${periodStart} - ${periodEnd}`, margin, yPos)
+    doc.text(`Abrechnungszeitraum: ${periodStart} – ${periodEnd}`, margin, yPos)
     yPos += 10
   }
 
@@ -87,13 +100,23 @@ function buildPDF(
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
 
+  const vatRate = labelInfo.vatRate ?? 0
+  const vatAmount = vatRate > 0 ? artistData.finalPayout * (vatRate / 100) : 0
+  const grossPayout = artistData.finalPayout + vatAmount
+
   const summaryData = [
-    ['Digital Revenue', formatCurrency(artistData.totalDigitalRevenue)],
-    ['Physical Revenue', formatCurrency(artistData.totalPhysicalRevenue)],
-    ['Manual Revenue', formatCurrency(artistData.manualRevenue)],
-    ['Gross Revenue', formatCurrency(artistData.grossRevenue)],
-    ['Split Percentage', `${artistData.splitPercentage}%`],
-    ['Final Payout', formatCurrency(artistData.finalPayout)],
+    ['Digitale Einnahmen', formatCurrency(artistData.totalDigitalRevenue)],
+    ['Physische Einnahmen', formatCurrency(artistData.totalPhysicalRevenue)],
+    ['Manuelle Einnahmen', formatCurrency(artistData.manualRevenue)],
+    ['Bruttoeinnahmen', formatCurrency(artistData.grossRevenue)],
+    ['Split-Prozentsatz', `${artistData.splitPercentage}%`],
+    ['Netto-Auszahlung', formatCurrency(artistData.finalPayout)],
+    ...(vatRate > 0
+      ? [
+          [`USt. ${vatRate}%`, formatCurrency(vatAmount)],
+          ['Brutto-Auszahlung', formatCurrency(grossPayout)],
+        ]
+      : []),
   ]
 
   summaryData.forEach(([label, value]) => {
@@ -322,9 +345,12 @@ export async function generateZipOfAllStatements(
     await new Promise<void>(resolve => setTimeout(resolve, 0))
 
     const safeArtistName = artistData.artist.replace(/[^a-z0-9]/gi, '_')
+    const invoiceNumber = labelInfo.invoiceNumberPrefix
+      ? `${labelInfo.invoiceNumberPrefix}-${String(i + 1).padStart(4, '0')}`
+      : undefined
 
     if (format === 'pdf' || format === 'both') {
-      const pdfBlob = generatePDF(artistData, labelInfo, periodStart, periodEnd)
+      const pdfBlob = generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber)
       zip.file(`${safeArtistName}_statement.pdf`, pdfBlob)
     }
 

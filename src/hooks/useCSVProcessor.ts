@@ -72,11 +72,21 @@ export function useCSVProcessor(
   const [workerResult, setWorkerResult] = useState<WorkerResult>(EMPTY_RESULT)
   const [isProcessing, setIsProcessing] = useState(false)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
+  const [exchangeRatesLoading, setExchangeRatesLoading] = useState(true)
 
   // ── Fetch ECB exchange rates once on mount ────────────────────────────────────
 
   useEffect(() => {
-    fetchExchangeRates().then(rates => setExchangeRates(rates))
+    fetchExchangeRates()
+      .then(rates => {
+        setExchangeRates(rates)
+      })
+      .catch(err => {
+        console.warn('[useCSVProcessor] Exchange rate fetch failed unexpectedly:', err)
+      })
+      .finally(() => {
+        setExchangeRatesLoading(false)
+      })
   }, [])
 
   // ── Build stable derivative keys ─────────────────────────────────────────────
@@ -277,6 +287,7 @@ export function useCSVProcessor(
 
   return {
     isProcessing,
+    exchangeRatesLoading,
     uniqueArtists: workerResult.uniqueArtists,
     processedData: workerResult.processedData as SafeProcessedArtistData[],
     artistTrees: workerResult.artistTrees as ArtistTreeNode[],

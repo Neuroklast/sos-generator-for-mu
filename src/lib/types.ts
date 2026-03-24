@@ -58,6 +58,26 @@ export interface LabelInfo {
   name: string
   address: string
   logo?: string
+  /** Steuernummer or USt-IdNr. of the label (mandatory for EU-compliant invoices). */
+  taxNumber?: string
+  /**
+   * VAT rate as an integer percentage, e.g. 19 for 19 % MwSt.
+   * Set to 0 (or leave undefined) when the artist is not VAT-liable.
+   */
+  vatRate?: number
+  /**
+   * Prefix used when generating invoice numbers, e.g. "SOS-2025".
+   * Each statement gets a unique suffix appended (artist index or name).
+   */
+  invoiceNumberPrefix?: string
+}
+
+/** Contractual payout share assigned to a guest / featured artist. */
+export interface GuestPayoutRule {
+  primaryArtist: string
+  guestName: string
+  /** Percentage of the collab-track revenue that the guest receives (0–100). */
+  percentage: number
 }
 
 /** Revenue aggregated by streaming/download platform. */

@@ -33,6 +33,7 @@ import type {
   LabelInfo,
   CSVColumnAlias,
   UploadedFile,
+  GuestPayoutRule,
 } from '@/lib/types'
 import { toast } from 'sonner'
 import {
@@ -59,6 +60,8 @@ import {
   Search,
   Copy,
   ArrowUpDown,
+  Trash2,
+  Loader2,
 } from 'lucide-react'
 import { Toaster } from 'sonner'
 
@@ -349,6 +352,8 @@ function App() {
   const [periodStart, setPeriodStart, , periodStartLoaded] = useKV<string>('period-start', '')
   const [periodEnd, setPeriodEnd, , periodEndLoaded] = useKV<string>('period-end', '')
   const [csvAliases, setCsvAliases] = useKV<CSVColumnAlias[]>('csv-aliases', [])
+  const [guestPayoutRules, setGuestPayoutRules] = useKV<GuestPayoutRule[]>('guest-payout-rules', [])
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
   const { entries: historyEntries, addEntry, markRemoved, clearHistory } = useHistoryLog()
 
@@ -388,6 +393,7 @@ function App() {
     filteredCompilations,
     revenues,
     isProcessing,
+    exchangeRatesLoading,
     detectedPeriodStart,
     detectedPeriodEnd,
     autoMappings,
@@ -522,6 +528,32 @@ function App() {
     },
     [setCsvAliases]
   )
+
+  const handleUpdateGuestPayout = useCallback(
+    (primaryArtist: string, guestName: string, percentage: number) => {
+      setGuestPayoutRules(current => {
+        const rules = current ?? []
+        const exists = rules.some(r => r.primaryArtist === primaryArtist && r.guestName === guestName)
+        if (exists) {
+          return rules.map(r =>
+            r.primaryArtist === primaryArtist && r.guestName === guestName ? { ...r, percentage } : r
+          )
+        }
+        return [...rules, { primaryArtist, guestName, percentage }]
+      })
+    },
+    [setGuestPayoutRules]
+  )
+
+  const handleClearWorkspace = useCallback(() => {
+    believeManager.clearAll()
+    bandcampManager.clearAll()
+    setManualRevenues([])
+    setPeriodStart('')
+    setPeriodEnd('')
+    setClearConfirmOpen(false)
+    toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
+  }, [believeManager, bandcampManager, setManualRevenues, setPeriodStart, setPeriodEnd])
 
   const totalNetRevenue = useMemo(
     () => revenues.reduce((s, r) => s + r.finalAmount, 0),
@@ -957,7 +989,14 @@ function App() {
                       <h2 className="text-base font-semibold">Upload CSV Files</h2>
                     </div>
 
-                    <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+                    <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl relative">
+                      {exchangeRatesLoading && (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-2xl bg-card/90 backdrop-blur-sm">
+                          <Loader2 size={28} className="text-primary animate-spin" />
+                          <p className="text-sm font-medium text-muted-foreground">Lade aktuelle Wechselkurse (EZB)…</p>
+                          <p className="text-xs text-muted-foreground/60">Datei-Upload ist verfügbar, sobald die Kurse geladen sind.</p>
+                        </div>
+                      )}
                       <UniversalFileUploadZone
                         believeManager={believeManager}
                         bandcampManager={bandcampManager}
@@ -1142,6 +1181,13 @@ function App() {
                           </div>
                         )}
                       </div>
+
+                      {exchangeRatesLoading && (
+                        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 text-sm">
+                          <Loader2 size={15} className="animate-spin shrink-0" />
+                          <span>Wechselkurse werden geladen – Datei-Upload wird gleich verfügbar…</span>
+                        </div>
+                      )}
 
                       <UniversalFileUploadZone
                         believeManager={believeManager}
@@ -1396,31 +1442,63 @@ function App() {
                                                           <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Units</th>
                                                           <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Revenue</th>
                                                           <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Share</th>
+                                                          <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Contract %</th>
+                                                          <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Payout</th>
                                                         </tr>
                                                       </thead>
                                                       <tbody>
-                                                        {collabNode.collabEntries.map(entry => (
-                                                          <tr key={entry.name} className="border-t border-white/5">
-                                                            <td className="py-2.5 px-4 text-foreground/80">
-                                                              <span className="inline-flex items-center gap-1.5">
-                                                                {entry.name}
-                                                                <button
-                                                                  type="button"
-                                                                  onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(entry.name).then(() => toast.success(`"${entry.name}" copied`)) }}
-                                                                  className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-                                                                  title="Copy artist name"
-                                                                >
-                                                                  <Copy size={12} />
-                                                                </button>
-                                                              </span>
-                                                            </td>
-                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{entry.quantity.toLocaleString('de-DE')}</td>
-                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground/70">€{fmtEur(entry.revenue)}</td>
-                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">
-                                                              {fmtPct(entry.revenue, rev.totalRevenue)}%
-                                                            </td>
-                                                          </tr>
-                                                        ))}
+                                                        {collabNode.collabEntries.map(entry => {
+                                                          const rule = (guestPayoutRules ?? []).find(
+                                                            r => r.primaryArtist === rev.artist && r.guestName === entry.name
+                                                          )
+                                                          const contractPct = rule?.percentage ?? 0
+                                                          const guestPayout = entry.revenue * (contractPct / 100)
+                                                          return (
+                                                            <tr key={entry.name} className="border-t border-white/5">
+                                                              <td className="py-2.5 px-4 text-foreground/80">
+                                                                <span className="inline-flex items-center gap-1.5">
+                                                                  {entry.name}
+                                                                  <button
+                                                                    type="button"
+                                                                    onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(entry.name).then(() => toast.success(`"${entry.name}" copied`)) }}
+                                                                    className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                                                                    title="Copy artist name"
+                                                                  >
+                                                                    <Copy size={12} />
+                                                                  </button>
+                                                                </span>
+                                                              </td>
+                                                              <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{entry.quantity.toLocaleString('de-DE')}</td>
+                                                              <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground/70">€{fmtEur(entry.revenue)}</td>
+                                                              <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">
+                                                                {fmtPct(entry.revenue, rev.totalRevenue)}%
+                                                              </td>
+                                                              <td className="py-2.5 px-4 text-right" onClick={e => e.stopPropagation()}>
+                                                                <div className="inline-flex items-center gap-1 justify-end">
+                                                                  <Input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={100}
+                                                                    step={0.1}
+                                                                    defaultValue={contractPct}
+                                                                    key={`${rev.artist}-${entry.name}`}
+                                                                    onBlur={e => {
+                                                                      const val = parseFloat(e.target.value)
+                                                                      if (!Number.isNaN(val)) {
+                                                                        handleUpdateGuestPayout(rev.artist, entry.name, Math.min(100, Math.max(0, val)))
+                                                                      }
+                                                                    }}
+                                                                    className="w-20 h-7 text-xs font-mono tabular-nums text-right border-white/10 bg-white/5 focus:border-primary/60"
+                                                                  />
+                                                                  <span className="text-xs text-muted-foreground">%</span>
+                                                                </div>
+                                                              </td>
+                                                              <td className="py-2.5 px-4 text-right font-mono tabular-nums font-semibold text-primary">
+                                                                {contractPct > 0 ? `€${fmtEur(guestPayout)}` : '—'}
+                                                              </td>
+                                                            </tr>
+                                                          )
+                                                        })}
                                                       </tbody>
                                                     </table>
                                                   </div>
@@ -1595,6 +1673,55 @@ function App() {
               {/* ── Settings ─── */}
               {activeView === 'settings' && (
                 <div className="space-y-8">
+                  {/* Clear Workspace */}
+                  <Card className="p-8 border border-red-500/20 bg-card backdrop-blur-md rounded-2xl">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1.5">
+                        <h3 className="font-semibold text-foreground flex items-center gap-2">
+                          <Trash2 size={16} className="text-red-400" />
+                          Clear Workspace &amp; Start New Period
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Removes all uploaded CSV files, manual revenue entries, and the current statement period. Label settings, split rates, and artist mappings are kept. Use this at the end of a quarter to start fresh.
+                        </p>
+                      </div>
+                      {!clearConfirmOpen ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:border-red-500/60 gap-1.5"
+                          onClick={() => setClearConfirmOpen(true)}
+                          disabled={totalFiles === 0 && (manualRevenues ?? []).length === 0 && !periodStart && !periodEnd}
+                        >
+                          <Trash2 size={14} />
+                          Clear Workspace
+                        </Button>
+                      ) : (
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <p className="text-xs text-red-400 font-medium">Are you sure? This cannot be undone.</p>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-muted-foreground hover:text-foreground"
+                              onClick={() => setClearConfirmOpen(false)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="bg-red-500 hover:bg-red-600 text-white gap-1.5"
+                              onClick={handleClearWorkspace}
+                            >
+                              <Trash2 size={14} />
+                              Yes, clear everything
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+
                   <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
                     <div className="flex items-center justify-between">
                       <div className="space-y-1.5">

@@ -211,11 +211,19 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
     [processAndStore, setFileMetas, setFileState, type, callbacks]
   )
 
+  /** Removes every file and clears all in-memory state for this manager. */
+  const clearAll = useCallback(() => {
+    setFileMetas([])
+    setFileDataMap({})
+    setFileStates({})
+  }, [setFileMetas])
+
   return {
     files,
     fileStates,
     addFiles,
     removeFile,
     replaceFile,
+    clearAll,
   }
 }

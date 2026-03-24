@@ -149,6 +149,49 @@ export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
             rows={3}
           />
         </div>
+
+        {/* Tax number */}
+        <div className="space-y-2">
+          <Label htmlFor="label-tax-number">Steuernummer / USt-IdNr.</Label>
+          <Input
+            id="label-tax-number"
+            value={labelInfo.taxNumber ?? ''}
+            onChange={e => onUpdate({ ...labelInfo, taxNumber: e.target.value })}
+            placeholder="z.B. DE123456789"
+          />
+          <p className="text-xs text-muted-foreground">Pflichtangabe auf rechtssicheren EU-Rechnungen</p>
+        </div>
+
+        {/* Invoice number prefix */}
+        <div className="space-y-2">
+          <Label htmlFor="label-invoice-prefix">Rechnungsnummer-Präfix</Label>
+          <Input
+            id="label-invoice-prefix"
+            value={labelInfo.invoiceNumberPrefix ?? ''}
+            onChange={e => onUpdate({ ...labelInfo, invoiceNumberPrefix: e.target.value })}
+            placeholder="z.B. SOS-2025-Q1"
+          />
+          <p className="text-xs text-muted-foreground">Wird automatisch mit einem Künstler-Suffix kombiniert, z.B. SOS-2025-Q1-0001</p>
+        </div>
+
+        {/* VAT rate */}
+        <div className="space-y-2">
+          <Label htmlFor="label-vat-rate">Umsatzsteuersatz (%)</Label>
+          <Input
+            id="label-vat-rate"
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={labelInfo.vatRate ?? ''}
+            onChange={e => {
+              const val = e.target.value === '' ? undefined : Number(e.target.value)
+              onUpdate({ ...labelInfo, vatRate: val })
+            }}
+            placeholder="0 = umsatzsteuerbefreit"
+          />
+          <p className="text-xs text-muted-foreground">Z.B. 19 für 19 % MwSt. · 0 oder leer = keine USt.</p>
+        </div>
       </Card>
     </div>
   )
