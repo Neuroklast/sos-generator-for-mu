@@ -90,6 +90,8 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
       r.countryBreakdown.forEach(c => allCountries.add(c.country))
     })
 
+    const quarterForecastTotal = revenues.reduce((s, r) => s + (r.quarterForecast ?? 0), 0)
+
     return {
       totalRevenue: total,
       totalFinalAmount: totalFinal,
@@ -98,6 +100,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
       platformCount: allPlatforms.size,
       countryCount: allCountries.size,
       averageSplit: avgSplit,
+      quarterForecastTotal,
     }
   }, [revenues])
 
@@ -171,6 +174,28 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
       }))
       .sort((a, b) => a.month.localeCompare(b.month))
   }, [filteredRevenues])
+
+  const forecastData = useMemo(() => {
+    const forecastMap = new Map<string, number>()
+    filteredRevenues.forEach(r => {
+      r.forecastData?.forEach(f => {
+        forecastMap.set(f.month, (forecastMap.get(f.month) ?? 0) + f.forecastRevenue)
+      })
+    })
+    return Array.from(forecastMap.entries())
+      .map(([month, forecastRevenue]) => ({ month, forecastRevenue: parseFloat(forecastRevenue.toFixed(2)) }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+  }, [filteredRevenues])
+
+  const combinedMonthlyData = useMemo(() => {
+    const allMonths = new Map<string, { month: string; revenue?: number; forecastRevenue?: number }>()
+    monthlyData.forEach(m => { allMonths.set(m.month, { month: m.month, revenue: m.revenue }) })
+    forecastData.forEach(f => {
+      const existing = allMonths.get(f.month) ?? { month: f.month }
+      allMonths.set(f.month, { ...existing, forecastRevenue: f.forecastRevenue })
+    })
+    return Array.from(allMonths.values()).sort((a, b) => a.month.localeCompare(b.month))
+  }, [monthlyData, forecastData])
 
   const revenueSourceData = useMemo(() => {
     const believe = filteredRevenues.reduce((sum, r) => sum + r.believeRevenue, 0)
@@ -298,6 +323,19 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
         </Card>
       </div>
 
+      {stats.quarterForecastTotal > 0 && (
+        <Card className="p-5 border-primary/20 bg-gradient-to-br from-card to-primary/3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <TrendUp size={24} weight="duotone" className="text-emerald-400" />
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground">Next Quarter Forecast</h3>
+              <p className="text-2xl font-bold text-emerald-400">{formatCurrency(stats.quarterForecastTotal)}</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground italic">Holt-Winters projection</p>
+        </Card>
+      )}
+
       <Tabs defaultValue="monthly" className="space-y-6">
         <TabsList className="bg-muted/50 p-1 rounded-full border border-border/30 h-auto flex-wrap">
           <TabsTrigger value="monthly" className={TAB_TRIGGER_CLASS}>Monthly</TabsTrigger>
@@ -315,7 +353,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
               Revenue Trend
             </h3>
             <ResponsiveContainer width="100%" height={400}>
-              <AreaChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <AreaChart data={combinedMonthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="oklch(0.65 0.28 295)" stopOpacity={0.8}/>
@@ -333,6 +371,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
                   tickFormatter={(value) => `€${value}`}
                 />
                 <Tooltip content={<CustomTooltip />} />
+                <Legend />
                 <Area 
                   type="monotone" 
                   dataKey="revenue" 
@@ -340,6 +379,17 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
                   fillOpacity={1} 
                   fill="url(#colorRevenue)"
                   strokeWidth={2}
+                  name="Revenue"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="forecastRevenue"
+                  stroke="oklch(0.70 0.28 155)"
+                  fill="none"
+                  strokeWidth={2}
+                  strokeDasharray="6 3"
+                  dot={false}
+                  name="Forecast"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -353,7 +403,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
               Top 10 Artists by Revenue
             </h3>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={topArtists} layout="horizontal">
+              <BarChart data={topArtists} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.20 0.03 285)" />
                 <XAxis type="number" stroke="oklch(0.55 0.01 285)" tickFormatter={(value) => `€${value}`} />
                 <YAxis type="category" dataKey="name" stroke="oklch(0.55 0.01 285)" width={120} />
