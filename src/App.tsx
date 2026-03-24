@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useKV } from '@/hooks/useLocalKV'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card } from '@/components/ui/card'
@@ -46,6 +46,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  ChevronDown,
   Disc3,
   Zap,
   TrendingUp,
@@ -323,6 +324,7 @@ function App() {
   const [activeView, setActiveView] = useState<string>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [expandedArtists, setExpandedArtists] = useState<Set<string>>(new Set())
 
   const [compilationFilters, setCompilationFilters] = useKV<CompilationFilter[]>('compilation-filters', [])
   const [artistMappings, setArtistMappings] = useKV<ArtistMapping[]>('artist-mappings', [])
@@ -536,6 +538,15 @@ function App() {
   const navigate = useCallback((view: string) => {
     setActiveView(view)
     setMobileMenuOpen(false)
+  }, [])
+
+  const toggleArtistExpanded = useCallback((artist: string) => {
+    setExpandedArtists(prev => {
+      const next = new Set(prev)
+      if (next.has(artist)) next.delete(artist)
+      else next.add(artist)
+      return next
+    })
   }, [])
 
   // UX 4: 4 core mobile nav items. Constructed from named ids instead of slice()
@@ -1172,22 +1183,206 @@ function App() {
                       </div>
                     </Card>
 
-                    {/* ─ Card 3: Artist Assignments & Split Fees — 12 columns ─ */}
-                    <Card className="col-span-12 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col gap-6 overflow-hidden">
-                      <div className="flex items-center gap-3">
+                    {/* ─ Card 3: Finance Master Table — 12 columns ─ */}
+                    <Card className="col-span-12 p-0 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col overflow-hidden">
+                      {/* Card Header */}
+                      <div className="flex items-center gap-3 p-8 pb-6">
                         <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent shrink-0 shadow-lg shadow-primary/25">
                           <Users size={20} className="text-white" />
                         </div>
-                        <div>
-                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Artist Assignments & Split Fees</h3>
-                          <p className="text-xs text-muted-foreground">Set revenue splits and collab mappings</p>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Finance Master Table</h3>
+                          <p className="text-xs text-muted-foreground">Aggregated revenue per artist · click a row to expand</p>
                         </div>
+                        {revenues.length > 0 && (
+                          <div className="text-right shrink-0">
+                            <p className="text-xs text-muted-foreground">Total Payout</p>
+                            <p className="font-mono font-bold text-primary tabular-nums">
+                              {revenues.reduce((s, r) => s + r.finalAmount, 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 overflow-y-auto min-h-0 space-y-6">
-                        <SplitFeeManager
-                          splitFees={splitFees ?? []}
-                          onUpdateSplitFee={handleUpdateSplitFee}
-                        />
+
+                      {/* Expandable Data Grid */}
+                      {revenues.length === 0 ? (
+                        <div className="px-8 pb-8">
+                          <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-dashed border-border/40 bg-muted/10">
+                            <Users size={28} className="text-muted-foreground/40 mb-3" />
+                            <p className="text-sm text-muted-foreground">No revenue data yet</p>
+                            <p className="text-xs text-muted-foreground/60 mt-1">Upload CSV files to see artist breakdowns</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-y border-white/10 bg-white/[0.02]">
+                                <th className="py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground w-8"></th>
+                                <th className="py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Artist</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Units</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Solo Revenue</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Collab Revenue</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Revenue</th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Split Rate</th>
+                                <th className="py-3 px-8 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payout</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {revenues.map(rev => {
+                                const isExpanded = expandedArtists.has(rev.artist)
+                                const collabNode = collabTree.find(c => c.primaryArtist === rev.artist)
+                                const collabRevenue = collabNode?.collabEntries.reduce((s, e) => s + e.revenue, 0) ?? 0
+                                const soloRevenue = rev.totalRevenue - collabRevenue
+                                const fmtEur = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+                                return (
+                                  <React.Fragment key={rev.artist}>
+                                    {/* Master Row */}
+                                    <tr
+                                      onClick={() => toggleArtistExpanded(rev.artist)}
+                                      className={`border-b border-white/5 cursor-pointer transition-colors duration-150 hover:bg-white/[0.04] ${isExpanded ? 'bg-white/[0.03]' : ''}`}
+                                    >
+                                      <td className="py-4 px-4 text-muted-foreground">
+                                        <ChevronDown
+                                          size={14}
+                                          className={`transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
+                                        />
+                                      </td>
+                                      <td className="py-4 px-4 font-medium text-foreground whitespace-nowrap">{rev.artist}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-muted-foreground">{rev.totalQuantity.toLocaleString('de-DE')}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-foreground/80">€{fmtEur(soloRevenue)}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-foreground/60">
+                                        {collabRevenue > 0 ? `€${fmtEur(collabRevenue)}` : '—'}
+                                      </td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.totalRevenue)}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-primary">{rev.splitPercentage.toFixed(1)}%</td>
+                                      <td className="py-4 px-8 text-right font-mono tabular-nums font-bold text-primary">€{fmtEur(rev.finalAmount)}</td>
+                                    </tr>
+
+                                    {/* Sub Row (expanded) */}
+                                    {isExpanded && (
+                                      <tr>
+                                        <td colSpan={8} className="p-0">
+                                          <div className="bg-white/5 shadow-inner border-b border-white/10">
+                                            <div className="px-8 lg:px-12 py-6 space-y-5">
+
+                                              {/* Solo Revenue Section */}
+                                              <div>
+                                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Solo Revenue</p>
+                                                <div className="grid grid-cols-3 gap-6">
+                                                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                                                    <p className="text-xs text-muted-foreground mb-1">Believe</p>
+                                                    <p className="font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.believeRevenue)}</p>
+                                                  </div>
+                                                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                                                    <p className="text-xs text-muted-foreground mb-1">Bandcamp</p>
+                                                    <p className="font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.bandcampRevenue)}</p>
+                                                  </div>
+                                                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                                                    <p className="text-xs text-muted-foreground mb-1">Manual</p>
+                                                    <p className="font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.manualRevenue)}</p>
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              {/* Feature Guests Section */}
+                                              {collabNode && collabNode.collabEntries.length > 0 && (
+                                                <div>
+                                                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Feature Guests</p>
+                                                  <div className="ml-4 overflow-hidden rounded-lg border border-white/5">
+                                                    <table className="w-full text-sm">
+                                                      <thead>
+                                                        <tr className="bg-white/[0.02]">
+                                                          <th className="py-2 px-4 text-left text-xs font-medium text-muted-foreground">Featured Artist</th>
+                                                          <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Units</th>
+                                                          <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Revenue</th>
+                                                          <th className="py-2 px-4 text-right text-xs font-medium text-muted-foreground">Share</th>
+                                                        </tr>
+                                                      </thead>
+                                                      <tbody>
+                                                        {collabNode.collabEntries.map(entry => (
+                                                          <tr key={entry.name} className="border-t border-white/5">
+                                                            <td className="py-2.5 px-4 text-foreground/80">{entry.name}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{entry.quantity.toLocaleString('de-DE')}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground/70">€{fmtEur(entry.revenue)}</td>
+                                                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">
+                                                              {rev.totalRevenue > 0 ? ((entry.revenue / rev.totalRevenue) * 100).toFixed(1) : '0.0'}%
+                                                            </td>
+                                                          </tr>
+                                                        ))}
+                                                      </tbody>
+                                                    </table>
+                                                  </div>
+                                                </div>
+                                              )}
+
+                                              {/* Inline split rate edit */}
+                                              <div className="flex items-center gap-4 pt-2 border-t border-white/5">
+                                                <p className="text-xs font-medium text-muted-foreground">Split Rate</p>
+                                                <div className="flex items-center gap-2">
+                                                  <Input
+                                                    type="number"
+                                                    min={0}
+                                                    max={100}
+                                                    step={0.1}
+                                                    value={rev.splitPercentage}
+                                                    onChange={e => handleUpdateSplitFee(rev.artist, Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                                                    className="w-24 h-8 text-sm font-mono tabular-nums text-right border-white/10 bg-white/5 focus:border-primary/60"
+                                                  />
+                                                  <span className="text-xs text-muted-foreground">%</span>
+                                                </div>
+                                                <div className="ml-auto text-right">
+                                                  <p className="text-xs text-muted-foreground">Net Payout</p>
+                                                  <p className="font-mono tabular-nums font-bold text-primary">€{fmtEur(rev.finalAmount)}</p>
+                                                </div>
+                                              </div>
+
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                )
+                              })}
+                            </tbody>
+                            {/* Table Footer with Totals */}
+                            <tfoot>
+                              <tr className="border-t border-white/10 bg-white/[0.02]">
+                                <td className="py-4 px-4"></td>
+                                <td className="py-4 px-4 font-semibold text-foreground text-xs uppercase tracking-wider">Total</td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground">
+                                  {revenues.reduce((s, r) => s + r.totalQuantity, 0).toLocaleString('de-DE')}
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground/80">
+                                  €{revenues.reduce((s, r) => {
+                                    const cn = collabTree.find(c => c.primaryArtist === r.artist)
+                                    const cr = cn?.collabEntries.reduce((a, e) => a + e.revenue, 0) ?? 0
+                                    return s + (r.totalRevenue - cr)
+                                  }, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground/60">
+                                  €{revenues.reduce((s, r) => {
+                                    const cn = collabTree.find(c => c.primaryArtist === r.artist)
+                                    return s + (cn?.collabEntries.reduce((a, e) => a + e.revenue, 0) ?? 0)
+                                  }, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-bold text-foreground">
+                                  €{revenues.reduce((s, r) => s + r.totalRevenue, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-4 px-4"></td>
+                                <td className="py-4 px-8 text-right font-mono tabular-nums font-bold text-primary text-base">
+                                  €{revenues.reduce((s, r) => s + r.finalAmount, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Artist Mapping Section */}
+                      <div className="px-8 pb-8 pt-2 border-t border-white/5">
                         <ArtistMappingManager
                           mappings={artistMappings ?? []}
                           onAddMapping={handleAddArtistMapping}
