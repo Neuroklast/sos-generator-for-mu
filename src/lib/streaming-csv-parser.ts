@@ -19,9 +19,12 @@ export interface StreamingParseResult {
 const CHUNK_SIZE = 5000
 
 function detectDelimiter(lines: string[]): string {
-  const sample = lines.filter(l => l.trim()).slice(0, 6).join('\n')
+  // Take the first 6 non-empty lines as the sample; parse up to 6 rows
+  // so PapaParse has enough context to auto-detect the delimiter reliably.
+  const sampleLines = lines.filter(l => l.trim()).slice(0, 6)
+  const sample = sampleLines.join('\n')
   if (!sample) return ','
-  const result = Papa.parse(sample, { delimiter: '', preview: 5 })
+  const result = Papa.parse(sample, { delimiter: '', preview: sampleLines.length })
   return (result.meta as { delimiter?: string }).delimiter || ','
 }
 

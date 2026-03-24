@@ -19,6 +19,10 @@ function fmtEur(value: number) {
 
 /** Total horizontal padding + icon gap reserved inside the artist cell. */
 const ARTIST_CELL_RESERVED_PX = 32
+/** Fixed width (px) of the leading checkbox column. */
+const COL_WIDTH_CHECKBOX = 56
+/** Fixed width (px) of the trailing actions column. */
+const COL_WIDTH_ACTIONS = 120
 
 
 
@@ -117,8 +121,11 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
   const selectedCount = selectedArtists.size
 
   // ── Outlier helper ────────────────────────────────────────────────────────
-  function getOutlierMonths(r: ArtistRevenue): string[] {
-    return r.monthlyBreakdown.filter(m => m.isOutlier).map(m => m.month)
+  function getOutlierInfo(r: ArtistRevenue): { months: string[]; expectedRevenue: number } {
+    const outliers = r.monthlyBreakdown.filter(m => m.isOutlier)
+    // All entries share the same mean (computed once in detectOutliers).
+    const expectedRevenue = outliers[0]?.expectedRevenue ?? 0
+    return { months: outliers.map(m => m.month), expectedRevenue }
   }
 
   const orderedCols = colOrder.map(id => INITIAL_COLUMNS.find(c => c.id === id)!).filter(Boolean)
@@ -171,13 +178,13 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
             <p className="text-sm">No revenue data yet. Upload a CSV to get started.</p>
           </div>
         ) : (
-          <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: colOrder.reduce((s, id) => s + colWidths[id as ColId], 0) + 56 + 120 }}>
+          <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: colOrder.reduce((s, id) => s + colWidths[id as ColId], 0) + COL_WIDTH_CHECKBOX + COL_WIDTH_ACTIONS }}>
             <colgroup>
-              <col style={{ width: 56 }} />
+              <col style={{ width: COL_WIDTH_CHECKBOX }} />
               {orderedCols.map(col => (
                 <col key={col.id} style={{ width: colWidths[col.id] }} />
               ))}
-              <col style={{ width: 120 }} />
+              <col style={{ width: COL_WIDTH_ACTIONS }} />
             </colgroup>
             <thead>
               <tr className="border-b border-white/10 bg-white/[0.02]">
@@ -231,7 +238,7 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
                 </tr>
               ) : (
                 filtered.map(r => {
-                  const outlierMonths = getOutlierMonths(r)
+                  const { months: outlierMonths, expectedRevenue: outlierExpected } = getOutlierInfo(r)
                   return (
                     <tr key={r.artist} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                       <td className="w-14 px-4 py-3">
@@ -256,7 +263,7 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
                               </span>
                               {outlierMonths.length > 0 && (
                                 <span
-                                  title={`Statistical outlier in: ${outlierMonths.join(', ')} (expected ≈ ${fmtEur(r.monthlyBreakdown.find(m => m.isOutlier)?.expectedRevenue ?? 0)})`}
+                                  title={`Statistical outlier in: ${outlierMonths.join(', ')} (expected ≈ ${fmtEur(outlierExpected)})`}
                                   className="shrink-0 text-amber-400 cursor-help"
                                 >
                                   <AlertTriangle size={14} />

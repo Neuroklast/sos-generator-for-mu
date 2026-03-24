@@ -426,6 +426,15 @@ export function detectOutliers(monthlyBreakdown: MonthlyRevenue[]): MonthlyReven
   }))
 }
 
+/** Advances a YYYY-MM month string by `h` months and returns the new YYYY-MM label. */
+function addMonths(yearMonthStr: string, h: number): string {
+  const [y, m] = yearMonthStr.includes('-')
+    ? yearMonthStr.split('-').map(Number)
+    : [new Date().getFullYear(), new Date().getMonth() + 1]
+  const d = new Date(y, m - 1 + h, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 /**
  * Forecasts the next 3 months of revenue using Holt-Winters double
  * exponential smoothing (level + trend). Returns both the three
@@ -437,17 +446,12 @@ export function calculateForecast(
   const sorted = [...monthlyBreakdown].sort((a, b) => a.month.localeCompare(b.month))
   if (sorted.length < 2) {
     const base = sorted[0]?.revenue ?? 0
-    // When there's insufficient history, use the known month or a placeholder
     const baseMonth = sorted[0]?.month ?? 'unknown'
     return {
-      forecastData: [1, 2, 3].map(i => {
-        const [y, m] = baseMonth.includes('-') ? baseMonth.split('-').map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1]
-        const d = new Date(y, m - 1 + i, 1)
-        return {
-          month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-          forecastRevenue: parseFloat(base.toFixed(2)),
-        }
-      }),
+      forecastData: [1, 2, 3].map(i => ({
+        month: addMonths(baseMonth, i),
+        forecastRevenue: parseFloat(base.toFixed(2)),
+      })),
       quarterForecast: parseFloat((base * 3).toFixed(2)),
     }
   }
@@ -474,12 +478,7 @@ export function calculateForecast(
   for (let h = 1; h <= 3; h++) {
     const forecastRevenue = parseFloat(Math.max(0, level + h * trend).toFixed(2))
     quarterForecast += forecastRevenue
-
-    // Compute the next calendar month label
-    const [y, m] = lastMonth.split('-').map(Number)
-    const d = new Date(y, m - 1 + h, 1)
-    const monthLabel = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    forecastData.push({ month: monthLabel, forecastRevenue })
+    forecastData.push({ month: addMonths(lastMonth, h), forecastRevenue })
   }
 
   return { forecastData, quarterForecast: parseFloat(quarterForecast.toFixed(2)) }
