@@ -96,10 +96,22 @@ const MAX_BREAKDOWN_ROWS = 500
 
 /**
  * Minimum vertical space in mm that must remain on the current page before a section
- * heading is rendered inline. If less space is available, the heading is skipped so
- * autoTable's own repeated column header carries the visual separation instead.
+ * heading is rendered inline. Must accommodate the heading line (≈5 mm), the autoTable
+ * column-header row (≈8 mm) and at least two data rows (≈12 mm) so the heading is
+ * never orphaned at the bottom of a page when autoTable opens a fresh page for the
+ * table body. If less space is available, the heading is skipped so autoTable's own
+ * repeated column header carries the visual separation instead.
  */
-const MIN_SPACE_FOR_SECTION_HEADING_MM = 30
+const MIN_SPACE_FOR_SECTION_HEADING_MM = 60
+
+/**
+ * Placeholder string that is substituted by jsPDF's `putTotalPages()` call at the
+ * very end of `buildPDF`, after every page has been generated. Using this two-pass
+ * approach guarantees that "Page N of M" footers show the correct final page count M
+ * on every page, not just the last one (which would be the result of reading
+ * `getNumberOfPages()` inside the per-page `didDrawPage` callback).
+ */
+const TOTAL_PAGES_PLACEHOLDER = '{total_pages}'
 
 export async function generatePDF(
   artistData: SafeProcessedArtistData,
@@ -316,7 +328,6 @@ function buildPDF(
   // The logo is rendered here (not in a separate post-loop) so draw order is
   // deterministic and text is never painted underneath the logo.
   const drawPageFooter = (data: { pageNumber: number }) => {
-    const pageCount = (doc as jsPDF & { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages()
     const pageHeight = doc.internal.pageSize.getHeight()
     const pageWidth = doc.internal.pageSize.getWidth()
 
@@ -325,6 +336,9 @@ function buildPDF(
     // Row 1 baseline — FOOTER_ROW_SPACING_MM above Row 2 for label bank/contact text.
     const footerTopY = footerBotY - FOOTER_ROW_SPACING_MM
 
+    // Reset font to a known state so bold/italic set by previous drawing calls (e.g.
+    // section headings, autoTable internals) never bleeds into the footer text.
+    doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(150, 150, 150)
 
@@ -362,7 +376,10 @@ function buildPDF(
     doc.text(APP_CREDITS, pageWidth / 2, footerBotY, { align: 'center' })
 
     // ── Row 2 right: page number "Page X of Y" ────────────────────────────
-    doc.text(`Page ${data.pageNumber} of ${pageCount}`, pageWidth - margin, footerBotY, { align: 'right' })
+    // `TOTAL_PAGES_PLACEHOLDER` is replaced by the real page count via
+    // `doc.putTotalPages()` at the end of `buildPDF`, ensuring every page
+    // shows the correct final total rather than the count at render time.
+    doc.text(`Page ${data.pageNumber} of ${TOTAL_PAGES_PLACEHOLDER}`, pageWidth - margin, footerBotY, { align: 'right' })
 
     doc.setTextColor(0, 0, 0)
   }
@@ -528,6 +545,11 @@ function buildPDF(
       didDrawPage: drawPageFooter,
     })
   }
+
+  // Replace all occurrences of the placeholder with the actual final page count.
+  // This must be called after every page and table has been generated so jsPDF
+  // can substitute the correct total in every footer it drew during the run.
+  doc.putTotalPages(TOTAL_PAGES_PLACEHOLDER)
 
   return doc.output('blob')
 }

@@ -14,6 +14,7 @@ import type {
   ManualRevenue,
   ExpenseEntry,
   CSVColumnAlias,
+  LabelArtist,
 } from '@/lib/types'
 
 interface IngestViewProps {
@@ -38,6 +39,8 @@ interface IngestViewProps {
   expenses: ExpenseEntry[]
   handleAddExpense: (expense: Omit<ExpenseEntry, 'id'>) => void
   handleRemoveExpense: (id: string) => void
+  /** Imports artist master data when an artist CSV is dropped into the upload zone. */
+  onImportLabelArtistsCSV: (artists: Omit<LabelArtist, 'id'>[]) => void
 }
 
 export function IngestView({
@@ -62,6 +65,7 @@ export function IngestView({
   expenses,
   handleAddExpense,
   handleRemoveExpense,
+  onImportLabelArtistsCSV,
 }: IngestViewProps) {
   return (
     <div className="space-y-8">
@@ -99,6 +103,7 @@ export function IngestView({
             believeManager={believeManager}
             bandcampManager={bandcampManager}
             onAddAliases={aliases => aliases.forEach(handleAddAlias)}
+            onImportLabelArtistsCSV={onImportLabelArtistsCSV}
           />
         </Card>
 

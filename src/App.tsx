@@ -838,6 +838,7 @@ function App() {
                   expenses={stableExpenses}
                   handleAddExpense={handleAddExpense}
                   handleRemoveExpense={handleRemoveExpense}
+                  onImportLabelArtistsCSV={handleImportLabelArtistsCSV}
                 />
               )}
 
@@ -857,6 +858,14 @@ function App() {
                   onUpdateMapping={handleUpdateArtistMapping}
                   uniqueArtists={uniqueArtists}
                   autoMappings={autoMappings}
+                  labelArtists={stableLabelArtists}
+                  onAddLabelArtist={handleAddLabelArtist}
+                  onRemoveLabelArtist={handleRemoveLabelArtist}
+                  onUpdateLabelArtist={handleUpdateLabelArtist}
+                  onImportLabelArtistsCSV={handleImportLabelArtistsCSV}
+                  splitFees={stableSplitFees}
+                  onUpdateSplitFee={handleUpdateSplitFee}
+                  onBulkUpdateSplitFee={handleBulkUpdateSplitFee}
                 />
               )}
 
