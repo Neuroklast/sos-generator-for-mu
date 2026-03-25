@@ -39,6 +39,8 @@ import type {
 } from '@/lib/types'
 import { toast } from 'sonner'
 import { APP_NAME, APP_LOGO, APP_CREDITS } from '@/config/softwareBranding'
+import type { CsvImportProfile } from '@/features/ingest/types'
+import { DEFAULT_CSV_PROFILES } from '@/features/ingest/lib/default-profiles'
 import {
   UploadCloud,
   LayoutDashboard,
@@ -119,6 +121,8 @@ function App() {
   const [appDefaults, setAppDefaults] = useKV<AppDefaults>('app-defaults', DEFAULT_APP_DEFAULTS)
   const [pdfExportSettings, setPdfExportSettings] = useKV<PdfExportSettings>('pdf-export-settings', DEFAULT_PDF_EXPORT_SETTINGS)
   const [emailConfig, setEmailConfig] = useKV<EmailConfig>('email-config', DEFAULT_EMAIL_CONFIG)
+  // CSV Import Profiles — pre-seeded with system defaults on first load.
+  const [csvImportProfiles, setCsvImportProfiles] = useKV<CsvImportProfile[]>('csv-import-profiles', DEFAULT_CSV_PROFILES)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
   const { push: pushUndo, undo } = useUndoStack()
@@ -147,6 +151,15 @@ function App() {
     onFileAdded: useCallback(
       (file: UploadedFile, rowsParsed: number, rowsSkipped: number, uniqueArtists: number) => {
         addEntry({ filename: file.name, source: 'shopify', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists })
+      },
+      [addEntry]
+    ),
+    onFileRemoved: markRemoved,
+  })
+  const printfulManager = useFileManager('printful', {
+    onFileAdded: useCallback(
+      (file: UploadedFile, rowsParsed: number, rowsSkipped: number) => {
+        addEntry({ filename: file.name, source: 'printful', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists: 0 })
       },
       [addEntry]
     ),
@@ -192,7 +205,8 @@ function App() {
       ignoredEntries: stableIgnoredEntries,
       distributionFeePercentage: appDefaults?.distributionFeePercentage ?? 0,
     },
-    shopifyManager.files
+    shopifyManager.files,
+    printfulManager.files
   )
 
   // Auto-apply detected period when new files are loaded and period is empty.
@@ -372,6 +386,42 @@ function App() {
     [csvAliases, setCsvAliases, pushUndo]
   )
 
+  // ── CSV Import Profile handlers ───────────────────────────────────────────
+  const handleAddCsvProfile = useCallback(
+    (profile: Omit<CsvImportProfile, 'id'>) => {
+      setCsvImportProfiles(current => [
+        ...(current ?? []),
+        { ...profile, id: crypto.randomUUID() },
+      ])
+      toast.success(`Profile "${profile.name}" created`)
+    },
+    [setCsvImportProfiles]
+  )
+
+  const handleUpdateCsvProfile = useCallback(
+    (id: string, patch: Omit<CsvImportProfile, 'id' | 'isSystemDefault'>) => {
+      setCsvImportProfiles(current =>
+        (current ?? []).map(p =>
+          p.id === id ? { ...p, ...patch, isSystemDefault: p.isSystemDefault } : p
+        )
+      )
+    },
+    [setCsvImportProfiles]
+  )
+
+  const handleDeleteCsvProfile = useCallback(
+    (id: string) => {
+      setCsvImportProfiles(current => (current ?? []).filter(p => p.id !== id))
+      toast.info('Profile removed')
+    },
+    [setCsvImportProfiles]
+  )
+
+  const stableCsvImportProfiles = useMemo(
+    () => csvImportProfiles ?? DEFAULT_CSV_PROFILES,
+    [csvImportProfiles]
+  )
+
   const handleUpdateGuestPayout = useCallback(
     (primaryArtist: string, guestName: string, percentage: number) => {
       const snapshot = guestPayoutRules ?? []
@@ -394,13 +444,14 @@ function App() {
     believeManager.clearAll()
     bandcampManager.clearAll()
     shopifyManager.clearAll()
+    printfulManager.clearAll()
     setManualRevenues([])
     setExpenses([])
     setPeriodStart('')
     setPeriodEnd('')
     setClearConfirmOpen(false)
     toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
-  }, [believeManager, bandcampManager, shopifyManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
+  }, [believeManager, bandcampManager, shopifyManager, printfulManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
 
   const handleWorkspaceImport = useCallback(
     (backup: WorkspaceBackup) => {
@@ -505,8 +556,8 @@ function App() {
     [revenues]
   )
   const totalFiles = useMemo(
-    () => believeManager.files.length + bandcampManager.files.length + shopifyManager.files.length,
-    [believeManager.files.length, bandcampManager.files.length, shopifyManager.files.length]
+    () => believeManager.files.length + bandcampManager.files.length + shopifyManager.files.length + printfulManager.files.length,
+    [believeManager.files.length, bandcampManager.files.length, shopifyManager.files.length, printfulManager.files.length]
   )
 
   // UX 1: auto-navigate to the analytics view the first time files are ready
@@ -825,6 +876,7 @@ function App() {
                   believeManager={believeManager}
                   bandcampManager={bandcampManager}
                   shopifyManager={shopifyManager}
+                  printfulManager={printfulManager}
                   exchangeRatesLoading={exchangeRatesLoading}
                   handleAddAlias={handleAddAlias}
                   isProcessing={isProcessing}
@@ -838,6 +890,7 @@ function App() {
                   handleAddExpense={handleAddExpense}
                   handleRemoveExpense={handleRemoveExpense}
                   onImportLabelArtistsCSV={handleImportLabelArtistsCSV}
+                  csvImportProfiles={stableCsvImportProfiles}
                 />
               )}
 
@@ -965,6 +1018,10 @@ function App() {
                   setEmailConfig={setEmailConfig}
                   pdfExportSettings={pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS}
                   setPdfExportSettings={setPdfExportSettings}
+                  csvImportProfiles={stableCsvImportProfiles}
+                  onAddCsvProfile={handleAddCsvProfile}
+                  onUpdateCsvProfile={handleUpdateCsvProfile}
+                  onDeleteCsvProfile={handleDeleteCsvProfile}
                 />
               )}
 

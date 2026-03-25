@@ -5,7 +5,7 @@ import { parseCSVContentStreaming } from '@/features/ingest/lib/streaming-csv-pa
 import { parseShopifyCSV } from '@/features/ingest/lib/shopify-parser'
 import type { UploadedFile, FileProcessingState } from '@/lib/types'
 
-type FileType = 'believe' | 'bandcamp' | 'shopify'
+type FileType = 'believe' | 'bandcamp' | 'shopify' | 'printful'
 
 /**
  * Metadata stored in IndexedDB — excludes the raw CSV string to keep storage
@@ -86,6 +86,13 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
         rowsParsed = result.transactions.length
         rowsSkipped = result.errors.length
         uniqueArtists = new Set(result.transactions.map(t => t.original_artist)).size
+      } else if (type === 'printful') {
+        // parsePrintfulCSV is imported lazily to keep the bundle lean in non-merch flows
+        const { parsePrintfulCSV } = await import('@/features/ingest/lib/printful-parser')
+        const result = parsePrintfulCSV(data)
+        rowsParsed = result.costs.length
+        rowsSkipped = result.errors.length
+        uniqueArtists = 0
       } else {
         const result = await parseCSVContentStreaming(data, type, progress => {
           setFileState(id, { progress: progress.percentage })

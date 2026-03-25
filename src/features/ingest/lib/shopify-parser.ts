@@ -1,129 +1,60 @@
 /**
- * Shopify Order CSV Parser
+ * shopify-parser.ts
  *
- * Parses Shopify export CSVs (orders) and maps line items to SalesTransaction
- * objects so they can flow through the existing revenue pipeline.
+ * Parses Shopify orders export CSVs.
  *
- * Expected Shopify CSV columns (case-insensitive matching):
- *   Name / Order / Order ID / order_name  → orderId
- *   Created at / Date / Paid at           → sales_month
- *   Lineitem name / Product / Title        → release_title (product name)
- *   Lineitem sku / SKU                     → isrc used as sku
- *   Lineitem quantity / Quantity           → quantity
- *   Lineitem price / Price / Subtotal      → net_revenue (per-unit price)
- *   Currency                               → currency
+ * ## Architecture
+ * The primary export is now `parseShopifyRaw` which returns structured raw
+ * order data (grouped by order ID, with all line items). The `reconcile-
+ * MerchTransactions` function in `ecommerce-merger.ts` then takes this raw
+ * data, matches it with Printful costs, and produces the final SalesTransactions
+ * with artist attribution derived from product names.
  *
- * Artists are not present in Shopify exports; all merch transactions are
- * attributed to a synthetic "Merch" artist so they appear as a separate
- * revenue stream in the dashboard.
+ * `parseShopifyCSV` is retained as a legacy wrapper for the worker's
+ * fallback path (when no Printful data is available), but no longer attributes
+ * everything to "Merch (Shopify)" — it delegates to the merger with an empty
+ * Printful costs array.
+ *
+ * Expected Shopify CSV columns (from real export):
+ *   Name              → orderId (e.g. "#DM1121") — one order = multiple rows
+ *   Paid at           → sales_month date
+ *   Subtotal          → order subtotal (only on first row of each order)
+ *   Currency          → ISO currency code
+ *   Billing Country   → country code
+ *   Lineitem name     → product name (artist extracted from this)
+ *   Lineitem sku      → SKU / catalog reference
+ *   Lineitem quantity → units ordered
+ *   Lineitem price    → per-unit selling price
  */
 
+import { parseShopifyRaw, reconcileMerchTransactions } from './ecommerce-merger'
 import type { SalesTransaction } from './csv-parser'
-import { normalizeDateToMonth } from './streaming-csv-parser'
-import Papa from 'papaparse'
+
+export type { ShopifyRawOrder, ShopifyRawLineItem } from './ecommerce-merger'
 
 export interface ShopifyParseResult {
   transactions: SalesTransaction[]
   errors: Array<{ row: number; reason: string; data: string }>
 }
 
-/** Normalise a header string for comparison. */
-function normalise(h: string): string {
-  return h.toLowerCase().replace(/[^a-z0-9]/g, '')
-}
-
 /**
- * Returns the value for the first header key (case-insensitive / punctuation-stripped)
- * that matches one of the provided candidates.
- */
-function findCol(row: Record<string, string>, candidates: string[]): string {
-  for (const [h, v] of Object.entries(row)) {
-    if (candidates.some(c => normalise(h) === normalise(c))) return v ?? ''
-  }
-  return ''
-}
-
-function parseNumber(raw: string): number {
-  if (!raw) return 0
-  const cleaned = raw.replace(/[^\d.,-]/g, '').trim()
-  // European format: "1.234,56"
-  if (/\d\.\d{3},/.test(cleaned)) {
-    return parseFloat(cleaned.replace(/\./g, '').replace(',', '.')) || 0
-  }
-  // Standard: "1,234.56"
-  return parseFloat(cleaned.replace(/,/g, '')) || 0
-}
-
-/**
- * Parses a Shopify orders CSV export and returns SalesTransaction objects
- * attributed to the "Merch (Shopify)" artist.
+ * Backward-compatible Shopify parser.
+ *
+ * Parses the raw Shopify CSV and reconciles it without Printful costs
+ * (net revenue = full subtotal per artist). This path is used when:
+ *  - Only Shopify data is available (no Printful file uploaded).
+ *  - The worker processes a Shopify file before any Printful file arrives.
+ *
+ * When Printful data is also available, the worker calls `parseShopifyRaw`
+ * and `parsePrintfulCSV` separately and runs `reconcileMerchTransactions`
+ * with both datasets.
+ *
+ * @param content - Raw Shopify orders CSV content.
+ * @returns SalesTransaction array with artist attribution from product names.
  */
 export function parseShopifyCSV(content: string): ShopifyParseResult {
-  const stripped = content.startsWith('\uFEFF') ? content.slice(1) : content
-
-  const parsed = Papa.parse<Record<string, string>>(stripped.trim(), {
-    header: true,
-    skipEmptyLines: true,
-    dynamicTyping: false,
-  })
-
-  const transactions: SalesTransaction[] = []
-  const errors: ShopifyParseResult['errors'] = []
-
-  for (let i = 0; i < parsed.data.length; i++) {
-    const row = parsed.data[i]
-
-    try {
-      const rawDate = findCol(row, ['Created at', 'Date', 'Paid at', 'created_at', 'paid_at'])
-      const salesMonth = normalizeDateToMonth(rawDate) || 'Unknown'
-
-      const productName = findCol(row, [
-        'Lineitem name', 'lineitem_name', 'Product', 'Title', 'Name', 'item name',
-      ]).trim()
-
-      if (!productName) {
-        // Skip rows without a product name (e.g. summary / shipping rows)
-        continue
-      }
-
-      const sku = findCol(row, ['Lineitem sku', 'lineitem_sku', 'SKU', 'sku']).trim()
-      const rawQty = findCol(row, ['Lineitem quantity', 'lineitem_quantity', 'Quantity', 'quantity'])
-      const quantity = parseNumber(rawQty) || 1
-      const rawPrice = findCol(row, [
-        'Lineitem price', 'lineitem_price', 'Price', 'Subtotal', 'Total', 'Item Price',
-      ])
-      const unitPrice = parseNumber(rawPrice)
-      const netRevenue = unitPrice * quantity
-
-      const currency = findCol(row, ['Currency', 'currency', 'Paid Currency']).toUpperCase() || 'EUR'
-      const orderId = findCol(row, ['Name', 'Order', 'Order ID', 'order_name', 'id']).trim()
-
-      transactions.push({
-        id: crypto.randomUUID(),
-        source: 'shopify',
-        sales_month: salesMonth,
-        platform: 'Shopify',
-        country: findCol(row, ['Billing Country', 'billing_address_country', 'Shipping Country', 'Country']).trim() || 'Unknown',
-        main_artist: 'Merch (Shopify)',
-        original_artist: 'Merch (Shopify)',
-        release_title: orderId ? `${productName} [Order ${orderId}]` : productName,
-        track_title: productName,
-        upc_ean: '',
-        isrc: sku,
-        catalog_number: sku,
-        quantity,
-        net_revenue: netRevenue,
-        currency,
-        is_physical: true,
-      })
-    } catch (err) {
-      errors.push({
-        row: i + 2,
-        reason: err instanceof Error ? err.message : 'Unknown error',
-        data: JSON.stringify(row),
-      })
-    }
-  }
-
+  const { orders, errors } = parseShopifyRaw(content)
+  const { transactions } = reconcileMerchTransactions(orders, [])
   return { transactions, errors }
 }
+
