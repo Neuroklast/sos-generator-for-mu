@@ -52,6 +52,7 @@ import type {
   EmailConfig,
 } from '@/lib/types'
 import { toast } from 'sonner'
+import { APP_NAME } from '@/config/softwareBranding'
 import {
   UploadCloud,
   LayoutDashboard,
@@ -965,7 +966,7 @@ function App() {
                 <Disc3 className="text-white" size={18} />
               </div>
               <div>
-                <p className="text-sm font-bold tracking-tight text-foreground leading-none">SOS Generator</p>
+                <p className="text-sm font-bold tracking-tight text-foreground leading-none">{APP_NAME}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5 font-medium uppercase tracking-widest">Label Suite</p>
               </div>
             </div>
@@ -1085,7 +1086,7 @@ function App() {
                     <Disc3 className="text-white" size={20} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold tracking-tight text-foreground leading-none">SOS Generator</p>
+                    <p className="text-sm font-bold tracking-tight text-foreground leading-none">{APP_NAME}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 font-medium uppercase tracking-widest">Label Suite</p>
                   </div>
                   <Button
