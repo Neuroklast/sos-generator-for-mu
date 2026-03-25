@@ -9,6 +9,8 @@ import type {
   MonthlyRevenue,
   ReleaseRevenue,
   FilteredCompilation,
+  LabelArtist,
+  IgnoredEntry,
 } from './types'
 import { convertToEur } from './currency'
 import type { ExchangeRates } from './currency'
@@ -38,6 +40,17 @@ export interface DataProcessorConfig {
   /** Exchange rates map (1 EUR = N units of foreign currency). Used to convert
    *  non-EUR Bandcamp transactions to EUR at processing time. */
   exchangeRates?: ExchangeRates
+  /**
+   * When non-empty, only transactions whose resolved main artist appears in this
+   * list are included. Co-artists not in the roster are silently dropped (their
+   * transactions are re-attributed to the matching label artist).
+   */
+  labelArtists?: LabelArtist[]
+  /**
+   * Entries to exclude from all revenue calculations.
+   * Each entry can target a specific artist or a specific release of an artist.
+   */
+  ignoredEntries?: IgnoredEntry[]
 }
 
 export interface ProcessorResult {
@@ -228,9 +241,56 @@ export function processTransactionsWithCompilations(
     main_artist: resolveMainArtist(t.original_artist, config.artistMappings),
   }))
 
+  // ── Label artist roster filter ─────────────────────────────────────────────
+  // When the roster is non-empty, re-attribute transactions whose original
+  // artist string contains a label artist (comma/ampersand/feat. separated)
+  // to that label artist.  Transactions with no label artist are dropped.
+  const rosterNames =
+    config.labelArtists && config.labelArtists.length > 0
+      ? config.labelArtists.map(la => la.name.trim().toLowerCase())
+      : null
+
+  const rosterFiltered = rosterNames
+    ? resolved.flatMap(t => {
+        // Check if the resolved main artist itself is in the roster
+        if (rosterNames.includes(t.main_artist.trim().toLowerCase())) {
+          return [t]
+        }
+        // Try to find a label artist within the original_artist string
+        // (handles "Neuroklast, mechanical vein" or "Neuroklast feat. X")
+        const found = rosterNames.find(rn =>
+          t.original_artist.trim().toLowerCase() === rn ||
+          t.original_artist.toLowerCase().split(/\s*[,&]\s*|\s+feat(?:uring)?\.?\s+|\s+ft\.?\s+/i).some(
+            part => part.trim().toLowerCase() === rn
+          )
+        )
+        if (!found) return []
+        // Re-attribute to the canonical roster name (fall back to found name if lookup fails)
+        const canonical =
+          config.labelArtists?.find(la => la.name.trim().toLowerCase() === found)?.name ?? found
+        return [{ ...t, main_artist: canonical }]
+      })
+    : resolved
+
+  // ── Ignored entries filter ─────────────────────────────────────────────────
+  const ignoredEntries = config.ignoredEntries ?? []
+  const rosterAndIgnoreFiltered =
+    ignoredEntries.length === 0
+      ? rosterFiltered
+      : rosterFiltered.filter(t => {
+          const artistLower = t.main_artist.trim().toLowerCase()
+          return !ignoredEntries.some(ie => {
+            if (ie.artist.trim().toLowerCase() !== artistLower) return false
+            if (!ie.releaseTitle) return true // whole artist ignored
+            return (
+              t.release_title?.trim().toLowerCase() === ie.releaseTitle.trim().toLowerCase()
+            )
+          })
+        })
+
   // Group by resolved artist
   const artistGroups = new Map<string, SalesTransaction[]>()
-  for (const t of resolved) {
+  for (const t of rosterAndIgnoreFiltered) {
     const group = artistGroups.get(t.main_artist)
     if (group) {
       group.push(t)

@@ -2,9 +2,10 @@ import { useCallback, useMemo, useState } from 'react'
 import { useKV } from '@/hooks/useLocalKV'
 import { toast } from 'sonner'
 import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
+import { parseShopifyCSV } from '@/lib/shopify-parser'
 import type { UploadedFile, FileProcessingState } from '@/lib/types'
 
-type FileType = 'believe' | 'bandcamp'
+type FileType = 'believe' | 'bandcamp' | 'shopify'
 
 /**
  * Metadata stored in IndexedDB — excludes the raw CSV string to keep storage
@@ -76,17 +77,26 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
 
       setFileState(id, { status: 'processing', progress: 0 })
 
-      const result = await parseCSVContentStreaming(data, type, progress => {
-        setFileState(id, { progress: progress.percentage })
-      })
+      let rowsParsed: number
+      let rowsSkipped: number
+      let uniqueArtists: number
+
+      if (type === 'shopify') {
+        const result = parseShopifyCSV(data)
+        rowsParsed = result.transactions.length
+        rowsSkipped = result.errors.length
+        uniqueArtists = new Set(result.transactions.map(t => t.original_artist)).size
+      } else {
+        const result = await parseCSVContentStreaming(data, type, progress => {
+          setFileState(id, { progress: progress.percentage })
+        })
+        rowsParsed = result.transactions.length
+        rowsSkipped = result.errors.length
+        uniqueArtists = result.uniqueArtists.length
+      }
 
       setFileState(id, { status: 'done', progress: 100 })
-      return {
-        data,
-        rowsParsed: result.transactions.length,
-        rowsSkipped: result.errors.length,
-        uniqueArtists: result.uniqueArtists.length,
-      }
+      return { data, rowsParsed, rowsSkipped, uniqueArtists }
     },
     [type, setFileState]
   )

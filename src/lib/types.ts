@@ -1,9 +1,47 @@
+/** An artist signed to the label roster. */
+export interface LabelArtist {
+  id: string
+  name: string
+}
+
+/**
+ * An entry (artist + optional release) that has been explicitly ignored in the
+ * statement of sales. Ignored entries are excluded from all revenue calculations.
+ */
+export interface IgnoredEntry {
+  id: string
+  /** Artist name as it appears in the processed data. */
+  artist: string
+  /**
+   * Optional release title. When set, only that release is ignored for the artist.
+   * When omitted, ALL transactions for the artist are ignored.
+   */
+  releaseTitle?: string
+  /** Human-readable note for why this entry was ignored. */
+  note?: string
+  /** ISO 8601 timestamp when the entry was created. */
+  createdAt: string
+}
+
+/** A single Shopify order line item mapped to a sales transaction. */
+export interface ShopifySale {
+  id: string
+  orderId: string
+  orderDate: string
+  productTitle: string
+  sku: string
+  quantity: number
+  grossRevenue: number
+  currency: string
+  netRevenue: number
+}
+
 /** Raw file record persisted in KV storage. uploadedAt is stored as ISO string. */
 export interface UploadedFile {
   id: string
   name: string
   size: number
-  type: 'believe' | 'bandcamp'
+  type: 'believe' | 'bandcamp' | 'shopify'
   /** Raw CSV string — kept in memory only, NOT persisted to IndexedDB. */
   data?: string
   /** ISO 8601 timestamp string (YYYY-MM-DDTHH:mm:ss.sssZ) */
@@ -155,7 +193,7 @@ export interface HistoryEntry {
   /** ISO 8601 timestamp */
   timestamp: string
   filename: string
-  source: 'believe' | 'bandcamp'
+  source: 'believe' | 'bandcamp' | 'shopify'
   sizeBytes: number
   rowsParsed: number
   rowsSkipped: number
@@ -243,7 +281,7 @@ export interface FilterState {
   searchQuery: string
   selectedPlatforms: string[]
   selectedCountries: string[]
-  selectedSources: ('believe' | 'bandcamp' | 'manual')[]
+  selectedSources: ('believe' | 'bandcamp' | 'manual' | 'shopify')[]
   minRevenue: number
   maxRevenue: number
   dateFrom: string

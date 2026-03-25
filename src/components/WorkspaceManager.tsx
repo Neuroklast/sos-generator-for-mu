@@ -10,6 +10,8 @@ import type {
   ManualRevenue,
   CSVColumnAlias,
   LabelInfo,
+  LabelArtist,
+  IgnoredEntry,
 } from '@/lib/types'
 
 /** Shape written to / read from the backup JSON file. */
@@ -23,6 +25,8 @@ export interface WorkspaceBackup {
   manualRevenues: ManualRevenue[]
   csvAliases: CSVColumnAlias[]
   labelInfo: LabelInfo
+  labelArtists: LabelArtist[]
+  ignoredEntries: IgnoredEntry[]
 }
 
 interface WorkspaceManagerProps {
@@ -32,6 +36,8 @@ interface WorkspaceManagerProps {
   manualRevenues: ManualRevenue[]
   csvAliases: CSVColumnAlias[]
   labelInfo: LabelInfo
+  labelArtists: LabelArtist[]
+  ignoredEntries: IgnoredEntry[]
   onImport: (backup: WorkspaceBackup) => void
 }
 
@@ -42,6 +48,8 @@ export function WorkspaceManager({
   manualRevenues,
   csvAliases,
   labelInfo,
+  labelArtists,
+  ignoredEntries,
   onImport,
 }: WorkspaceManagerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -58,6 +66,8 @@ export function WorkspaceManager({
       manualRevenues,
       csvAliases,
       labelInfo,
+      labelArtists,
+      ignoredEntries,
     }
 
     const json = JSON.stringify(backup, null, 2)
@@ -103,6 +113,8 @@ export function WorkspaceManager({
           (raw.splitFees !== undefined && !isArrayOf(raw.splitFees)) ||
           (raw.manualRevenues !== undefined && !isArrayOf(raw.manualRevenues)) ||
           (raw.csvAliases !== undefined && !isArrayOf(raw.csvAliases)) ||
+          (raw.labelArtists !== undefined && !isArrayOf(raw.labelArtists)) ||
+          (raw.ignoredEntries !== undefined && !isArrayOf(raw.ignoredEntries)) ||
           (raw.labelInfo !== null && raw.labelInfo !== undefined && typeof raw.labelInfo !== 'object')
         ) {
           toast.error('Ungültiges Backup', {
@@ -120,6 +132,8 @@ export function WorkspaceManager({
           manualRevenues: Array.isArray(raw.manualRevenues) ? raw.manualRevenues : [],
           csvAliases: Array.isArray(raw.csvAliases) ? raw.csvAliases : [],
           labelInfo: raw.labelInfo ?? { name: '', address: '' },
+          labelArtists: Array.isArray(raw.labelArtists) ? raw.labelArtists : [],
+          ignoredEntries: Array.isArray(raw.ignoredEntries) ? raw.ignoredEntries : [],
         }
 
         onImport(backup)
