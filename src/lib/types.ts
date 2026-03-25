@@ -2,6 +2,14 @@
 export interface LabelArtist {
   id: string
   name: string
+  /** Contact e-mail address for sending statements. */
+  email?: string
+  /** VAT identification number (EU artists outside Germany). */
+  vatNumber?: string
+  /** Free-text notes, special contract terms, or other label-internal remarks. */
+  notes?: string
+  /** When true, EU reverse-charge rules apply (no German VAT on invoice). */
+  isEuNonGerman?: boolean
 }
 
 /**
@@ -121,6 +129,62 @@ export interface LabelInfo {
    * Each statement gets a unique suffix appended (artist index or name).
    */
   invoiceNumberPrefix?: string
+  /**
+   * E-mail body template used when sending statement e-mails to artists.
+   * Supports the following placeholders: {artist}, {period}, {amount},
+   * {label_name}, {label_vat_id}, {invoice_email}, {deadline_date}.
+   */
+  emailTemplate?: string
+}
+
+/**
+ * Application-wide defaults that apply to all new statements.
+ * Stored separately from LabelInfo to keep concerns clean.
+ */
+export interface AppDefaults {
+  /** Default artist split rate in percent (0–100). Applied when no per-artist rule exists. */
+  defaultSplitPercentage: number
+  /** Number of days after statement delivery within which an invoice must be received. */
+  invoiceDeadlineDays: number
+  /** E-mail address to which artists must send their invoice. */
+  financeEmail: string
+  /** Human-readable deadline date shown in e-mail templates, e.g. "December 20th". */
+  invoiceDeadlineDate: string
+  /** Organisation name that receives unclaimed royalties, e.g. "animal shelter". */
+  royaltyDonationOrg: string
+}
+
+/**
+ * Configuration for which sections are rendered in exported PDF statements.
+ * All flags default to true for backward-compatibility.
+ */
+export interface PdfExportSettings {
+  /** Include the release / album breakdown table. */
+  includeReleaseBreakdown: boolean
+  /** Include the streaming platform breakdown table. */
+  includePlatformBreakdown: boolean
+  /** Include the country / territory breakdown table. */
+  includeCountryBreakdown: boolean
+  /** Include the monthly revenue trend table. */
+  includeMonthlyBreakdown: boolean
+  /** Prepend the e-mail cover letter (rendered from emailTemplate) as the first page. */
+  includeEmailCoverLetter: boolean
+}
+
+/**
+ * E-mail service configuration.  Passwords are intentionally excluded — they
+ * must never be stored in the browser.  The config is used to pre-fill the
+ * mailto: link or display SMTP settings for external clients.
+ */
+export interface EmailConfig {
+  /** Display name shown in the From field, e.g. "darkTunes Music Group". */
+  fromName: string
+  /** Sender address, e.g. "finance@label.com". */
+  fromEmail: string
+  /** Reply-to address (often the same as fromEmail). */
+  replyTo: string
+  /** Optional subject template. Placeholders: {artist}, {period}. */
+  subjectTemplate: string
 }
 
 /** Contractual payout share assigned to a guest / featured artist. */

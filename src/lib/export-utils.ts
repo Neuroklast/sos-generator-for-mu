@@ -1,8 +1,17 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import type { SafeProcessedArtistData } from '@/lib/types'
-import type { LabelInfo } from '@/lib/types'
+import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings } from '@/lib/types'
+import { resolveTemplate } from '@/lib/utils'
+
+/** Default PDF export settings — all major sections enabled, cover letter off. */
+const DEFAULT_PDF_SETTINGS: PdfExportSettings = {
+  includeReleaseBreakdown: true,
+  includePlatformBreakdown: true,
+  includeCountryBreakdown: false,
+  includeMonthlyBreakdown: false,
+  includeEmailCoverLetter: false,
+}
 
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('de-DE', {
@@ -16,10 +25,17 @@ export function generatePDF(
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string,
-  invoiceNumber?: string
+  invoiceNumber?: string,
+  pdfSettings?: Partial<PdfExportSettings>,
+  emailOptions?: {
+    financeEmail: string
+    deadlineDate: string
+    donationOrg: string
+  }
 ): Blob {
   try {
-    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber)
+    const settings = { ...DEFAULT_PDF_SETTINGS, ...pdfSettings }
+    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, settings, emailOptions)
   } catch (err) {
     throw new Error(
       `PDF generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
@@ -32,10 +48,42 @@ function buildPDF(
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string,
-  invoiceNumber?: string
+  invoiceNumber?: string,
+  settings: PdfExportSettings = DEFAULT_PDF_SETTINGS,
+  emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string }
 ): Blob {
   const doc = new jsPDF()
   const margin = 20
+
+  // ── Optional e-mail cover letter page ────────────────────────────────────
+  if (settings.includeEmailCoverLetter && labelInfo.emailTemplate) {
+    const period = periodStart && periodEnd ? `${periodStart} – ${periodEnd}` : (periodStart ?? periodEnd ?? '')
+    const amount = formatCurrency(artistData.finalPayout)
+    const appDefaults = {
+      financeEmail: emailOptions?.financeEmail,
+      invoiceDeadlineDate: emailOptions?.deadlineDate,
+      royaltyDonationOrg: emailOptions?.donationOrg,
+    }
+    const covered = resolveTemplate(
+      labelInfo.emailTemplate,
+      artistData.artist,
+      period,
+      amount,
+      labelInfo,
+      appDefaults
+    )
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    const coverLines = doc.splitTextToSize(covered, 170)
+    let yC = margin
+    coverLines.forEach((line: string) => {
+      if (yC > 280) { doc.addPage(); yC = margin }
+      doc.text(line, margin, yC)
+      yC += 5
+    })
+    doc.addPage()
+  }
+
   let yPos = margin
 
   // Add label logo if available (prefer logoBase64, fall back to logo)
@@ -168,30 +216,35 @@ function buildPDF(
 
   // ── Release breakdown ─────────────────────────────────────────────────────
   // autoTable handles pagination automatically — no slice() or manual yPos math needed.
-  autoTable(doc, {
-    startY: yPos,
-    head: [['Release Title', 'Revenue', 'Qty', 'Type']],
-    body: artistData.releaseBreakdown.map(rel => [
-      rel.releaseTitle || '-',
-      formatCurrency(rel.revenue),
-      String(rel.quantity),
-      rel.isPhysical ? 'Physical' : 'Digital',
-    ]),
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
-    columnStyles: {
-      1: { halign: 'right' },
-      2: { halign: 'right' },
-    },
-    margin: { left: margin, right: margin },
-    didDrawPage: drawPageFooter,
-  })
+  if (settings.includeReleaseBreakdown) {
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Release Title', 'Revenue', 'Qty', 'Type']],
+      body: artistData.releaseBreakdown.map(rel => [
+        rel.releaseTitle || '-',
+        formatCurrency(rel.revenue),
+        String(rel.quantity),
+        rel.isPhysical ? 'Physical' : 'Digital',
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+      columnStyles: {
+        1: { halign: 'right' },
+        2: { halign: 'right' },
+      },
+      margin: { left: margin, right: margin },
+      didDrawPage: drawPageFooter,
+    })
+  }
 
   // ── Platform breakdown ────────────────────────────────────────────────────
-  if (artistData.platformBreakdown.length > 0) {
-    const afterReleases = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
+  if (settings.includePlatformBreakdown && artistData.platformBreakdown.length > 0) {
+    const lastFinalYPlat = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
+    const startY = settings.includeReleaseBreakdown && lastFinalYPlat
+      ? lastFinalYPlat + 8
+      : yPos
     autoTable(doc, {
-      startY: afterReleases,
+      startY,
       head: [['Platform', 'Revenue', 'Qty']],
       body: artistData.platformBreakdown.map(p => [
         p.platform || 'Unknown',
@@ -204,6 +257,46 @@ function buildPDF(
         1: { halign: 'right' },
         2: { halign: 'right' },
       },
+      margin: { left: margin, right: margin },
+      didDrawPage: drawPageFooter,
+    })
+  }
+
+  // ── Country breakdown ─────────────────────────────────────────────────────
+  if (settings.includeCountryBreakdown && artistData.countryBreakdown.length > 0) {
+    const lastFinalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
+    autoTable(doc, {
+      startY: lastFinalY ? lastFinalY + 8 : yPos,
+      head: [['Country', 'Revenue', 'Qty']],
+      body: artistData.countryBreakdown.map(c => [
+        c.country || 'Unknown',
+        formatCurrency(c.revenue),
+        String(c.quantity),
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+      columnStyles: {
+        1: { halign: 'right' },
+        2: { halign: 'right' },
+      },
+      margin: { left: margin, right: margin },
+      didDrawPage: drawPageFooter,
+    })
+  }
+
+  // ── Monthly breakdown ─────────────────────────────────────────────────────
+  if (settings.includeMonthlyBreakdown && artistData.monthlyBreakdown.length > 0) {
+    const lastFinalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
+    autoTable(doc, {
+      startY: lastFinalY ? lastFinalY + 8 : yPos,
+      head: [['Month', 'Revenue']],
+      body: artistData.monthlyBreakdown.map(m => [
+        m.month,
+        formatCurrency(m.revenue),
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'right' } },
       margin: { left: margin, right: margin },
       didDrawPage: drawPageFooter,
     })
@@ -352,7 +445,9 @@ export async function generateZipOfAllStatements(
   periodStart?: string,
   periodEnd?: string,
   format: 'pdf' | 'excel' | 'both' = 'both',
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  pdfSettings?: Partial<PdfExportSettings>,
+  emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string }
 ): Promise<Blob> {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
@@ -371,7 +466,7 @@ export async function generateZipOfAllStatements(
       : undefined
 
     if (format === 'pdf' || format === 'both') {
-      const pdfBlob = generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber)
+      const pdfBlob = generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions)
       zip.file(`${safeArtistName}_statement.pdf`, pdfBlob)
     }
 
