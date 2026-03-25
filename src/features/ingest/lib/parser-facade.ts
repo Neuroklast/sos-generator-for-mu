@@ -44,11 +44,23 @@ const BELIEVE_COLUMNS = ['release_title', 'barcode', 'upc', 'isrc', 'net_revenue
 const BANDCAMP_COLUMNS = ['item type', 'catalog number', 'artist', 'album title', 'net amount']
 
 /**
- * Detects the file type from the CSV header line using a scoring approach.
- * Each candidate format receives a score based on how many of its characteristic
- * columns are present, which avoids false positives from partial name overlaps.
- * @param headerLine - The first line of the CSV file.
- * @returns The detected FileType.
+ * Detects the file type from the CSV header line using a column-scoring approach.
+ *
+ * Each supported format (Shopify, Believe, Bandcamp) has a set of characteristic
+ * column names. The function counts how many of those columns appear in the header
+ * and assigns a score. The format with the highest non-zero score wins.
+ *
+ * **Edge cases:**
+ * - If all scores are zero (no recognisable columns found), `'unknown'` is returned.
+ *   The caller should handle `'unknown'` gracefully, e.g. by falling back to a default
+ *   parser or surfacing a user-facing error.
+ * - If two formats receive equal scores, the first one encountered in the `scores`
+ *   object wins (Shopify → Believe → Bandcamp). This precedence is intentional
+ *   because Shopify columns are the most distinctive and unlikely to conflict.
+ * - The scoring deliberately ignores column order; only presence matters.
+ *
+ * @param headerLine - The raw first line of the CSV file (comma- or tab-delimited).
+ * @returns The detected {@link FileType}: `'believe'`, `'bandcamp'`, `'shopify'`, or `'unknown'`.
  */
 export function detectFileType(headerLine: string): FileType {
   const headers = splitHeader(headerLine)
