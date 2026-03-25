@@ -14,14 +14,13 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
-  Loader2,
   Sparkles,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { UniversalFileUploadZone, type FileManagerCallbacks } from '@/components/UniversalFileUploadZone'
+import { StatCard } from '@/components/StatCard'
 import { CompilationFilterManager } from '@/components/CompilationFilterManager'
 import { ArtistMappingManager } from '@/components/ArtistMappingManager'
 import { ManualRevenueManager } from '@/components/ManualRevenueManager'
@@ -36,7 +35,6 @@ import type {
   ExpenseEntry,
   GuestPayoutRule,
   ArtistCollabNode,
-  CSVColumnAlias,
 } from '@/lib/types'
 
 export type MasterSortField = 'artist' | 'totalQuantity' | 'totalRevenue' | 'finalAmount'
@@ -44,12 +42,8 @@ export type MasterSortDir = 'asc' | 'desc'
 
 interface ProcessCockpitViewProps {
   revenues: ArtistRevenue[]
-  believeManager: FileManagerCallbacks
-  bandcampManager: FileManagerCallbacks
   totalFiles: number
   uniqueArtists: string[]
-  exchangeRatesLoading: boolean
-  handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void
   compilationFilters: CompilationFilter[]
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
   handleRemoveCompilationFilter: (id: string) => void
@@ -92,12 +86,8 @@ interface ProcessCockpitViewProps {
 
 export function ProcessCockpitView({
   revenues,
-  believeManager,
-  bandcampManager,
   totalFiles,
   uniqueArtists,
-  exchangeRatesLoading,
-  handleAddAlias,
   compilationFilters,
   handleAddCompilationFilter,
   handleRemoveCompilationFilter,
@@ -143,58 +133,60 @@ export function ProcessCockpitView({
       <div className="px-8 lg:px-12 pt-8 pb-6 border-b border-white/10">
         <h2 className="text-2xl font-bold font-['Space_Grotesk']">Process Cockpit</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload data, configure rules, and generate statements in one place.
+          Configure rules, review finances, and generate statements.
         </p>
       </div>
 
       {/* 12-column dashboard grid */}
       <div className="flex-1 grid grid-cols-12 gap-8 lg:gap-10 p-8 lg:p-12 pb-6">
 
-        {/* ─ Card 1: Data Ingest — 8 columns ─ */}
+        {/* ─ Card 1: Workspace Status — 8 columns ─ */}
         <Card className="col-span-12 lg:col-span-8 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col gap-6">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shrink-0 shadow-lg shadow-emerald-500/25">
               <UploadCloud size={20} className="text-white" />
             </div>
             <div className="min-w-0">
-              <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Data Ingest</h3>
-              <p className="text-xs text-muted-foreground">Upload CSV files from your distributors</p>
+              <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Workspace Status</h3>
+              <p className="text-xs text-muted-foreground">Overview of loaded data</p>
             </div>
-            {totalFiles > 0 && (
-              <div className="ml-auto shrink-0 text-right">
-                <p className="text-xs font-semibold text-emerald-400">{totalFiles} file{totalFiles !== 1 ? 's' : ''} loaded</p>
-              </div>
-            )}
           </div>
 
-          {exchangeRatesLoading && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 text-sm">
-              <Loader2 size={15} className="animate-spin shrink-0" />
-              <span>Wechselkurse werden geladen – Datei-Upload wird gleich verfügbar…</span>
-            </div>
-          )}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <StatCard
+              label="Files Loaded"
+              value={String(totalFiles)}
+              icon={FileText}
+              gradient="from-sky-500 to-blue-600"
+              delay={0}
+            />
+            <StatCard
+              label="Unique Artists"
+              value={String(uniqueArtists.length)}
+              icon={Users}
+              gradient="from-violet-500 to-purple-600"
+              delay={0.05}
+            />
+            <StatCard
+              label="Total Payout"
+              value={new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(
+                revenues.reduce((sum, r) => sum + r.finalAmount, 0)
+              )}
+              icon={TrendingUp}
+              gradient="from-emerald-500 to-teal-500"
+              delay={0.1}
+            />
+          </div>
 
-          <UniversalFileUploadZone
-            believeManager={believeManager}
-            bandcampManager={bandcampManager}
-            onAddAliases={aliases => aliases.forEach(handleAddAlias)}
-          />
-
-          {revenues.length > 0 && (
-            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border/40">
-              <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-xl font-mono font-bold">{uniqueArtists.length}</p>
-                <p className="text-xs text-muted-foreground">Artists</p>
-              </div>
-              <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-base font-mono font-bold text-primary">
-                  {revenues.reduce((s, r) => s + r.finalAmount, 0)
-                    .toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
-                </p>
-                <p className="text-xs text-muted-foreground">Total Payout</p>
-              </div>
-            </div>
-          )}
+          <div className="mt-auto pt-2">
+            <Button
+              onClick={() => navigate('ingest')}
+              className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <UploadCloud size={16} />
+              Start New Data Import
+            </Button>
+          </div>
         </Card>
 
         {/* ─ Card 2: Compilations & Rules — 4 columns ─ */}
