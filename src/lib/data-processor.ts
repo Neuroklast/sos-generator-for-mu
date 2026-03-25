@@ -154,7 +154,8 @@ function buildMonthlyBreakdown(transactions: SalesTransaction[]): MonthlyRevenue
 function buildReleaseBreakdown(transactions: SalesTransaction[]): ReleaseRevenue[] {
   const map = new Map<string, ReleaseRevenue>()
   for (const t of transactions) {
-    const key = t.upc_ean || t.catalog_number || t.release_title || 'Unknown'
+    // Use a normalised lowercase key so the same release with different casing is grouped together.
+    const key = (t.upc_ean || t.catalog_number || t.release_title || 'Unknown').toLowerCase()
     const existing = map.get(key)
     if (existing) {
       existing.revenue += t.net_revenue
@@ -288,14 +289,20 @@ export function processTransactionsWithCompilations(
           })
         })
 
-  // Group by resolved artist
+  // Group by resolved artist (case-insensitive: "NEUROKLAST" == "Neuroklast")
   const artistGroups = new Map<string, SalesTransaction[]>()
+  // Stores the first-seen canonical casing for each lowercase key.
+  const canonicalArtistNames = new Map<string, string>()
   for (const t of rosterAndIgnoreFiltered) {
-    const group = artistGroups.get(t.main_artist)
+    const key = t.main_artist.toLowerCase()
+    if (!canonicalArtistNames.has(key)) {
+      canonicalArtistNames.set(key, t.main_artist)
+    }
+    const group = artistGroups.get(key)
     if (group) {
       group.push(t)
     } else {
-      artistGroups.set(t.main_artist, [t])
+      artistGroups.set(key, [t])
     }
   }
 
@@ -304,7 +311,8 @@ export function processTransactionsWithCompilations(
 
   const rates = config.exchangeRates ?? {}
 
-  for (const [artist, artistTransactions] of artistGroups.entries()) {
+  for (const [lowerKey, artistTransactions] of artistGroups.entries()) {
+    const artist = canonicalArtistNames.get(lowerKey) ?? lowerKey
     let digitalRevenue = 0
     let physicalRevenue = 0
     let totalQuantity = 0
@@ -327,12 +335,12 @@ export function processTransactionsWithCompilations(
     }
 
     const manualRevenue = config.manualRevenues
-      .filter(mr => mr.artist === artist)
+      .filter(mr => mr.artist.toLowerCase() === lowerKey)
       .reduce((sum, mr) => sum + mr.amount, 0)
 
     const grossRevenue = digitalRevenue + physicalRevenue + manualRevenue
 
-    const splitFee = config.splitFees.find(sf => sf.artist === artist)
+    const splitFee = config.splitFees.find(sf => sf.artist.toLowerCase() === lowerKey)
     const splitPercentage = clampSplitPercentage(splitFee?.percentage ?? 100)
 
     // Split percentage applies only to streaming/physical revenue;

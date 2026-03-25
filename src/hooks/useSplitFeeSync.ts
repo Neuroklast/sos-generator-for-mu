@@ -14,8 +14,8 @@ export function useSplitFeeSync(
   setSplitFees: (updater: (current: SplitFee[] | undefined) => SplitFee[]) => void
 ) {
   useEffect(() => {
-    const existingArtists = new Set(splitFees.map(sf => sf.artist))
-    const newArtists = uniqueArtists.filter(a => !existingArtists.has(a))
+    const existingArtists = new Set(splitFees.map(sf => sf.artist.toLowerCase()))
+    const newArtists = uniqueArtists.filter(a => !existingArtists.has(a.toLowerCase()))
 
     if (newArtists.length === 0) return
 

@@ -1,4 +1,4 @@
-import { Plus, Trash, GitBranch, Pencil, GitMerge } from '@phosphor-icons/react'
+import { Plus, Trash, GitBranch, Pencil, GitMerge, Sparkle } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -77,7 +77,8 @@ export function ArtistMappingManager({
   const toggleMergeArtist = (artist: string) => {
     setMergeSelected(prev => {
       const next = new Set(prev)
-      next.has(artist) ? next.delete(artist) : next.add(artist)
+      if (next.has(artist)) next.delete(artist)
+      else next.add(artist)
       return next
     })
   }
@@ -95,10 +96,47 @@ export function ArtistMappingManager({
     setMergeSearch('')
   }
 
+  // ── Auto-mapping wizard state ──────────────────────────────────────────────
+  // Only include auto-mapping suggestions not already covered by a manual mapping.
   const existingFeaturingNamesLower = new Set(mappings.map(m => m.featuringName.toLowerCase()))
+  const pendingSuggestions = autoMappings.filter(
+    am => !existingFeaturingNamesLower.has(am.featuringName.toLowerCase())
+  )
+
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardIndex, setWizardIndex] = useState(0)
+
+  const currentSuggestion = pendingSuggestions[wizardIndex] ?? null
+
+  const startWizard = () => {
+    setWizardIndex(0)
+    setWizardOpen(true)
+  }
+
+  const acceptSuggestion = () => {
+    if (!currentSuggestion) return
+    onAddMapping({
+      featuringName: currentSuggestion.featuringName,
+      primaryArtist: currentSuggestion.primaryArtist,
+    })
+    advanceWizard()
+  }
+
+  const skipSuggestion = () => {
+    advanceWizard()
+  }
+
+  const advanceWizard = () => {
+    if (wizardIndex + 1 >= pendingSuggestions.length) {
+      setWizardOpen(false)
+    } else {
+      setWizardIndex(i => i + 1)
+    }
+  }
+
   const allMappings = [
     ...mappings,
-    ...autoMappings.filter(am => !existingFeaturingNamesLower.has(am.featuringName.toLowerCase())),
+    ...pendingSuggestions,
   ]
 
   return (
@@ -109,7 +147,18 @@ export function ArtistMappingManager({
           <h3 className="font-semibold">Artist Mappings</h3>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {/* Auto-Mapping Wizard */}
+          {pendingSuggestions.length > 0 && (
+            <Button size="sm" variant="outline" className="gap-2 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/60" onClick={startWizard}>
+              <Sparkle size={16} weight="bold" />
+              Auto-Map Wizard
+              <Badge variant="secondary" className="ml-0.5 text-[10px] px-1.5 py-0 bg-amber-500/20 text-amber-400 border-amber-500/30">
+                {pendingSuggestions.length}
+              </Badge>
+            </Button>
+          )}
+
           {/* Merge Dialog */}
           <Dialog open={mergeOpen} onOpenChange={open => { setMergeOpen(open); if (!open) { setMergeSelected(new Set()); setMergePrimary(''); setMergeSearch('') } }}>
             <DialogTrigger asChild>
@@ -227,6 +276,80 @@ export function ArtistMappingManager({
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button onClick={handleEdit} disabled={!editFeat.trim() || !editPrimary.trim()}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto-Mapping Wizard Dialog */}
+      <Dialog open={wizardOpen} onOpenChange={open => { if (!open) setWizardOpen(false) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkle size={18} className="text-amber-400" />
+              Auto-Map Wizard
+            </DialogTitle>
+            <DialogDescription>
+              Review each suggested mapping and accept or skip it. You can cancel at any time.
+            </DialogDescription>
+          </DialogHeader>
+
+          {currentSuggestion ? (
+            <div className="space-y-6 py-2">
+              {/* Progress indicator */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Suggestion {wizardIndex + 1} of {pendingSuggestions.length}</span>
+                <div className="flex gap-1">
+                  {pendingSuggestions.map((_, i) => (
+                    <div
+                      key={i}
+                      className={`h-1.5 w-6 rounded-full transition-colors ${i < wizardIndex ? 'bg-emerald-500' : i === wizardIndex ? 'bg-amber-400' : 'bg-white/10'}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Suggestion card */}
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-5 space-y-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Alias / Featuring Name</p>
+                  <p className="text-lg font-bold text-foreground">{currentSuggestion.featuringName}</p>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <GitBranch size={16} />
+                  <span className="text-xs">maps to</span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Primary Artist</p>
+                  <p className="text-lg font-bold text-foreground">{currentSuggestion.primaryArtist}</p>
+                </div>
+                {currentSuggestion.mappingScore !== undefined && (
+                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-500/15 text-amber-400 border-amber-500/30">
+                    Similarity: {((currentSuggestion.mappingScore) * 100).toFixed(0)}%
+                  </Badge>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center space-y-2">
+              <p className="text-sm font-semibold text-foreground">All suggestions reviewed!</p>
+              <p className="text-xs text-muted-foreground">No more auto-mapping suggestions available.</p>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setWizardOpen(false)} className="sm:mr-auto">
+              Cancel
+            </Button>
+            {currentSuggestion && (
+              <>
+                <Button variant="outline" onClick={skipSuggestion}>
+                  Skip
+                </Button>
+                <Button onClick={acceptSuggestion} className="bg-emerald-600 hover:bg-emerald-500 text-white">
+                  Accept
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

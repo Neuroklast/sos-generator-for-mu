@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useKV } from '@/hooks/useLocalKV'
+import { useUndoStack } from '@/hooks/useUndoStack'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -461,6 +462,8 @@ function App() {
   const [guestPayoutRules, setGuestPayoutRules] = useKV<GuestPayoutRule[]>('guest-payout-rules', [])
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
+  const { push: pushUndo, undo } = useUndoStack()
+
   const { entries: historyEntries, addEntry, markRemoved, clearHistory } = useHistoryLog()
 
   const believeManager = useFileManager('believe', {
@@ -572,41 +575,52 @@ function App() {
 
   const handleAddCompilationFilter = useCallback(
     (filter: Omit<CompilationFilter, 'id'>) => {
+      const snapshot = compilationFilters ?? []
       setCompilationFilters(current => [...(current ?? []), { ...filter, id: crypto.randomUUID() }])
+      pushUndo({ description: 'Add compilation filter', undo: () => setCompilationFilters(snapshot) })
       toast.success('Compilation exclusion added')
     },
-    [setCompilationFilters]
+    [compilationFilters, setCompilationFilters, pushUndo]
   )
   const handleRemoveCompilationFilter = useCallback(
     (id: string) => {
+      const snapshot = compilationFilters ?? []
       setCompilationFilters(current => (current ?? []).filter(f => f.id !== id))
+      pushUndo({ description: 'Remove compilation filter', undo: () => setCompilationFilters(snapshot) })
       toast.info('Compilation exclusion removed')
     },
-    [setCompilationFilters]
+    [compilationFilters, setCompilationFilters, pushUndo]
   )
   const handleAddArtistMapping = useCallback(
     (mapping: Omit<ArtistMapping, 'id'>) => {
+      const snapshot = artistMappings ?? []
       setArtistMappings(current => [...(current ?? []), { ...mapping, id: crypto.randomUUID() }])
+      pushUndo({ description: 'Add artist mapping', undo: () => setArtistMappings(snapshot) })
       toast.success('Artist mapping added')
     },
-    [setArtistMappings]
+    [artistMappings, setArtistMappings, pushUndo]
   )
   const handleRemoveArtistMapping = useCallback(
     (id: string) => {
+      const snapshot = artistMappings ?? []
       setArtistMappings(current => (current ?? []).filter(m => m.id !== id))
+      pushUndo({ description: 'Remove artist mapping', undo: () => setArtistMappings(snapshot) })
       toast.info('Artist mapping removed')
     },
-    [setArtistMappings]
+    [artistMappings, setArtistMappings, pushUndo]
   )
   const handleUpdateArtistMapping = useCallback(
     (id: string, update: Omit<ArtistMapping, 'id'>) => {
+      const snapshot = artistMappings ?? []
       setArtistMappings(current => (current ?? []).map(m => m.id === id ? { ...m, ...update } : m))
+      pushUndo({ description: 'Edit artist mapping', undo: () => setArtistMappings(snapshot) })
       toast.success('Artist mapping updated')
     },
-    [setArtistMappings]
+    [artistMappings, setArtistMappings, pushUndo]
   )
   const handleUpdateSplitFee = useCallback(
     (artist: string, percentage: number) => {
+      const snapshot = splitFees ?? []
       setSplitFees(current => {
         const fees = current ?? []
         const exists = fees.some(sf => sf.artist === artist)
@@ -617,40 +631,67 @@ function App() {
         }
         return [...fees, { artist, percentage }]
       })
+      pushUndo({ description: `Edit split fee for ${artist}`, undo: () => setSplitFees(snapshot) })
     },
-    [setSplitFees]
+    [splitFees, setSplitFees, pushUndo]
+  )
+  const handleBulkUpdateSplitFee = useCallback(
+    (artists: string[], percentage: number) => {
+      const snapshot = splitFees ?? []
+      setSplitFees(current => {
+        const fees = current ?? []
+        const artistSet = new Set(artists)
+        const updated = fees.map(sf => artistSet.has(sf.artist) ? { ...sf, percentage } : sf)
+        const existingArtists = new Set(fees.map(sf => sf.artist))
+        const newEntries = artists
+          .filter(a => !existingArtists.has(a))
+          .map(a => ({ artist: a, percentage }))
+        return [...updated, ...newEntries]
+      })
+      pushUndo({ description: `Bulk edit split fees (${artists.length} artists)`, undo: () => setSplitFees(snapshot) })
+    },
+    [splitFees, setSplitFees, pushUndo]
   )
   const handleAddManualRevenue = useCallback(
     (revenue: Omit<ManualRevenue, 'id'>) => {
+      const snapshot = manualRevenues ?? []
       setManualRevenues(current => [...(current ?? []), { ...revenue, id: crypto.randomUUID() }])
+      pushUndo({ description: 'Add manual revenue', undo: () => setManualRevenues(snapshot) })
       toast.success('Manual revenue added')
     },
-    [setManualRevenues]
+    [manualRevenues, setManualRevenues, pushUndo]
   )
   const handleRemoveManualRevenue = useCallback(
     (id: string) => {
+      const snapshot = manualRevenues ?? []
       setManualRevenues(current => (current ?? []).filter(r => r.id !== id))
+      pushUndo({ description: 'Remove manual revenue', undo: () => setManualRevenues(snapshot) })
       toast.info('Manual revenue removed')
     },
-    [setManualRevenues]
+    [manualRevenues, setManualRevenues, pushUndo]
   )
   const handleAddAlias = useCallback(
     (alias: Omit<CSVColumnAlias, 'id'>) => {
+      const snapshot = csvAliases ?? []
       setCsvAliases(current => [...(current ?? []), { ...alias, id: crypto.randomUUID() }])
+      pushUndo({ description: 'Add column synonym', undo: () => setCsvAliases(snapshot) })
       toast.success('Column synonym added')
     },
-    [setCsvAliases]
+    [csvAliases, setCsvAliases, pushUndo]
   )
   const handleRemoveAlias = useCallback(
     (id: string) => {
+      const snapshot = csvAliases ?? []
       setCsvAliases(current => (current ?? []).filter(a => a.id !== id))
+      pushUndo({ description: 'Remove column synonym', undo: () => setCsvAliases(snapshot) })
       toast.info('Column synonym removed')
     },
-    [setCsvAliases]
+    [csvAliases, setCsvAliases, pushUndo]
   )
 
   const handleUpdateGuestPayout = useCallback(
     (primaryArtist: string, guestName: string, percentage: number) => {
+      const snapshot = guestPayoutRules ?? []
       setGuestPayoutRules(current => {
         const rules = current ?? []
         const exists = rules.some(r => r.primaryArtist === primaryArtist && r.guestName === guestName)
@@ -661,8 +702,9 @@ function App() {
         }
         return [...rules, { primaryArtist, guestName, percentage }]
       })
+      pushUndo({ description: `Edit guest payout for ${guestName}`, undo: () => setGuestPayoutRules(snapshot) })
     },
-    [setGuestPayoutRules]
+    [guestPayoutRules, setGuestPayoutRules, pushUndo]
   )
 
   const handleClearWorkspace = useCallback(() => {
@@ -692,18 +734,22 @@ function App() {
 
   const handleAddLabelArtist = useCallback(
     (name: string) => {
+      const snapshot = labelArtists ?? []
       setLabelArtists(current => [...(current ?? []), { id: crypto.randomUUID(), name }])
+      pushUndo({ description: `Add "${name}" to label roster`, undo: () => setLabelArtists(snapshot) })
       toast.success(`"${name}" added to label roster`)
     },
-    [setLabelArtists]
+    [labelArtists, setLabelArtists, pushUndo]
   )
 
   const handleRemoveLabelArtist = useCallback(
     (id: string) => {
+      const snapshot = labelArtists ?? []
       setLabelArtists(current => (current ?? []).filter(a => a.id !== id))
+      pushUndo({ description: 'Remove label artist', undo: () => setLabelArtists(snapshot) })
       toast.info('Artist removed from roster')
     },
-    [setLabelArtists]
+    [labelArtists, setLabelArtists, pushUndo]
   )
 
   const handleImportLabelArtistsCSV = useCallback(
@@ -722,22 +768,46 @@ function App() {
 
   const handleAddIgnoredEntry = useCallback(
     (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => {
+      const snapshot = ignoredEntries ?? []
       setIgnoredEntries(current => [
         ...(current ?? []),
         { ...entry, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
       ])
+      pushUndo({ description: `Ignore "${entry.artist}"`, undo: () => setIgnoredEntries(snapshot) })
       toast.success(`"${entry.artist}"${entry.releaseTitle ? ` / "${entry.releaseTitle}"` : ''} ignored`)
     },
-    [setIgnoredEntries]
+    [ignoredEntries, setIgnoredEntries, pushUndo]
   )
 
   const handleRemoveIgnoredEntry = useCallback(
     (id: string) => {
+      const snapshot = ignoredEntries ?? []
       setIgnoredEntries(current => (current ?? []).filter(e => e.id !== id))
+      pushUndo({ description: 'Remove ignored entry', undo: () => setIgnoredEntries(snapshot) })
       toast.info('Entry removed from ignore list')
     },
-    [setIgnoredEntries]
+    [ignoredEntries, setIgnoredEntries, pushUndo]
   )
+
+  // ── Global Ctrl+Z / Cmd+Z undo handler ──────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        // Don't intercept when the user is typing in an input or textarea.
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return
+        e.preventDefault()
+        const action = undo()
+        if (action) {
+          toast.info(`Undone: ${action.description}`)
+        } else {
+          toast.info('Nothing to undo')
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [undo])
 
   const totalNetRevenue = useMemo(
     () => revenues.reduce((s, r) => s + r.finalAmount, 0),
@@ -1967,6 +2037,7 @@ function App() {
                     <SplitFeeManager
                       splitFees={splitFees ?? []}
                       onUpdateSplitFee={handleUpdateSplitFee}
+                      onBulkUpdateSplitFee={handleBulkUpdateSplitFee}
                     />
                   </Card>
                   <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">

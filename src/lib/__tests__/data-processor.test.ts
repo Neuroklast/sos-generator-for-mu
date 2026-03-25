@@ -337,3 +337,66 @@ describe('breakdown accuracy', () => {
     expect(rel2?.revenue).toBeCloseTo(15)
   })
 })
+
+// ── Case-insensitive artist & release grouping ─────────────────────────────────
+
+describe('case-insensitive artist grouping', () => {
+  it('groups "NEUROKLAST" and "Neuroklast" as the same artist', () => {
+    const txs = [
+      makeTx({ original_artist: 'NEUROKLAST', net_revenue: 10 }),
+      makeTx({ original_artist: 'Neuroklast', net_revenue: 20 }),
+    ]
+    const result = processTransactions(txs, emptyConfig)
+    expect(result).toHaveLength(1)
+    expect(result[0].grossRevenue).toBeCloseTo(30)
+  })
+
+  it('groups "SynthAttack" and "Synthattack" as the same artist', () => {
+    const txs = [
+      makeTx({ original_artist: 'SynthAttack', net_revenue: 5 }),
+      makeTx({ original_artist: 'Synthattack', net_revenue: 15 }),
+    ]
+    const result = processTransactions(txs, emptyConfig)
+    expect(result).toHaveLength(1)
+    expect(result[0].grossRevenue).toBeCloseTo(20)
+  })
+
+  it('uses first-seen casing as the canonical artist name', () => {
+    const txs = [
+      makeTx({ original_artist: 'Neuroklast', net_revenue: 10 }),
+      makeTx({ original_artist: 'NEUROKLAST', net_revenue: 5 }),
+    ]
+    const result = processTransactions(txs, emptyConfig)
+    expect(result[0].artist).toBe('Neuroklast')
+  })
+
+  it('matches split fee case-insensitively', () => {
+    const splitFees: SplitFee[] = [{ artist: 'neuroklast', percentage: 80 }]
+    const txs = [makeTx({ original_artist: 'Neuroklast', net_revenue: 100 })]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    expect(result[0].splitPercentage).toBe(80)
+    expect(result[0].finalPayout).toBeCloseTo(80)
+  })
+
+  it('matches manual revenue case-insensitively', () => {
+    const manualRevenues: ManualRevenue[] = [
+      { id: '1', artist: 'NEUROKLAST', description: 'Sync', amount: 50 },
+    ]
+    const txs = [makeTx({ original_artist: 'Neuroklast', net_revenue: 10 })]
+    const result = processTransactions(txs, { ...emptyConfig, manualRevenues })
+    expect(result[0].manualRevenue).toBeCloseTo(50)
+    expect(result[0].grossRevenue).toBeCloseTo(60)
+  })
+})
+
+describe('case-insensitive release grouping', () => {
+  it('groups releases with the same title regardless of casing', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', upc_ean: '', catalog_number: '', release_title: 'Dark Matter EP', net_revenue: 8 }),
+      makeTx({ original_artist: 'Omnimar', upc_ean: '', catalog_number: '', release_title: 'DARK MATTER EP', net_revenue: 12 }),
+    ]
+    const result = processTransactions(txs, emptyConfig)
+    expect(result[0].releaseBreakdown).toHaveLength(1)
+    expect(result[0].releaseBreakdown[0].revenue).toBeCloseTo(20)
+  })
+})
