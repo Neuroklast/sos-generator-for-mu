@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, LabelArtist } from '@/lib/types'
 import { resolveTemplate } from '@/lib/utils'
-import { APP_CREDITS, APP_LOGO } from '@/config/softwareBranding'
+import { APP_CREDITS, APP_LOGO, APP_NAME } from '@/config/softwareBranding'
 
 /** Default PDF export settings — all major sections enabled, cover letter off. */
 const DEFAULT_PDF_SETTINGS: PdfExportSettings = {
@@ -66,6 +66,20 @@ const LABEL_LOGO_MAX_HEIGHT_MM = 30
  */
 const APP_LOGO_FOOTER_SIZE_MM = 10
 
+/**
+ * Maximum rows rendered per breakdown table (releases, platforms, countries, months).
+ * Prevents memory exhaustion in the browser for artists with extremely large catalogues
+ * that would otherwise produce documents exceeding 10 pages per section.
+ */
+const MAX_BREAKDOWN_ROWS = 500
+
+/**
+ * Minimum vertical space in mm that must remain on the current page before a section
+ * heading is rendered inline. If less space is available, the heading is skipped so
+ * autoTable's own repeated column header carries the visual separation instead.
+ */
+const MIN_SPACE_FOR_SECTION_HEADING_MM = 30
+
 export async function generatePDF(
   artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
@@ -116,6 +130,9 @@ function buildPDF(
 ): Blob {
   const doc = new jsPDF()
   const margin = 20
+
+  // Embed document metadata so PDF readers show a meaningful title.
+  doc.setProperties({ title: `${APP_NAME} · Statement of Sales`, creator: APP_NAME })
 
   // ── Optional e-mail cover letter page ────────────────────────────────────
   if (settings.includeEmailCoverLetter && labelInfo.emailTemplate) {
@@ -271,76 +288,118 @@ function buildPDF(
   const vatAmount = vatRate > 0 ? artistData.finalPayout * (vatRate / 100) : 0
   const grossPayout = artistData.finalPayout + vatAmount
 
-  const summaryData: string[][] = [
-    ['Digitale Einnahmen', formatCurrency(artistData.totalDigitalRevenue)],
-    ['Physische Einnahmen', formatCurrency(artistData.totalPhysicalRevenue)],
-    ['Manuelle Einnahmen', formatCurrency(artistData.manualRevenue)],
-    ['Bruttoeinnahmen', formatCurrency(artistData.grossRevenue)],
-  ]
-
-  if (artistData.distributionFeeDeducted > 0) {
-    summaryData.push(['Label Vertriebsprovision', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
-  }
-
-  if (artistData.totalExpenses > 0) {
-    summaryData.push(['Verrechenbare Kosten / Vorschüsse', `- ${formatCurrency(artistData.totalExpenses)}`])
-  }
-
-  summaryData.push(
-    ['Split-Prozentsatz', `${artistData.splitPercentage}%`],
-    ['Netto-Auszahlung', formatCurrency(artistData.finalPayout)],
-  )
-
-  if (vatRate > 0) {
-    summaryData.push(
-      [`USt. ${vatRate}%`, formatCurrency(vatAmount)],
-      ['Brutto-Auszahlung', formatCurrency(grossPayout)],
-    )
-  }
-
-  summaryData.forEach(([label, value]) => {
-    doc.text(label + ':', margin, yPos)
-    doc.text(value, margin + 80, yPos)
-    yPos += 6
-  })
-
-  doc.setLineWidth(0.5)
-  doc.line(margin, yPos, 190, yPos)
-  yPos += 10
-
   // ── Page footer helper ────────────────────────────────────────────────────
+  // Defined before the summary autoTable so it is rendered on the first content
+  // page as well as every subsequent page produced by autoTable pagination.
   const drawPageFooter = (data: { pageNumber: number }) => {
     const pageCount = (doc as jsPDF & { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages()
     const pageHeight = doc.internal.pageSize.getHeight()
     const pageWidth = doc.internal.pageSize.getWidth()
+    const footerY = pageHeight - 8
     doc.setFontSize(7)
     doc.setTextColor(150, 150, 150)
 
-    // Left: footer text or bank details; right: page number
+    // Left: label-specific footer text or bank details
     const footerLeft = labelInfo.footerText
       ? labelInfo.footerText.replace(/\n/g, ' · ')
       : labelInfo.bankAccount
         ? labelInfo.bankAccount.replace(/\n/g, ' · ')
-        : APP_CREDITS
-    doc.text(footerLeft, margin, pageHeight - 8, { maxWidth: pageWidth - margin * 2 - 20 })
-    doc.text(`Seite ${data.pageNumber} / ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: 'right' })
+        : ''
+    if (footerLeft) {
+      doc.text(footerLeft, margin, footerY, { maxWidth: pageWidth / 2 - margin })
+    }
+
+    // Center: software branding credit — printed on every page
+    doc.text(APP_CREDITS, pageWidth / 2, footerY, { align: 'center' })
+
+    // Right: page number "Seite X von Y"
+    doc.text(`Seite ${data.pageNumber} von ${pageCount}`, pageWidth - margin, footerY, { align: 'right' })
+
     doc.setTextColor(0, 0, 0)
   }
 
+  // ── Financial waterfall summary ───────────────────────────────────────────
+  // Visualises the revenue flow: Brutto → –Fee → –Expenses → = Split-Basis
+  // → × Split% → = Netto-Auszahlung (Artist Share) → [+USt] → = Brutto-Auszahlung.
+  const waterfallRows: string[][] = [
+    ['Digitale Einnahmen', formatCurrency(artistData.totalDigitalRevenue)],
+    ['Physische Einnahmen', formatCurrency(artistData.totalPhysicalRevenue)],
+    ['Manuelle Einnahmen', formatCurrency(artistData.manualRevenue)],
+    ['= Bruttoeinnahmen', formatCurrency(artistData.grossRevenue)],
+  ]
+
+  if (artistData.distributionFeeDeducted > 0) {
+    waterfallRows.push(['– Label Vertriebsprovision', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
+  }
+
+  if (artistData.totalExpenses > 0) {
+    waterfallRows.push(['– Verrechenbare Kosten / Vorschüsse', `- ${formatCurrency(artistData.totalExpenses)}`])
+  }
+
+  if (artistData.distributionFeeDeducted > 0 || artistData.totalExpenses > 0) {
+    const splitBasis = artistData.grossRevenue - artistData.distributionFeeDeducted - artistData.totalExpenses
+    waterfallRows.push(['= Split-Basis', formatCurrency(splitBasis)])
+  }
+
+  waterfallRows.push(
+    [`× Split ${artistData.splitPercentage}%`, ''],
+    ['= Netto-Auszahlung (Artist Share)', formatCurrency(artistData.finalPayout)],
+  )
+
+  if (vatRate > 0) {
+    waterfallRows.push(
+      [`+ USt. ${vatRate}%`, formatCurrency(vatAmount)],
+      ['= Brutto-Auszahlung', formatCurrency(grossPayout)],
+    )
+  }
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Position', 'Betrag']],
+    body: waterfallRows,
+    theme: 'striped',
+    styles: { fontSize: 9, cellPadding: 2.5 },
+    headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 250] },
+    columnStyles: { 1: { halign: 'right' } },
+    margin: { left: margin, right: margin },
+    didDrawPage: drawPageFooter,
+  })
+  yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+
+  // ── Section heading helper ────────────────────────────────────────────────
+  // Renders a small bold label above a breakdown table. The heading is only
+  // painted when sufficient vertical space remains on the current page; otherwise
+  // autoTable's own pagination will open a fresh page with its repeated header.
+  const renderSectionHeading = (title: string): void => {
+    const pageHeight = doc.internal.pageSize.getHeight()
+    if (yPos < pageHeight - MIN_SPACE_FOR_SECTION_HEADING_MM) {
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(40, 40, 60)
+      doc.text(title, margin, yPos)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0, 0, 0)
+      yPos += 5
+    }
+  }
+
   // ── Release breakdown ─────────────────────────────────────────────────────
-  // autoTable handles pagination automatically — no slice() or manual yPos math needed.
-  if (settings.includeReleaseBreakdown) {
+  if (settings.includeReleaseBreakdown && artistData.releaseBreakdown.length > 0) {
+    renderSectionHeading('Umsatz nach Release')
     autoTable(doc, {
       startY: yPos,
       head: [['Release Title', 'Revenue', 'Qty', 'Type']],
-      body: artistData.releaseBreakdown.map(rel => [
+      body: artistData.releaseBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(rel => [
         rel.releaseTitle || '-',
         formatCurrency(rel.revenue),
         String(rel.quantity),
         rel.isPhysical ? 'Physical' : 'Digital',
       ]),
+      theme: 'striped',
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 250] },
       columnStyles: {
         1: { halign: 'right' },
         2: { halign: 'right' },
@@ -348,24 +407,24 @@ function buildPDF(
       margin: { left: margin, right: margin },
       didDrawPage: drawPageFooter,
     })
+    yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
 
   // ── Platform breakdown ────────────────────────────────────────────────────
   if (settings.includePlatformBreakdown && artistData.platformBreakdown.length > 0) {
-    const lastFinalYPlat = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
-    const startY = settings.includeReleaseBreakdown && lastFinalYPlat
-      ? lastFinalYPlat + 8
-      : yPos
+    renderSectionHeading('Umsatz nach Plattform')
     autoTable(doc, {
-      startY,
+      startY: yPos,
       head: [['Platform', 'Revenue', 'Qty']],
-      body: artistData.platformBreakdown.map(p => [
+      body: artistData.platformBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(p => [
         p.platform || 'Unknown',
         formatCurrency(p.revenue),
         String(p.quantity),
       ]),
+      theme: 'striped',
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 250] },
       columnStyles: {
         1: { halign: 'right' },
         2: { halign: 'right' },
@@ -373,21 +432,24 @@ function buildPDF(
       margin: { left: margin, right: margin },
       didDrawPage: drawPageFooter,
     })
+    yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
 
   // ── Country breakdown ─────────────────────────────────────────────────────
   if (settings.includeCountryBreakdown && artistData.countryBreakdown.length > 0) {
-    const lastFinalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
+    renderSectionHeading('Umsatz nach Land')
     autoTable(doc, {
-      startY: lastFinalY ? lastFinalY + 8 : yPos,
+      startY: yPos,
       head: [['Country', 'Revenue', 'Qty']],
-      body: artistData.countryBreakdown.map(c => [
+      body: artistData.countryBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(c => [
         c.country || 'Unknown',
         formatCurrency(c.revenue),
         String(c.quantity),
       ]),
+      theme: 'striped',
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 250] },
       columnStyles: {
         1: { halign: 'right' },
         2: { halign: 'right' },
@@ -395,20 +457,23 @@ function buildPDF(
       margin: { left: margin, right: margin },
       didDrawPage: drawPageFooter,
     })
+    yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
 
   // ── Monthly breakdown ─────────────────────────────────────────────────────
   if (settings.includeMonthlyBreakdown && artistData.monthlyBreakdown.length > 0) {
-    const lastFinalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
+    renderSectionHeading('Umsatz nach Monat')
     autoTable(doc, {
-      startY: lastFinalY ? lastFinalY + 8 : yPos,
+      startY: yPos,
       head: [['Month', 'Revenue']],
-      body: artistData.monthlyBreakdown.map(m => [
+      body: artistData.monthlyBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(m => [
         m.month,
         formatCurrency(m.revenue),
       ]),
+      theme: 'striped',
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 250] },
       columnStyles: { 1: { halign: 'right' } },
       margin: { left: margin, right: margin },
       didDrawPage: drawPageFooter,
