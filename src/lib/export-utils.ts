@@ -60,11 +60,32 @@ const LABEL_LOGO_MAX_WIDTH_MM = 50
  */
 const LABEL_LOGO_MAX_HEIGHT_MM = 30
 
+/** Size of the software branding logo rendered in the footer of every page (mm). */
+const APP_LOGO_FOOTER_SIZE_MM = 6
+
 /**
- * Software branding logo size in mm: rendered at the bottom-left corner of every
- * page at 50% opacity as a subtle watermark.
+ * Horizontal offset (mm) applied so the footer logo extends slightly beyond the
+ * left margin, visually anchoring it to the page edge.
  */
-const APP_LOGO_FOOTER_SIZE_MM = 10
+const FOOTER_LOGO_LEFT_OFFSET_MM = 4
+
+/**
+ * Vertical nudge (mm) applied to the footer logo so its baseline aligns with the
+ * Row 2 text baseline rather than sitting above it.
+ */
+const FOOTER_LOGO_VERTICAL_NUDGE_MM = 1
+
+/** Distance in mm between the bottom edge of the page and the Row 2 footer baseline. */
+const FOOTER_BOTTOM_MARGIN_MM = 6
+
+/** Vertical spacing in mm between footer Row 1 (bank/contact info) and Row 2. */
+const FOOTER_ROW_SPACING_MM = 6
+
+/**
+ * Fraction of the total page width reserved for the left footer text (bank / contact
+ * info). Kept below 0.6 so the text never reaches the center-aligned credits on Row 2.
+ */
+const FOOTER_TEXT_WIDTH_RATIO = 0.6
 
 /**
  * Maximum rows rendered per breakdown table (releases, platforms, countries, months).
@@ -211,12 +232,12 @@ function buildPDF(
   }
 
   if (labelInfo.taxNumber) {
-    doc.text(`Steuernummer: ${labelInfo.taxNumber}`, margin, yPos)
+    doc.text(`Tax Number: ${labelInfo.taxNumber}`, margin, yPos)
     yPos += 5
   }
 
   if (labelInfo.taxId) {
-    doc.text(`USt-IdNr.: ${labelInfo.taxId}`, margin, yPos)
+    doc.text(`VAT ID: ${labelInfo.taxId}`, margin, yPos)
     yPos += 5
   }
   
@@ -224,13 +245,13 @@ function buildPDF(
 
   if (invoiceNumber) {
     doc.setFontSize(10)
-    doc.text(`Rechnungsnummer: ${invoiceNumber}`, margin, yPos)
+    doc.text(`Invoice No.: ${invoiceNumber}`, margin, yPos)
     yPos += 5
   }
 
   if (periodStart && periodEnd) {
     doc.setFontSize(10)
-    doc.text(`Abrechnungszeitraum: ${periodStart} – ${periodEnd}`, margin, yPos)
+    doc.text(`Billing Period: ${periodStart} – ${periodEnd}`, margin, yPos)
     yPos += 10
   }
 
@@ -244,18 +265,18 @@ function buildPDF(
   doc.setFontSize(8)
   doc.setFont('helvetica', 'italic')
   doc.setTextColor(80, 80, 80)
-  doc.text('Gutschrift im Sinne des Umsatzsteuergesetzes (§ 14 Abs. 2 UStG)', margin, yPos)
+  doc.text('Credit note pursuant to German VAT law (§ 14 para. 2 UStG)', margin, yPos)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(0, 0, 0)
   yPos += 8
 
   doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text('Gutschrift / Statement of Sales', margin, yPos)
+  doc.text('Statement of Sales', margin, yPos)
   yPos += 10
 
   doc.setFontSize(12)
-  doc.text(`Künstler / Artist: ${artistData.artist}`, margin, yPos)
+  doc.text(`Artist: ${artistData.artist}`, margin, yPos)
   yPos += 6
 
   // ── Artist VAT / Reverse Charge info ───────────────────────────────────────
@@ -265,14 +286,14 @@ function buildPDF(
   const artistIsEuNonGerman = artistInfo?.isEuNonGerman ?? false
 
   if (artistVatId) {
-    doc.text(`USt-IdNr. Leistungsempfänger: ${artistVatId}`, margin, yPos)
+    doc.text(`VAT ID (Recipient): ${artistVatId}`, margin, yPos)
     yPos += 5
   }
 
   if (artistIsEuNonGerman) {
     doc.setTextColor(80, 80, 80)
     doc.text(
-      'Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge, Art. 196 MwStSystRL)',
+      'Tax liability of the service recipient (Reverse Charge, Art. 196 VAT Directive)',
       margin,
       yPos
     )
@@ -289,73 +310,101 @@ function buildPDF(
   const grossPayout = artistData.finalPayout + vatAmount
 
   // ── Page footer helper ────────────────────────────────────────────────────
-  // Defined before the summary autoTable so it is rendered on the first content
-  // page as well as every subsequent page produced by autoTable pagination.
+  // Two-row footer layout to prevent element overlap:
+  //   Row 1 (footerTopY): label bank / contact info, left-aligned
+  //   Row 2 (footerBotY): [NR logo left] [APP_CREDITS center] [Page N/M right]
+  // The logo is rendered here (not in a separate post-loop) so draw order is
+  // deterministic and text is never painted underneath the logo.
   const drawPageFooter = (data: { pageNumber: number }) => {
     const pageCount = (doc as jsPDF & { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages()
     const pageHeight = doc.internal.pageSize.getHeight()
     const pageWidth = doc.internal.pageSize.getWidth()
-    const footerY = pageHeight - 8
+
+    // Row 2 baseline — leaves FOOTER_BOTTOM_MARGIN_MM from the bottom edge for readability.
+    const footerBotY = pageHeight - FOOTER_BOTTOM_MARGIN_MM
+    // Row 1 baseline — FOOTER_ROW_SPACING_MM above Row 2 for label bank/contact text.
+    const footerTopY = footerBotY - FOOTER_ROW_SPACING_MM
+
     doc.setFontSize(7)
     doc.setTextColor(150, 150, 150)
 
-    // Left: label-specific footer text or bank details
+    // ── Row 1: label-specific footer text or bank details ─────────────────
+    // Constrained to FOOTER_TEXT_WIDTH_RATIO of the page so it never reaches the
+    // center credit text on Row 2.
     const footerLeft = labelInfo.footerText
       ? labelInfo.footerText.replace(/\n/g, ' · ')
       : labelInfo.bankAccount
         ? labelInfo.bankAccount.replace(/\n/g, ' · ')
         : ''
     if (footerLeft) {
-      doc.text(footerLeft, margin, footerY, { maxWidth: pageWidth / 2 - margin })
+      doc.text(footerLeft, margin, footerTopY, { maxWidth: pageWidth * FOOTER_TEXT_WIDTH_RATIO - margin })
     }
 
-    // Center: software branding credit — printed on every page
-    doc.text(APP_CREDITS, pageWidth / 2, footerY, { align: 'center' })
+    // ── Row 2 left: software branding logo ────────────────────────────────
+    try {
+      doc.saveGraphicsState()
+      doc.setGState(new GState({ opacity: 0.5 }))
+      doc.addImage(
+        APP_LOGO,
+        'PNG',
+        margin - FOOTER_LOGO_LEFT_OFFSET_MM,
+        footerBotY - APP_LOGO_FOOTER_SIZE_MM + FOOTER_LOGO_VERTICAL_NUDGE_MM,
+        APP_LOGO_FOOTER_SIZE_MM,
+        APP_LOGO_FOOTER_SIZE_MM
+      )
+      doc.restoreGraphicsState()
+    } catch (err) {
+      console.warn('Failed to render app logo in PDF footer:', err)
+    }
 
-    // Right: page number "Seite X von Y"
-    doc.text(`Seite ${data.pageNumber} von ${pageCount}`, pageWidth - margin, footerY, { align: 'right' })
+    // ── Row 2 center: software branding credit ────────────────────────────
+    doc.setTextColor(150, 150, 150)
+    doc.text(APP_CREDITS, pageWidth / 2, footerBotY, { align: 'center' })
+
+    // ── Row 2 right: page number "Page X of Y" ────────────────────────────
+    doc.text(`Page ${data.pageNumber} of ${pageCount}`, pageWidth - margin, footerBotY, { align: 'right' })
 
     doc.setTextColor(0, 0, 0)
   }
 
   // ── Financial waterfall summary ───────────────────────────────────────────
-  // Visualises the revenue flow: Brutto → –Fee → –Expenses → = Split-Basis
-  // → × Split% → = Netto-Auszahlung (Artist Share) → [+USt] → = Brutto-Auszahlung.
+  // Visualises the revenue flow: Gross → –Fee → –Expenses → = Split-Basis
+  // → × Split% → = Net Payout (Artist Share) → [+VAT] → = Gross Payout.
   const waterfallRows: string[][] = [
-    ['Digitale Einnahmen', formatCurrency(artistData.totalDigitalRevenue)],
-    ['Physische Einnahmen', formatCurrency(artistData.totalPhysicalRevenue)],
-    ['Manuelle Einnahmen', formatCurrency(artistData.manualRevenue)],
-    ['= Bruttoeinnahmen', formatCurrency(artistData.grossRevenue)],
+    ['Digital Revenue', formatCurrency(artistData.totalDigitalRevenue)],
+    ['Physical Revenue', formatCurrency(artistData.totalPhysicalRevenue)],
+    ['Manual Revenue', formatCurrency(artistData.manualRevenue)],
+    ['= Gross Revenue', formatCurrency(artistData.grossRevenue)],
   ]
 
   if (artistData.distributionFeeDeducted > 0) {
-    waterfallRows.push(['– Label Vertriebsprovision', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
+    waterfallRows.push(['– Label Distribution Fee', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
   }
 
   if (artistData.totalExpenses > 0) {
-    waterfallRows.push(['– Verrechenbare Kosten / Vorschüsse', `- ${formatCurrency(artistData.totalExpenses)}`])
+    waterfallRows.push(['– Deductible Costs / Advances', `- ${formatCurrency(artistData.totalExpenses)}`])
   }
 
   if (artistData.distributionFeeDeducted > 0 || artistData.totalExpenses > 0) {
     const splitBasis = artistData.grossRevenue - artistData.distributionFeeDeducted - artistData.totalExpenses
-    waterfallRows.push(['= Split-Basis', formatCurrency(splitBasis)])
+    waterfallRows.push(['= Split Basis', formatCurrency(splitBasis)])
   }
 
   waterfallRows.push(
     [`× Split ${artistData.splitPercentage}%`, ''],
-    ['= Netto-Auszahlung (Artist Share)', formatCurrency(artistData.finalPayout)],
+    ['= Net Payout (Artist Share)', formatCurrency(artistData.finalPayout)],
   )
 
   if (vatRate > 0) {
     waterfallRows.push(
-      [`+ USt. ${vatRate}%`, formatCurrency(vatAmount)],
-      ['= Brutto-Auszahlung', formatCurrency(grossPayout)],
+      [`+ VAT ${vatRate}%`, formatCurrency(vatAmount)],
+      ['= Gross Payout', formatCurrency(grossPayout)],
     )
   }
 
   autoTable(doc, {
     startY: yPos,
-    head: [['Position', 'Betrag']],
+    head: [['Item', 'Amount']],
     body: waterfallRows,
     theme: 'striped',
     styles: { fontSize: 9, cellPadding: 2.5 },
@@ -386,7 +435,7 @@ function buildPDF(
 
   // ── Release breakdown ─────────────────────────────────────────────────────
   if (settings.includeReleaseBreakdown && artistData.releaseBreakdown.length > 0) {
-    renderSectionHeading('Umsatz nach Release')
+    renderSectionHeading('Revenue by Release')
     autoTable(doc, {
       startY: yPos,
       head: [['Release Title', 'Revenue', 'Qty', 'Type']],
@@ -412,7 +461,7 @@ function buildPDF(
 
   // ── Platform breakdown ────────────────────────────────────────────────────
   if (settings.includePlatformBreakdown && artistData.platformBreakdown.length > 0) {
-    renderSectionHeading('Umsatz nach Plattform')
+    renderSectionHeading('Revenue by Platform')
     autoTable(doc, {
       startY: yPos,
       head: [['Platform', 'Revenue', 'Qty']],
@@ -437,7 +486,7 @@ function buildPDF(
 
   // ── Country breakdown ─────────────────────────────────────────────────────
   if (settings.includeCountryBreakdown && artistData.countryBreakdown.length > 0) {
-    renderSectionHeading('Umsatz nach Land')
+    renderSectionHeading('Revenue by Country')
     autoTable(doc, {
       startY: yPos,
       head: [['Country', 'Revenue', 'Qty']],
@@ -462,7 +511,7 @@ function buildPDF(
 
   // ── Monthly breakdown ─────────────────────────────────────────────────────
   if (settings.includeMonthlyBreakdown && artistData.monthlyBreakdown.length > 0) {
-    renderSectionHeading('Umsatz nach Monat')
+    renderSectionHeading('Revenue by Month')
     autoTable(doc, {
       startY: yPos,
       head: [['Month', 'Revenue']],
@@ -478,30 +527,6 @@ function buildPDF(
       margin: { left: margin, right: margin },
       didDrawPage: drawPageFooter,
     })
-  }
-
-  // ── Software branding logo — bottom-left, 50% transparent, on every page ──
-  // Rendered after all content so it always appears at the bottom-left corner
-  // regardless of how many pages autoTable generated.
-  const pageHeight = doc.internal.pageSize.getHeight()
-  const totalPages = doc.internal.pages.length - 1
-  try {
-    for (let pageIndex = 1; pageIndex <= totalPages; pageIndex++) {
-      doc.setPage(pageIndex)
-      doc.saveGraphicsState()
-      doc.setGState(new GState({ opacity: 0.5 }))
-      doc.addImage(
-        APP_LOGO,
-        'PNG',
-        margin - 5,
-        pageHeight - APP_LOGO_FOOTER_SIZE_MM - 3,
-        APP_LOGO_FOOTER_SIZE_MM,
-        APP_LOGO_FOOTER_SIZE_MM
-      )
-      doc.restoreGraphicsState()
-    }
-  } catch (err) {
-    console.warn('Failed to render app logo in PDF footer:', err)
   }
 
   return doc.output('blob')
