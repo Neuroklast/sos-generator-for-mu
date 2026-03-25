@@ -8,6 +8,7 @@ import { ManualRevenueManager } from '@/features/rules/components/ManualRevenueM
 import { ExpenseManager } from '@/features/rules/components/ExpenseManager'
 import { DetectedPeriodBanner } from '@/features/ingest/components/DetectedPeriodBanner'
 import { ShopifyUploadCard, type ShopifyManager } from '@/features/ingest/components/ShopifyUploadCard'
+import { PrintfulUploadCard, type PrintfulManager } from '@/features/ingest/components/PrintfulUploadCard'
 import { toast } from 'sonner'
 import type {
   UploadedFile,
@@ -28,6 +29,7 @@ interface IngestViewProps {
   believeManager: FileManagerCallbacks
   bandcampManager: FileManagerCallbacks
   shopifyManager: ShopifyManager
+  printfulManager: PrintfulManager
   exchangeRatesLoading: boolean
   handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void
   isProcessing: boolean
@@ -56,6 +58,7 @@ export function IngestView({
   believeManager,
   bandcampManager,
   shopifyManager,
+  printfulManager,
   exchangeRatesLoading,
   handleAddAlias,
   isProcessing,
@@ -112,8 +115,21 @@ export function IngestView({
           />
         </Card>
 
-        {/* ── Shopify Merch Upload ── */}
+        {/* ── Shopify + Printful Merch Upload ── */}
         <ShopifyUploadCard shopifyManager={shopifyManager} />
+        <PrintfulUploadCard
+          printfulManager={printfulManager}
+          matchedOrderCount={
+            printfulManager.files.length > 0
+              ? printfulManager.files.reduce((s, f) => s + (f.rowsParsed ?? 0), 0)
+              : undefined
+          }
+          totalShopifyOrders={
+            printfulManager.files.length > 0
+              ? shopifyManager.files.reduce((s, f) => s + (f.rowsParsed ?? 0), 0)
+              : undefined
+          }
+        />
 
         {/* Summary stats after processing */}
         {!isProcessing && revenues.length > 0 && (
@@ -126,7 +142,7 @@ export function IngestView({
               {
                 label: 'Total Rows',
                 value: (
-                  [...believeManager.files, ...bandcampManager.files, ...shopifyManager.files]
+                  [...believeManager.files, ...bandcampManager.files, ...shopifyManager.files, ...printfulManager.files]
                     .reduce((s, f) => s + ((f as UploadedFile).rowsParsed ?? 0), 0)
                 ).toLocaleString(),
               },

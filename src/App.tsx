@@ -156,6 +156,15 @@ function App() {
     ),
     onFileRemoved: markRemoved,
   })
+  const printfulManager = useFileManager('printful', {
+    onFileAdded: useCallback(
+      (file: UploadedFile, rowsParsed: number, rowsSkipped: number) => {
+        addEntry({ filename: file.name, source: 'printful', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists: 0 })
+      },
+      [addEntry]
+    ),
+    onFileRemoved: markRemoved,
+  })
 
   // Bug 1 fix: memoize stable empty-array fallbacks so `?? []` never creates a
   // new reference on every render (which would trigger infinite re-computations
@@ -196,7 +205,8 @@ function App() {
       ignoredEntries: stableIgnoredEntries,
       distributionFeePercentage: appDefaults?.distributionFeePercentage ?? 0,
     },
-    shopifyManager.files
+    shopifyManager.files,
+    printfulManager.files
   )
 
   // Auto-apply detected period when new files are loaded and period is empty.
@@ -434,13 +444,14 @@ function App() {
     believeManager.clearAll()
     bandcampManager.clearAll()
     shopifyManager.clearAll()
+    printfulManager.clearAll()
     setManualRevenues([])
     setExpenses([])
     setPeriodStart('')
     setPeriodEnd('')
     setClearConfirmOpen(false)
     toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
-  }, [believeManager, bandcampManager, shopifyManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
+  }, [believeManager, bandcampManager, shopifyManager, printfulManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
 
   const handleWorkspaceImport = useCallback(
     (backup: WorkspaceBackup) => {
@@ -545,8 +556,8 @@ function App() {
     [revenues]
   )
   const totalFiles = useMemo(
-    () => believeManager.files.length + bandcampManager.files.length + shopifyManager.files.length,
-    [believeManager.files.length, bandcampManager.files.length, shopifyManager.files.length]
+    () => believeManager.files.length + bandcampManager.files.length + shopifyManager.files.length + printfulManager.files.length,
+    [believeManager.files.length, bandcampManager.files.length, shopifyManager.files.length, printfulManager.files.length]
   )
 
   // UX 1: auto-navigate to the analytics view the first time files are ready
@@ -865,6 +876,7 @@ function App() {
                   believeManager={believeManager}
                   bandcampManager={bandcampManager}
                   shopifyManager={shopifyManager}
+                  printfulManager={printfulManager}
                   exchangeRatesLoading={exchangeRatesLoading}
                   handleAddAlias={handleAddAlias}
                   isProcessing={isProcessing}

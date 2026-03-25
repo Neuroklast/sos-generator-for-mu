@@ -71,7 +71,7 @@ export interface UploadedFile {
   id: string
   name: string
   size: number
-  type: 'believe' | 'bandcamp' | 'shopify'
+  type: 'believe' | 'bandcamp' | 'shopify' | 'printful'
   /** Raw CSV string — kept in memory only, NOT persisted to IndexedDB. */
   data?: string
   /** ISO 8601 timestamp string (YYYY-MM-DDTHH:mm:ss.sssZ) */
@@ -289,7 +289,7 @@ export interface HistoryEntry {
   /** ISO 8601 timestamp */
   timestamp: string
   filename: string
-  source: 'believe' | 'bandcamp' | 'shopify'
+  source: 'believe' | 'bandcamp' | 'shopify' | 'printful'
   sizeBytes: number
   rowsParsed: number
   rowsSkipped: number

@@ -18,17 +18,22 @@ import type { SalesTransaction } from './csv-parser'
 import { parseCSVLine } from './csv-parser'
 import { parseCSVContentStreaming } from './streaming-csv-parser'
 import type { StreamingParseResult } from './streaming-csv-parser'
-import { parseShopifyCSV } from './shopify-parser'
-import type { ShopifyParseResult } from './shopify-parser'
 import type { CsvImportProfile, FinancialFieldKey } from '@/features/ingest/types'
 import {
   FINANCIAL_KEY_TO_INTERNAL,
   SYSTEM_BANDCAMP_PROFILE_ID,
   SYSTEM_SHOPIFY_PROFILE_ID,
+  SYSTEM_PRINTFUL_PROFILE_ID,
 } from './default-profiles'
+import {
+  parseShopifyRaw,
+  reconcileMerchTransactions,
+} from './ecommerce-merger'
+import type { ShopifyRawOrder, PrintfulRawCost } from './ecommerce-merger'
+import { parsePrintfulCSV } from './printful-parser'
 import type { LabelArtist } from '@/lib/types'
 
-export type FileType = 'believe' | 'bandcamp' | 'shopify' | 'master-data' | 'unknown'
+export type FileType = 'believe' | 'bandcamp' | 'shopify' | 'printful' | 'master-data' | 'unknown'
 
 export interface ParseFileResult {
   fileType: FileType
@@ -36,9 +41,25 @@ export interface ParseFileResult {
   profileId?: string
   /** Type of the matched profile, drives downstream routing. */
   profileType?: 'financial' | 'master-data'
+  /**
+   * Final SalesTransaction records — empty for raw e-commerce buffer files.
+   * E-commerce files return their raw data in shopifyRawOrders / printfulRawCosts.
+   */
   transactions: SalesTransaction[]
   /** Populated when profileType === 'master-data'. */
   labelArtists?: Array<Omit<LabelArtist, 'id'>>
+  /**
+   * Raw Shopify orders staging buffer.
+   * Populated instead of `transactions` when a Shopify profile is matched.
+   * Callers must pass this to `reconcileMerchTransactions` together with any
+   * available `printfulRawCosts` to produce the final SalesTransactions.
+   */
+  shopifyRawOrders?: ShopifyRawOrder[]
+  /**
+   * Raw Printful cost staging buffer.
+   * Populated instead of `transactions` when a Printful profile is matched.
+   */
+  printfulRawCosts?: PrintfulRawCost[]
   errors: Array<{ row: number; reason: string; data: string }>
   uniqueArtists: string[]
 }
@@ -259,15 +280,18 @@ export function detectFileType(headerLine: string): LegacyFileType {
  * 1. If `profiles` is non-empty, attempt profile matching on the header row.
  *    - Profile type 'master-data' → parse with {@link parseMasterDataCSV};
  *      result carries `labelArtists`, not `transactions`.
- *    - Profile type 'financial', Shopify profile → {@link parseShopifyCSV}.
+ *    - Shopify profile → raw orders returned in `shopifyRawOrders` (no transactions).
+ *    - Printful profile → raw costs returned in `printfulRawCosts` (no transactions).
  *    - Profile type 'financial', Bandcamp profile → streaming parser, source = 'bandcamp'.
  *    - Profile type 'financial', any other → streaming parser, source = 'believe'.
  * 2. If no profile matches, fall back to {@link detectFileType} + existing parsers.
+ *    Legacy Shopify detection returns raw orders (not SalesTransactions) to keep
+ *    the parser-facade free of direct e-commerce transformations.
  *
  * @param content  - Raw CSV file content as a string.
  * @param profiles - Known CsvImportProfiles to match against (may be empty).
  * @param source   - Optional explicit source override; bypasses detection.
- * @returns A {@link ParseFileResult} with transactions or labelArtists depending on type.
+ * @returns A {@link ParseFileResult} with transactions, labelArtists, or raw buffers.
  */
 export async function parseFile(
   content: string,
@@ -299,20 +323,37 @@ export async function parseFile(
         }
       }
 
-      // ── financial branch ──────────────────────────────────────────────────
+      // ── Shopify profile → raw buffer (no direct transformation) ──────────
       if (matched.id === SYSTEM_SHOPIFY_PROFILE_ID) {
-        const shopifyResult: ShopifyParseResult = parseShopifyCSV(content)
+        const { orders, errors } = parseShopifyRaw(content)
         return {
           fileType: 'shopify',
           profileId: matched.id,
           profileType: 'financial',
-          transactions: shopifyResult.transactions,
-          errors: shopifyResult.errors,
+          transactions: [],
+          shopifyRawOrders: orders,
+          errors,
           uniqueArtists: [],
         }
       }
 
-      // Bandcamp profile needs source = 'bandcamp' to preserve EUR balance logic.
+      // ── Printful profile → raw cost buffer ───────────────────────────────
+      if (matched.id === SYSTEM_PRINTFUL_PROFILE_ID) {
+        const { costs, errors } = parsePrintfulCSV(content)
+        return {
+          fileType: 'printful',
+          profileId: matched.id,
+          profileType: 'financial',
+          transactions: [],
+          printfulRawCosts: costs,
+          errors,
+          uniqueArtists: [],
+        }
+      }
+
+      // Bandcamp profile: must be routed as 'bandcamp' (not 'believe') to preserve
+      // the EUR balance correction logic in streaming-csv-parser that handles
+      // Bandcamp's unique per-sale net-amount calculation.
       const parserSource: 'believe' | 'bandcamp' =
         matched.id === SYSTEM_BANDCAMP_PROFILE_ID ? 'bandcamp' : 'believe'
 
@@ -339,13 +380,13 @@ export async function parseFile(
   const detectedType: LegacyFileType = source ?? detectFileType(firstLine)
 
   if (detectedType === 'shopify') {
-    const shopifyResult: ShopifyParseResult = parseShopifyCSV(content)
+    // Return raw orders — callers must reconcile with Printful costs separately.
+    const { orders, errors } = parseShopifyRaw(content)
     return {
       fileType: 'shopify',
-      transactions: shopifyResult.transactions,
-      errors: shopifyResult.errors,
-      // Shopify exports attribute all revenue to a synthetic "Merch" artist;
-      // no distinct artist names are extracted from the file.
+      transactions: [],
+      shopifyRawOrders: orders,
+      errors,
       uniqueArtists: [],
     }
   }
@@ -362,4 +403,19 @@ export async function parseFile(
     errors: streamingResult.errors,
     uniqueArtists: streamingResult.uniqueArtists,
   }
+}
+
+/**
+ * Convenience helper: reconcile raw Shopify orders with Printful costs and
+ * return the final SalesTransaction array. Used by callers that work with
+ * ParseFileResult and need the merged result without repeating merger logic.
+ *
+ * @param shopifyOrders - From `ParseFileResult.shopifyRawOrders`.
+ * @param printfulCosts - From `ParseFileResult.printfulRawCosts` (pass [] when none).
+ */
+export function reconcileEcommerceBuffers(
+  shopifyOrders: ShopifyRawOrder[],
+  printfulCosts: PrintfulRawCost[]
+) {
+  return reconcileMerchTransactions(shopifyOrders, printfulCosts)
 }

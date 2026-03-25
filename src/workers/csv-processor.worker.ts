@@ -7,23 +7,36 @@
  * thread never holds raw SalesTransaction objects in memory.
  *
  * Protocol (Main → Worker)
- *   add-file   Parse a CSV file and store its transactions internally.
- *   remove-file  Remove a previously added file from the internal store.
- *   process    Run processTransactionsWithCompilations + buildArtistTree +
- *              buildArtistCollabTree on all stored transactions, then post the
- *              aggregated result back WITHOUT any raw transaction arrays.
- *   reset      Clear all stored transactions (e.g. when column aliases change
- *              so all files must be re-parsed).
+ *   add-file     Parse a CSV file and store its transactions (or raw buffer
+ *                data for Shopify/Printful) internally.
+ *   remove-file  Remove a previously added file from all internal stores.
+ *   process      Reconcile e-commerce buffers, run processTransactionsWithCompilations
+ *                + buildArtistTree + buildArtistCollabTree on all transactions,
+ *                then post the aggregated result WITHOUT any raw transaction arrays.
+ *   reset        Clear all stored data (e.g. when column aliases change).
  *
- * Protocol (Worker → Main)
- *   parse-progress  Percentage update while parsing a file.
- *   parse-done      Parse finished; carries row/artist stats.
- *   result          Full processing result (no raw transactions).
- *   error           Any unrecoverable error.
+ * E-Commerce staging (Schritt 2)
+ * ────────────────────────────────
+ * Shopify files are parsed into raw ShopifyRawOrder arrays and held in
+ * `shopifyRawOrdersMap` (keyed by fileId). Printful files are parsed into
+ * PrintfulRawCost arrays in `printfulRawCostsMap`. On every `process` call
+ * both buffers are reconciled via `reconcileMerchTransactions` and the
+ * resulting SalesTransactions are merged with the believe/bandcamp transactions.
+ *
+ * This ensures that:
+ *  - A Shopify-only upload immediately produces artist-attributed transactions
+ *    (with full subtotal as net, since Printful costs = []).
+ *  - When Printful data is later added, the next `process` call updates the
+ *    net revenue figures without requiring a full re-parse.
+ *  - No Printful match for a Shopify order is silently acceptable (CDs/Vinyl
+ *    are self-fulfilled and have no Printful cost entry).
  */
 
 import { parseCSVContentStreaming } from '@/features/ingest/lib/streaming-csv-parser'
-import { parseShopifyCSV } from '@/features/ingest/lib/shopify-parser'
+import { parseShopifyRaw, reconcileMerchTransactions } from '@/features/ingest/lib/ecommerce-merger'
+import type { ShopifyRawOrder } from '@/features/ingest/lib/ecommerce-merger'
+import { parsePrintfulCSV } from '@/features/ingest/lib/printful-parser'
+import type { PrintfulRawCost } from '@/features/ingest/lib/ecommerce-merger'
 import {
   processTransactionsWithCompilations,
   buildArtistTree,
@@ -76,7 +89,7 @@ export interface WorkerResult {
 }
 
 export type WorkerRequest =
-  | { type: 'add-file'; fileId: string; content: string; source: 'believe' | 'bandcamp' | 'shopify'; customAliases: Record<string, string[]> }
+  | { type: 'add-file'; fileId: string; content: string; source: 'believe' | 'bandcamp' | 'shopify' | 'printful'; customAliases: Record<string, string[]> }
   | { type: 'remove-file'; fileId: string }
   | { type: 'process'; config: WorkerProcessConfig }
   | { type: 'reset' }
@@ -89,8 +102,20 @@ export type WorkerResponse =
 
 // ── Internal worker state ──────────────────────────────────────────────────────
 
-/** All parsed transactions keyed by file ID. */
+/** Parsed transactions for believe / bandcamp files, keyed by file ID. */
 const fileTransactions = new Map<string, SalesTransaction[]>()
+
+/**
+ * Raw Shopify order groups, keyed by file ID.
+ * These are staged until `runProcess` calls `reconcileMerchTransactions`.
+ */
+const shopifyRawOrdersMap = new Map<string, ShopifyRawOrder[]>()
+
+/**
+ * Raw Printful cost rows, keyed by file ID.
+ * Reconciled against `shopifyRawOrdersMap` on every `process` call.
+ */
+const printfulRawCostsMap = new Map<string, PrintfulRawCost[]>()
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -103,6 +128,24 @@ function getAllTransactions(): SalesTransaction[] {
   for (const txs of fileTransactions.values()) {
     for (const t of txs) all.push(t)
   }
+
+  // ── Reconcile e-commerce buffers ─────────────────────────────────────────
+  // Collect all raw Shopify orders and Printful costs across all uploaded files.
+  const allShopifyOrders: ShopifyRawOrder[] = []
+  for (const orders of shopifyRawOrdersMap.values()) {
+    for (const o of orders) allShopifyOrders.push(o)
+  }
+
+  if (allShopifyOrders.length > 0) {
+    const allPrintfulCosts: PrintfulRawCost[] = []
+    for (const costs of printfulRawCostsMap.values()) {
+      for (const c of costs) allPrintfulCosts.push(c)
+    }
+
+    const { transactions: mergedTxs } = reconcileMerchTransactions(allShopifyOrders, allPrintfulCosts)
+    for (const t of mergedTxs) all.push(t)
+  }
+
   return all
 }
 
@@ -197,15 +240,28 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
       const { fileId, content, source, customAliases } = msg
       try {
         if (source === 'shopify') {
-          const result = parseShopifyCSV(content)
-          fileTransactions.set(fileId, result.transactions)
-          const uniqueArtistsCount = new Set(result.transactions.map(t => t.original_artist)).size
+          // Stage raw orders for reconciliation — do NOT convert to SalesTransactions yet.
+          const { orders, errors } = parseShopifyRaw(content)
+          shopifyRawOrdersMap.set(fileId, orders)
           post({
             type: 'parse-done',
             fileId,
-            rowsParsed: result.transactions.length,
-            rowsSkipped: result.errors.length,
-            uniqueArtistsCount,
+            rowsParsed: orders.length,
+            rowsSkipped: errors.length,
+            // Artist count is not known until reconciliation — report 0 here;
+            // the actual unique artists appear in the `result` message.
+            uniqueArtistsCount: 0,
+          })
+        } else if (source === 'printful') {
+          // Stage raw costs for reconciliation.
+          const { costs, errors } = parsePrintfulCSV(content)
+          printfulRawCostsMap.set(fileId, costs)
+          post({
+            type: 'parse-done',
+            fileId,
+            rowsParsed: costs.length,
+            rowsSkipped: errors.length,
+            uniqueArtistsCount: 0,
           })
         } else {
           const result = await parseCSVContentStreaming(
@@ -238,6 +294,8 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
 
     case 'remove-file': {
       fileTransactions.delete(msg.fileId)
+      shopifyRawOrdersMap.delete(msg.fileId)
+      printfulRawCostsMap.delete(msg.fileId)
       break
     }
 
@@ -248,6 +306,8 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
 
     case 'reset': {
       fileTransactions.clear()
+      shopifyRawOrdersMap.clear()
+      printfulRawCostsMap.clear()
       break
     }
   }
