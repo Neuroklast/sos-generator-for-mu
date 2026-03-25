@@ -265,8 +265,9 @@ export function processTransactionsWithCompilations(
           )
         )
         if (!found) return []
-        // Re-attribute to the canonical roster name
-        const canonical = config.labelArtists!.find(la => la.name.trim().toLowerCase() === found)!.name
+        // Re-attribute to the canonical roster name (fall back to found name if lookup fails)
+        const canonical =
+          config.labelArtists?.find(la => la.name.trim().toLowerCase() === found)?.name ?? found
         return [{ ...t, main_artist: canonical }]
       })
     : resolved

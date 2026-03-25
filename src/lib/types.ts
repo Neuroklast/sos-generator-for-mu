@@ -193,7 +193,7 @@ export interface HistoryEntry {
   /** ISO 8601 timestamp */
   timestamp: string
   filename: string
-  source: 'believe' | 'bandcamp'
+  source: 'believe' | 'bandcamp' | 'shopify'
   sizeBytes: number
   rowsParsed: number
   rowsSkipped: number

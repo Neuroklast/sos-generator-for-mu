@@ -484,7 +484,7 @@ function App() {
   const shopifyManager = useFileManager('shopify', {
     onFileAdded: useCallback(
       (file: UploadedFile, rowsParsed: number, rowsSkipped: number, uniqueArtists: number) => {
-        addEntry({ filename: file.name, source: 'believe', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists })
+        addEntry({ filename: file.name, source: 'shopify', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists })
       },
       [addEntry]
     ),
