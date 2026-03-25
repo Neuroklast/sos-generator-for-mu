@@ -15,6 +15,8 @@ import type {
   ArtistTreeNode,
   ArtistCollabNode,
   FilteredCompilation,
+  LabelArtist,
+  IgnoredEntry,
 } from '@/lib/types'
 import type { WorkerRequest, WorkerResponse, WorkerProcessConfig, WorkerResult } from '@/workers/csv-processor.worker'
 
@@ -26,6 +28,10 @@ interface CSVProcessorConfig {
   excludePhysical: boolean
   /** User-defined additional column synonyms from the CSV Column Mapping settings. */
   csvAliases: CSVColumnAlias[]
+  /** Label artist roster. When non-empty, only these artists appear in results. */
+  labelArtists: LabelArtist[]
+  /** Entries explicitly ignored in the statement of sales. */
+  ignoredEntries: IgnoredEntry[]
 }
 
 const EMPTY_RESULT: WorkerResult = {
@@ -57,7 +63,8 @@ const EMPTY_RESULT: WorkerResult = {
 export function useCSVProcessor(
   believeFiles: UploadedFile[],
   bandcampFiles: UploadedFile[],
-  config: CSVProcessorConfig
+  config: CSVProcessorConfig,
+  shopifyFiles: UploadedFile[] = []
 ) {
   const workerRef = useRef<Worker | null>(null)
   /** IDs of files that have been successfully sent to the worker for parsing. */
@@ -106,6 +113,7 @@ export function useCSVProcessor(
   const aliasKey = config.csvAliases.map(a => `${a.fieldName}:${a.synonym}`).join(',')
   const believeKey = believeFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
   const bandcampKey = bandcampFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
+  const shopifyKey = shopifyFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
 
   const configKey = [
     config.compilationFilters.map(f => f.id).join(','),
@@ -114,6 +122,8 @@ export function useCSVProcessor(
     config.manualRevenues.map(r => r.id).join(','),
     String(config.excludePhysical),
     Object.keys(exchangeRates).length > 0 ? 'rates' : 'no-rates',
+    config.labelArtists.map(la => la.id).join(','),
+    config.ignoredEntries.map(ie => ie.id).join(','),
   ].join('|')
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -125,7 +135,9 @@ export function useCSVProcessor(
     manualRevenues: config.manualRevenues,
     excludePhysical: config.excludePhysical,
     exchangeRates,
-  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.excludePhysical, exchangeRates])
+    labelArtists: config.labelArtists,
+    ignoredEntries: config.ignoredEntries,
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries])
 
   const sendProcess = useCallback(() => {
     const cfg = latestConfigRef.current ?? buildConfig()
@@ -193,7 +205,7 @@ export function useCSVProcessor(
     const worker = workerRef.current
     if (!worker) return
 
-    const allFiles = [...believeFiles, ...bandcampFiles]
+    const allFiles = [...believeFiles, ...bandcampFiles, ...shopifyFiles]
     const currentFileMap = new Map(
       allFiles.filter(f => f.data).map(f => [f.id, f])
     )
@@ -249,7 +261,7 @@ export function useCSVProcessor(
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [believeKey, bandcampKey, aliasKey])
+  }, [believeKey, bandcampKey, shopifyKey, aliasKey])
 
   // ── Effect: re-process when config changes (no re-parse needed) ───────────────
 

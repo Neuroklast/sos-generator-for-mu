@@ -21,6 +21,8 @@ import { HistoryPanel } from '@/components/HistoryPanel'
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
 import { WorkspaceManager } from '@/components/WorkspaceManager'
 import type { WorkspaceBackup } from '@/components/WorkspaceManager'
+import { LabelArtistManager } from '@/components/LabelArtistManager'
+import { IgnoredEntriesManager } from '@/components/IgnoredEntriesManager'
 import { useFileManager } from '@/hooks/useFileManager'
 import { useCSVProcessor } from '@/hooks/useCSVProcessor'
 import { useExports } from '@/hooks/useExports'
@@ -36,6 +38,8 @@ import type {
   CSVColumnAlias,
   UploadedFile,
   GuestPayoutRule,
+  LabelArtist,
+  IgnoredEntry,
 } from '@/lib/types'
 import { toast } from 'sonner'
 import {
@@ -64,6 +68,7 @@ import {
   ArrowUpDown,
   Trash2,
   Loader2,
+  ShoppingBag,
 } from 'lucide-react'
 import { Toaster } from 'sonner'
 
@@ -335,6 +340,103 @@ function DetectedPeriodBanner({
   )
 }
 
+// ── Shopify Upload Card ──────────────────────────────────────────────────────
+
+interface ShopifyManager {
+  files: import('@/lib/types').UploadedFile[]
+  addFiles: (files: File[]) => void
+  removeFile: (id: string) => void
+}
+
+function ShopifyUploadCard({ shopifyManager }: { shopifyManager: ShopifyManager }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.csv'))
+    if (files.length > 0) shopifyManager.addFiles(files)
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length > 0) shopifyManager.addFiles(files)
+    e.target.value = ''
+  }
+
+  return (
+    <Card className="p-6 mt-4 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 shrink-0 shadow-lg shadow-green-500/25">
+          <ShoppingBag size={16} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-sm font-['Space_Grotesk'] leading-tight">Shopify Merch Sales</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Import Shopify orders CSV for merch revenue tracking</p>
+        </div>
+        {shopifyManager.files.length > 0 && (
+          <span className="text-xs text-muted-foreground bg-white/5 px-2 py-1 rounded-full shrink-0">
+            {shopifyManager.files.length} file{shopifyManager.files.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Drop zone */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={e => e.preventDefault()}
+        className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border border-dashed border-green-500/30 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/50 transition-colors cursor-pointer"
+        onClick={() => fileInputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
+      >
+        <ShoppingBag size={24} className="text-green-400/60" />
+        <p className="text-sm text-muted-foreground">Drop Shopify order export here or click to browse</p>
+        <p className="text-xs text-muted-foreground/60">Accepts Shopify orders CSV exports</p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          multiple
+          onChange={handleChange}
+          className="hidden"
+        />
+      </div>
+
+      {/* Loaded files list */}
+      <AnimatePresence>
+        {shopifyManager.files.length > 0 && (
+          <motion.ul
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-3 space-y-1.5 overflow-hidden"
+          >
+            {shopifyManager.files.map(f => (
+              <li key={f.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/8 text-sm">
+                <span className="truncate text-foreground/80">{f.name}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {f.rowsParsed !== undefined && (
+                    <span className="text-xs text-muted-foreground">{f.rowsParsed} rows</span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => shopifyManager.removeFile(f.id)}
+                  >
+                    <Trash2 size={12} />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </Card>
+  )
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 
 function App() {
@@ -349,6 +451,8 @@ function App() {
   const [manualRevenues, setManualRevenues] = useKV<ManualRevenue[]>('manual-revenues', [])
   const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', { name: '', address: '' })
   const [excludePhysical, setExcludePhysical] = useKV<boolean>('exclude-physical', false)
+  const [labelArtists, setLabelArtists] = useKV<LabelArtist[]>('label-artists', [])
+  const [ignoredEntries, setIgnoredEntries] = useKV<IgnoredEntry[]>('ignored-entries', [])
   // isLoaded flags prevent the auto-period effect from running before IndexedDB
   // has confirmed whether a saved period exists (Bug 5 fix).
   const [periodStart, setPeriodStart, , periodStartLoaded] = useKV<string>('period-start', '')
@@ -377,6 +481,15 @@ function App() {
     ),
     onFileRemoved: markRemoved,
   })
+  const shopifyManager = useFileManager('shopify', {
+    onFileAdded: useCallback(
+      (file: UploadedFile, rowsParsed: number, rowsSkipped: number, uniqueArtists: number) => {
+        addEntry({ filename: file.name, source: 'believe', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists })
+      },
+      [addEntry]
+    ),
+    onFileRemoved: markRemoved,
+  })
 
   // Bug 1 fix: memoize stable empty-array fallbacks so `?? []` never creates a
   // new reference on every render (which would trigger infinite re-computations
@@ -386,6 +499,8 @@ function App() {
   const stableSplitFees = useMemo(() => splitFees ?? [], [splitFees])
   const stableManualRevenues = useMemo(() => manualRevenues ?? [], [manualRevenues])
   const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
+  const stableLabelArtists = useMemo(() => labelArtists ?? [], [labelArtists])
+  const stableIgnoredEntries = useMemo(() => ignoredEntries ?? [], [ignoredEntries])
 
   const {
     uniqueArtists,
@@ -409,7 +524,10 @@ function App() {
       manualRevenues: stableManualRevenues,
       excludePhysical: excludePhysical ?? false,
       csvAliases: stableCsvAliases,
-    }
+      labelArtists: stableLabelArtists,
+      ignoredEntries: stableIgnoredEntries,
+    },
+    shopifyManager.files
   )
 
   // Auto-apply detected period when new files are loaded and period is empty.
@@ -550,12 +668,13 @@ function App() {
   const handleClearWorkspace = useCallback(() => {
     believeManager.clearAll()
     bandcampManager.clearAll()
+    shopifyManager.clearAll()
     setManualRevenues([])
     setPeriodStart('')
     setPeriodEnd('')
     setClearConfirmOpen(false)
     toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
-  }, [believeManager, bandcampManager, setManualRevenues, setPeriodStart, setPeriodEnd])
+  }, [believeManager, bandcampManager, shopifyManager, setManualRevenues, setPeriodStart, setPeriodEnd])
 
   const handleWorkspaceImport = useCallback(
     (backup: WorkspaceBackup) => {
@@ -565,8 +684,59 @@ function App() {
       setManualRevenues(backup.manualRevenues ?? [])
       setCsvAliases(backup.csvAliases ?? [])
       if (backup.labelInfo) setLabelInfo(backup.labelInfo)
+      setLabelArtists(backup.labelArtists ?? [])
+      setIgnoredEntries(backup.ignoredEntries ?? [])
     },
-    [setCompilationFilters, setArtistMappings, setSplitFees, setManualRevenues, setCsvAliases, setLabelInfo]
+    [setCompilationFilters, setArtistMappings, setSplitFees, setManualRevenues, setCsvAliases, setLabelInfo, setLabelArtists, setIgnoredEntries]
+  )
+
+  const handleAddLabelArtist = useCallback(
+    (name: string) => {
+      setLabelArtists(current => [...(current ?? []), { id: crypto.randomUUID(), name }])
+      toast.success(`"${name}" added to label roster`)
+    },
+    [setLabelArtists]
+  )
+
+  const handleRemoveLabelArtist = useCallback(
+    (id: string) => {
+      setLabelArtists(current => (current ?? []).filter(a => a.id !== id))
+      toast.info('Artist removed from roster')
+    },
+    [setLabelArtists]
+  )
+
+  const handleImportLabelArtistsCSV = useCallback(
+    (artists: Omit<LabelArtist, 'id'>[]) => {
+      setLabelArtists(current => {
+        const existing = current ?? []
+        const existingNames = new Set(existing.map(a => a.name.toLowerCase()))
+        const toAdd = artists
+          .filter(a => !existingNames.has(a.name.toLowerCase()))
+          .map(a => ({ ...a, id: crypto.randomUUID() }))
+        return [...existing, ...toAdd]
+      })
+    },
+    [setLabelArtists]
+  )
+
+  const handleAddIgnoredEntry = useCallback(
+    (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => {
+      setIgnoredEntries(current => [
+        ...(current ?? []),
+        { ...entry, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
+      ])
+      toast.success(`"${entry.artist}"${entry.releaseTitle ? ` / "${entry.releaseTitle}"` : ''} ignored`)
+    },
+    [setIgnoredEntries]
+  )
+
+  const handleRemoveIgnoredEntry = useCallback(
+    (id: string) => {
+      setIgnoredEntries(current => (current ?? []).filter(e => e.id !== id))
+      toast.info('Entry removed from ignore list')
+    },
+    [setIgnoredEntries]
   )
 
   const totalNetRevenue = useMemo(
@@ -574,8 +744,8 @@ function App() {
     [revenues]
   )
   const totalFiles = useMemo(
-    () => believeManager.files.length + bandcampManager.files.length,
-    [believeManager.files.length, bandcampManager.files.length]
+    () => believeManager.files.length + bandcampManager.files.length + shopifyManager.files.length,
+    [believeManager.files.length, bandcampManager.files.length, shopifyManager.files.length]
   )
 
   // UX 1: auto-navigate to the analytics view the first time files are ready
@@ -1018,6 +1188,9 @@ function App() {
                       />
                     </Card>
 
+                    {/* ── Shopify Merch Upload ── */}
+                    <ShopifyUploadCard shopifyManager={shopifyManager} />
+
                     {/* Summary stats after processing */}
                     {!isProcessing && revenues.length > 0 && (
                       <motion.div
@@ -1029,7 +1202,7 @@ function App() {
                           {
                             label: 'Total Rows',
                             value: (
-                              [...believeManager.files, ...bandcampManager.files]
+                              [...believeManager.files, ...bandcampManager.files, ...shopifyManager.files]
                                 .reduce((s, f) => s + (f.rowsParsed ?? 0), 0)
                             ).toLocaleString(),
                           },
@@ -1039,7 +1212,7 @@ function App() {
                           },
                           {
                             label: 'Files Loaded',
-                            value: (believeManager.files.length + bandcampManager.files.length).toString(),
+                            value: totalFiles.toString(),
                           },
                           {
                             label: 'Total Revenue',
@@ -1695,8 +1868,30 @@ function App() {
                     manualRevenues={manualRevenues ?? []}
                     csvAliases={csvAliases ?? []}
                     labelInfo={labelInfo ?? { name: '', address: '' }}
+                    labelArtists={labelArtists ?? []}
+                    ignoredEntries={ignoredEntries ?? []}
                     onImport={handleWorkspaceImport}
                   />
+
+                  {/* Label Artist Roster */}
+                  <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+                    <LabelArtistManager
+                      artists={labelArtists ?? []}
+                      onAdd={handleAddLabelArtist}
+                      onRemove={handleRemoveLabelArtist}
+                      onImportCSV={handleImportLabelArtistsCSV}
+                    />
+                  </Card>
+
+                  {/* Ignored Entries */}
+                  <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+                    <IgnoredEntriesManager
+                      entries={ignoredEntries ?? []}
+                      artists={uniqueArtists}
+                      onAdd={handleAddIgnoredEntry}
+                      onRemove={handleRemoveIgnoredEntry}
+                    />
+                  </Card>
 
                   {/* Clear Workspace */}
                   <Card className="p-8 border border-red-500/20 bg-card backdrop-blur-md rounded-2xl">

@@ -18,7 +18,7 @@ export function normalizeDateToMonth(dateString: string): string {
 
 export interface SalesTransaction {
   id: string
-  source: 'believe' | 'bandcamp' | 'manual'
+  source: 'believe' | 'bandcamp' | 'manual' | 'shopify'
   sales_month: string
   platform: string
   country: string

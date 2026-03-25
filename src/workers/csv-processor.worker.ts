@@ -23,6 +23,7 @@
  */
 
 import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
+import { parseShopifyCSV } from '@/lib/shopify-parser'
 import {
   processTransactionsWithCompilations,
   buildArtistTree,
@@ -38,6 +39,8 @@ import type {
   ArtistMapping,
   SplitFee,
   ManualRevenue,
+  LabelArtist,
+  IgnoredEntry,
 } from '@/lib/types'
 import type { ExchangeRates } from '@/lib/currency'
 
@@ -51,6 +54,10 @@ export interface WorkerProcessConfig {
   excludePhysical: boolean
   /** ECB exchange rates (1 EUR = N units of foreign currency). */
   exchangeRates: ExchangeRates
+  /** Label artist roster — when non-empty only these artists appear in results. */
+  labelArtists: LabelArtist[]
+  /** Entries explicitly ignored in the statement of sales. */
+  ignoredEntries: IgnoredEntry[]
 }
 
 export interface WorkerResult {
@@ -64,7 +71,7 @@ export interface WorkerResult {
 }
 
 export type WorkerRequest =
-  | { type: 'add-file'; fileId: string; content: string; source: 'believe' | 'bandcamp'; customAliases: Record<string, string[]> }
+  | { type: 'add-file'; fileId: string; content: string; source: 'believe' | 'bandcamp' | 'shopify'; customAliases: Record<string, string[]> }
   | { type: 'remove-file'; fileId: string }
   | { type: 'process'; config: WorkerProcessConfig }
   | { type: 'reset' }
@@ -183,23 +190,36 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
     case 'add-file': {
       const { fileId, content, source, customAliases } = msg
       try {
-        const result = await parseCSVContentStreaming(
-          content,
-          source,
-          (progress) => {
-            post({ type: 'parse-progress', fileId, percentage: progress.percentage })
-          },
-          undefined,
-          customAliases
-        )
-        fileTransactions.set(fileId, result.transactions)
-        post({
-          type: 'parse-done',
-          fileId,
-          rowsParsed: result.transactions.length,
-          rowsSkipped: result.errors.length,
-          uniqueArtistsCount: result.uniqueArtists.length,
-        })
+        if (source === 'shopify') {
+          const result = parseShopifyCSV(content)
+          fileTransactions.set(fileId, result.transactions)
+          const uniqueArtistsCount = new Set(result.transactions.map(t => t.original_artist)).size
+          post({
+            type: 'parse-done',
+            fileId,
+            rowsParsed: result.transactions.length,
+            rowsSkipped: result.errors.length,
+            uniqueArtistsCount,
+          })
+        } else {
+          const result = await parseCSVContentStreaming(
+            content,
+            source,
+            (progress) => {
+              post({ type: 'parse-progress', fileId, percentage: progress.percentage })
+            },
+            undefined,
+            customAliases
+          )
+          fileTransactions.set(fileId, result.transactions)
+          post({
+            type: 'parse-done',
+            fileId,
+            rowsParsed: result.transactions.length,
+            rowsSkipped: result.errors.length,
+            uniqueArtistsCount: result.uniqueArtists.length,
+          })
+        }
       } catch (err) {
         post({
           type: 'error',
