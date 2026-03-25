@@ -160,6 +160,25 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
   }
 
   const selectedCount = selectedArtists.size
+  const allSelected = splitFees.length > 0 && selectedCount === splitFees.length
+
+  /**
+   * Selects or deselects all artists in a single immutable batch to minimise
+   * re-renders. When selecting, `lastClickedIndexRef` is set to the last artist
+   * index so that a subsequent Shift+click correctly extends or shrinks the range
+   * from the end of the list. When deselecting, the ref is cleared to `null`
+   * so the next plain click starts a fresh anchor point.
+   */
+  const handleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedArtists(new Set())
+      lastClickedIndexRef.current = null
+    } else {
+      setSelectedArtists(new Set(splitFees.map(s => s.artist)))
+      // Set anchor to last index so subsequent Shift+click ranges work correctly.
+      lastClickedIndexRef.current = splitFees.length - 1
+    }
+  }, [allSelected, splitFees])
 
   return (
     <div className="space-y-4">
@@ -198,6 +217,21 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
 
       {splitFees.length > 0 ? (
         <div className="space-y-3">
+          {/* Select All row */}
+          <div
+            className="flex items-center gap-2 px-1 cursor-pointer"
+            onClick={handleSelectAll}
+          >
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={handleSelectAll}
+              className="border-2 border-white/40 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+              aria-label="Select all artists"
+            />
+            <span className="text-xs text-muted-foreground select-none">
+              {allSelected ? 'Deselect all' : 'Select all artists'}
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground">
             Click to select · Shift+click to select a range · Ctrl+click to add/remove
           </p>

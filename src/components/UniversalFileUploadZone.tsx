@@ -3,10 +3,13 @@
  *
  * A single drop zone that accepts CSV files and auto-detects their format by
  * inspecting the CSV header row:
- *  - Header contains "Sales Month" AND "ISRC"  → believe
- *  - Header contains "bandcamp transaction id"  → bandcamp
- *  - Otherwise                                  → opens a mapping dialog so
- *    the user can assign Artist, Revenue and Date columns manually.
+ *  - Header contains "Sales Month" AND "ISRC"        → believe
+ *  - Header contains "bandcamp transaction id"        → bandcamp
+ *  - Header starts with "name" AND has ≥1 of          → artist roster CSV
+ *    "email" | "vatnumber" | "iseunongerman" | "notes"
+ *    (companion fields are compared after toLowerCase)
+ *  - Otherwise                                        → opens a mapping dialog
+ *    so the user can assign Artist, Revenue and Date columns manually.
  *
  * All detected files are routed to the correct internal file-manager callback.
  */
@@ -45,7 +48,7 @@ import { Label } from '@/components/ui/label'
 import { useCallback, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import type { UploadedFile, FileProcessingState } from '@/lib/types'
+import type { UploadedFile, FileProcessingState, LabelArtist } from '@/lib/types'
 import { parseCSVLine } from '@/lib/csv-parser'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -63,6 +66,12 @@ interface UniversalFileUploadZoneProps {
   bandcampManager: FileManagerCallbacks
   /** Called when an unknown CSV is confirmed with user-defined column aliases. */
   onAddAliases: (aliases: { fieldName: string; synonym: string }[]) => void
+  /**
+   * Called when an artist roster CSV (header: name, email, vatNumber, …) is
+   * detected and successfully parsed. Allows the IngestView to import artist
+   * master data in the same upload step as revenue data.
+   */
+  onImportLabelArtistsCSV?: (artists: Omit<LabelArtist, 'id'>[]) => void
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -96,7 +105,7 @@ function humanizeError(error: string | undefined): string {
  */
 async function detectCSVSource(
   file: File
-): Promise<{ source: 'believe' | 'bandcamp' | 'unknown'; headers: string[] }> {
+): Promise<{ source: 'believe' | 'bandcamp' | 'artist' | 'unknown'; headers: string[] }> {
   const buffer = await file.arrayBuffer()
   const firstBytes = new Uint8Array(buffer, 0, 2)
   let text: string
@@ -119,6 +128,15 @@ async function detectCSVSource(
   }
   if (headers.some(h => h === 'sales month') && headers.some(h => h === 'isrc')) {
     return { source: 'believe', headers }
+  }
+  // Artist roster CSV: first column is "name" and at least one known artist field is present.
+  // This type-guard prevents accidental misrouting of revenue CSVs whose first column might
+  // also be labelled "name" — the additional field check makes the match specific enough.
+  // Note: all headers are already lowercased at this point, so companion fields must also
+  // be lowercase (e.g. 'vatnumber' matches the CSV column 'vatNumber' after toLowerCase).
+  const ARTIST_CSV_COMPANION_FIELDS = new Set(['email', 'vatnumber', 'iseunongerman', 'notes'])
+  if (headers[0] === 'name' && headers.some(h => ARTIST_CSV_COMPANION_FIELDS.has(h))) {
+    return { source: 'artist', headers }
   }
   return { source: 'unknown', headers: parseCSVLine(firstLine, delimiter).map(h => h.trim()) }
 }
@@ -368,6 +386,7 @@ export function UniversalFileUploadZone({
   believeManager,
   bandcampManager,
   onAddAliases,
+  onImportLabelArtistsCSV,
 }: UniversalFileUploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [sizeWarning, setSizeWarning] = useState<string | null>(null)
@@ -402,12 +421,47 @@ export function UniversalFileUploadZone({
     } else if (source === 'bandcamp') {
       toast.info(`"${file.name}" detected as Bandcamp CSV`, { duration: 3000 })
       bandcampManager.addFiles([file])
+    } else if (source === 'artist') {
+      if (!onImportLabelArtistsCSV) {
+        toast.error(`"${file.name}" looks like an artist roster CSV but no handler is configured.`)
+        return
+      }
+      try {
+        const text = await file.text()
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+        // Skip header row (first line starts with 'name')
+        const dataLines = lines[0]?.toLowerCase().startsWith('name') ? lines.slice(1) : lines
+        const parsed: Omit<LabelArtist, 'id'>[] = dataLines.flatMap(l => {
+          // Delegate to the shared parseCSVLine helper (handles quoted fields,
+          // escaped double-quotes, and semicolon delimiters) to avoid divergent
+          // edge-case behaviour from an inline regex reimplementation.
+          const delimiter = l.includes(';') ? ';' : ','
+          const cols = parseCSVLine(l, delimiter)
+          const name = cols[0]?.trim()
+          if (!name) return []
+          return [{
+            name,
+            email: cols[1]?.trim() || undefined,
+            vatNumber: cols[2]?.trim() || undefined,
+            isEuNonGerman: cols[3]?.trim() === 'true',
+            notes: cols[4]?.trim() || undefined,
+          }]
+        })
+        if (parsed.length === 0) {
+          toast.error(`"${file.name}": no artist names found in CSV`)
+          return
+        }
+        onImportLabelArtistsCSV(parsed)
+        toast.success(`${parsed.length} artist${parsed.length !== 1 ? 's' : ''} imported from "${file.name}"`)
+      } catch {
+        toast.error(`Failed to parse artist CSV "${file.name}"`)
+      }
     } else {
       // Unknown format: open mapping dialog
       setPendingFile(file)
       setPendingHeaders(headers)
     }
-  }, [believeManager, bandcampManager])
+  }, [believeManager, bandcampManager, onImportLabelArtistsCSV])
 
   const processFiles = useCallback(async (rawFiles: File[]) => {
     const csvFiles = rawFiles.filter(f => f.name.toLowerCase().endsWith('.csv'))
