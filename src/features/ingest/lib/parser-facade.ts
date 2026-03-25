@@ -20,23 +20,53 @@ export interface ParseFileResult {
   uniqueArtists: string[]
 }
 
+/** Strips quotes and whitespace from a CSV header token for comparison. */
+function normalizeHeader(h: string): string {
+  return h.replace(/['"]/g, '').trim().toLowerCase()
+}
+
 /**
- * Detects the file type from the CSV header line.
+ * Parses the header line into individual column tokens.
+ * Handles comma- and tab-delimited headers.
+ */
+function splitHeader(headerLine: string): string[] {
+  const delimiter = headerLine.includes('\t') ? '\t' : ','
+  return headerLine.split(delimiter).map(normalizeHeader)
+}
+
+/** Counts how many of the given candidate column names are present in the headers. */
+function countMatches(headers: string[], candidates: string[]): number {
+  return candidates.filter(c => headers.includes(c)).length
+}
+
+const SHOPIFY_COLUMNS = ['financial status', 'lineitem name', 'lineitem sku', 'lineitem quantity', 'lineitem price']
+const BELIEVE_COLUMNS = ['release_title', 'barcode', 'upc', 'isrc', 'net_revenue']
+const BANDCAMP_COLUMNS = ['item type', 'catalog number', 'artist', 'album title', 'net amount']
+
+/**
+ * Detects the file type from the CSV header line using a scoring approach.
+ * Each candidate format receives a score based on how many of its characteristic
+ * columns are present, which avoids false positives from partial name overlaps.
  * @param headerLine - The first line of the CSV file.
  * @returns The detected FileType.
  */
 export function detectFileType(headerLine: string): FileType {
-  const lower = headerLine.toLowerCase()
-  if (lower.includes('shopify') || lower.includes('financial status') || lower.includes('lineitem name')) {
-    return 'shopify'
+  const headers = splitHeader(headerLine)
+
+  const scores: Record<Exclude<FileType, 'unknown'>, number> = {
+    shopify: countMatches(headers, SHOPIFY_COLUMNS),
+    believe: countMatches(headers, BELIEVE_COLUMNS),
+    bandcamp: countMatches(headers, BANDCAMP_COLUMNS),
   }
-  if (lower.includes('barcode') || lower.includes('release_title') || lower.includes('upc')) {
-    return 'believe'
-  }
-  if (lower.includes('item type') || lower.includes('catalog number')) {
-    return 'bandcamp'
-  }
-  return 'unknown'
+
+  const best = (Object.entries(scores) as Array<[Exclude<FileType, 'unknown'>, number]>)
+    .reduce<[Exclude<FileType, 'unknown'>, number] | null>((acc, [type, score]) => {
+      if (score === 0) return acc
+      if (acc === null || score > acc[1]) return [type, score]
+      return acc
+    }, null)
+
+  return best !== null ? best[0] : 'unknown'
 }
 
 /**
