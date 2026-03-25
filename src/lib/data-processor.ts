@@ -63,6 +63,18 @@ export interface DataProcessorConfig {
    * streaming/physical gross revenue before the split percentage is applied.
    */
   distributionFeePercentage?: number
+  /**
+   * Optional override distribution fee (0–100) applied exclusively to digital
+   * (streaming) revenue. When set, overrides `distributionFeePercentage` for
+   * digital revenue. Falls back to `distributionFeePercentage` when omitted.
+   */
+  distributionFeeDigital?: number
+  /**
+   * Optional override distribution fee (0–100) applied exclusively to physical
+   * and merch revenue. When set, overrides `distributionFeePercentage` for
+   * physical revenue. Falls back to `distributionFeePercentage` when omitted.
+   */
+  distributionFeePhysical?: number
 }
 
 export interface ProcessorResult {
@@ -114,6 +126,27 @@ export function resolveMainArtist(
 /** Constrains a split percentage to the valid 0–100 range. */
 function clampSplitPercentage(value: number): number {
   return Math.min(100, Math.max(0, value))
+}
+
+/**
+ * Resolves the effective distribution fee rate for a given revenue type.
+ * When a type-specific override is provided it takes priority; otherwise the
+ * global fallback rate is used.
+ */
+function resolveDistributionFeeRate(override: number | undefined, fallback: number): number {
+  return (override != null ? override : fallback) / 100
+}
+
+/**
+ * Resolves the effective split percentage for a given revenue type.
+ * Type-specific override → base split → 100 % (pass-through).
+ */
+function resolveSplitPercentage(
+  splitFee: { percentage: number; digitalPercentage?: number; physicalPercentage?: number } | undefined,
+  typeOverride: 'digital' | 'physical'
+): number {
+  const override = typeOverride === 'digital' ? splitFee?.digitalPercentage : splitFee?.physicalPercentage
+  return clampSplitPercentage(override ?? splitFee?.percentage ?? 100)
 }
 
 function aggregateBy<K extends string>(
@@ -357,24 +390,54 @@ export function processTransactionsWithCompilations(
 
     // Distribution fee: a percentage of streaming/physical revenue retained by
     // the label before the artist's split is calculated.
-    const distributionFeeRate = (config.distributionFeePercentage ?? 0) / 100
-    const streamingPhysicalBase = digitalRevenue + physicalRevenue
-    const distributionFeeDeducted = streamingPhysicalBase * distributionFeeRate
+    // Per-type overrides take precedence over the global rate.
+    const globalFeeDefault = config.distributionFeePercentage ?? 0
+    const digitalFeeRate = resolveDistributionFeeRate(config.distributionFeeDigital, globalFeeDefault)
+    const physicalFeeRate = resolveDistributionFeeRate(config.distributionFeePhysical, globalFeeDefault)
+
+    const digitalFeeDeducted = digitalRevenue * digitalFeeRate
+    const physicalFeeDeducted = physicalRevenue * physicalFeeRate
+    const distributionFeeDeducted = digitalFeeDeducted + physicalFeeDeducted
+
+    // Revenue after fee deduction per type
+    const digitalAfterFee = digitalRevenue - digitalFeeDeducted
+    const physicalAfterFee = physicalRevenue - physicalFeeDeducted
 
     // Revenue available for the artist split after fee and expense deductions.
+    // Expenses are deducted from the combined streaming/physical base, then
+    // scaled proportionally across digital and physical so that neither type
+    // bears a disproportionate share of the expense burden.
     // Math.max(0, …) ensures we never pass a negative base into the split
     // calculation — expenses and fees cannot create a negative payout.
-    const recoupableBase = Math.max(0, streamingPhysicalBase - distributionFeeDeducted - totalExpenses)
+    const streamingPhysicalAfterFee = digitalAfterFee + physicalAfterFee
+    const afterExpenses = Math.max(0, streamingPhysicalAfterFee - totalExpenses)
+
+    // Proportional scaling factor so expense deductions are applied evenly
+    // across both revenue types (avoids double-deduction or starvation).
+    // When streamingPhysicalAfterFee is zero (no revenue after fees) expenses
+    // cannot be allocated proportionally, so scale defaults to 0 — the artist
+    // receives nothing from this bucket regardless.
+    const expenseScale = streamingPhysicalAfterFee > 0 ? afterExpenses / streamingPhysicalAfterFee : 0
+    const digitalRecoupable = digitalAfterFee * expenseScale
+    const physicalRecoupable = physicalAfterFee * expenseScale
 
     const grossRevenue = digitalRevenue + physicalRevenue + manualRevenue
 
     const splitFee = config.splitFees.find(sf => sf.artist.toLowerCase() === lowerKey)
     const splitPercentage = clampSplitPercentage(splitFee?.percentage ?? 100)
 
+    // Per-type split overrides: when set on the SplitFee entry they override the
+    // base percentage for that specific revenue type.
+    const digitalSplitPct = resolveSplitPercentage(splitFee, 'digital')
+    const physicalSplitPct = resolveSplitPercentage(splitFee, 'physical')
+
     // Expenses and distribution fee are deducted from the streaming/physical base
     // before the split percentage is applied. Manual revenues (sync deals, etc.)
     // pass through in full.
-    const finalPayout = recoupableBase * (splitPercentage / 100) + manualRevenue
+    const finalPayout =
+      digitalRecoupable * (digitalSplitPct / 100) +
+      physicalRecoupable * (physicalSplitPct / 100) +
+      manualRevenue
 
     artistData.push({
       artist,

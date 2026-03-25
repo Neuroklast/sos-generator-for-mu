@@ -76,6 +76,10 @@ export interface WorkerProcessConfig {
   ignoredEntries: IgnoredEntry[]
   /** Label distribution fee percentage (0–100) deducted before artist splits. */
   distributionFeePercentage: number
+  /** Optional override distribution fee (0–100) for digital revenue only. */
+  distributionFeeDigital?: number
+  /** Optional override distribution fee (0–100) for physical/merch revenue only. */
+  distributionFeePhysical?: number
 }
 
 export interface WorkerResult {

@@ -37,6 +37,10 @@ interface CSVProcessorConfig {
   ignoredEntries: IgnoredEntry[]
   /** Label distribution fee percentage (0–100) deducted before artist splits. */
   distributionFeePercentage: number
+  /** Optional override distribution fee (0–100) for digital revenue only. */
+  distributionFeeDigital?: number
+  /** Optional override distribution fee (0–100) for physical/merch revenue only. */
+  distributionFeePhysical?: number
 }
 
 const EMPTY_RESULT: WorkerResult = {
@@ -125,7 +129,7 @@ export function useCSVProcessor(
   const configKey = [
     config.compilationFilters.map(f => f.id).join(','),
     config.artistMappings.map(m => m.id).join(','),
-    config.splitFees.map(s => `${s.artist}:${s.percentage}`).join(','),
+    config.splitFees.map(s => `${s.artist}:${s.percentage}:${s.digitalPercentage ?? ''}:${s.physicalPercentage ?? ''}`).join(','),
     config.manualRevenues.map(r => r.id).join(','),
     config.expenses.map(e => `${e.id}:${e.amount}`).join(','),
     String(config.excludePhysical),
@@ -133,6 +137,8 @@ export function useCSVProcessor(
     config.labelArtists.map(la => la.id).join(','),
     config.ignoredEntries.map(ie => ie.id).join(','),
     String(config.distributionFeePercentage),
+    String(config.distributionFeeDigital ?? ''),
+    String(config.distributionFeePhysical ?? ''),
   ].join('|')
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -148,7 +154,9 @@ export function useCSVProcessor(
     labelArtists: config.labelArtists,
     ignoredEntries: config.ignoredEntries,
     distributionFeePercentage: config.distributionFeePercentage,
-  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage])
+    distributionFeeDigital: config.distributionFeeDigital,
+    distributionFeePhysical: config.distributionFeePhysical,
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical])
 
   const sendProcess = useCallback(() => {
     const cfg = latestConfigRef.current ?? buildConfig()
