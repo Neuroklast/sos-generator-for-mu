@@ -3,7 +3,7 @@ import { useKV } from '@/hooks/useLocalKV'
 import { useUndoStack } from '@/hooks/useUndoStack'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
-import { DEFAULT_APP_DEFAULTS, DEFAULT_EMAIL_CONFIG, DEFAULT_PDF_EXPORT_SETTINGS } from '@/lib/defaults'
+import { DEFAULT_APP_DEFAULTS, DEFAULT_EMAIL_CONFIG, DEFAULT_PDF_EXPORT_SETTINGS, DEFAULT_LABEL_INFO } from '@/lib/defaults'
 import { DashboardView } from '@/components/views/DashboardView'
 import { IngestView } from '@/components/views/IngestView'
 import { ProcessCockpitView, type MasterSortField, type MasterSortDir } from '@/components/views/ProcessCockpitView'
@@ -38,7 +38,7 @@ import type {
   EmailConfig,
 } from '@/lib/types'
 import { toast } from 'sonner'
-import { APP_NAME } from '@/config/softwareBranding'
+import { APP_NAME, APP_LOGO, APP_CREDITS } from '@/config/softwareBranding'
 import {
   UploadCloud,
   LayoutDashboard,
@@ -106,7 +106,7 @@ function App() {
   const [splitFees, setSplitFees] = useKV<SplitFee[]>('split-fees', [])
   const [manualRevenues, setManualRevenues] = useKV<ManualRevenue[]>('manual-revenues', [])
   const [expenses, setExpenses] = useKV<ExpenseEntry[]>('expenses', [])
-  const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', { name: '', address: '' })
+  const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', DEFAULT_LABEL_INFO)
   const [excludePhysical, setExcludePhysical] = useKV<boolean>('exclude-physical', false)
   const [labelArtists, setLabelArtists] = useKV<LabelArtist[]>('label-artists', [])
   const [ignoredEntries, setIgnoredEntries] = useKV<IgnoredEntry[]>('ignored-entries', [])
@@ -1009,6 +1009,12 @@ function App() {
             </button>
           </nav>
         )}
+
+        {/* ── Software branding ─────────────────────── */}
+        <div className="fixed bottom-3 left-4 z-20 flex items-center gap-1.5 opacity-50 pointer-events-none select-none">
+          <img src={APP_LOGO} alt="Neuroklast" className="h-5 w-5 object-contain shrink-0" />
+          <span className="text-[10px] text-muted-foreground font-medium whitespace-nowrap">{APP_CREDITS}</span>
+        </div>
     </div>
   )
 }
