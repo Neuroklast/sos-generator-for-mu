@@ -13,6 +13,7 @@ export const DEFAULT_APP_DEFAULTS: AppDefaults = {
   financeEmail: '',
   invoiceDeadlineDate: '',
   royaltyDonationOrg: 'animal shelter',
+  distributionFeePercentage: 0,
 }
 
 export const DEFAULT_PDF_EXPORT_SETTINGS: PdfExportSettings = {

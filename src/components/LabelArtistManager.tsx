@@ -9,6 +9,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { LabelArtist } from '@/lib/types'
 
+/** Parses a VAT rate string into an integer percentage, or undefined if empty. */
+function parseVatRate(value: string): number | undefined {
+  if (value === '') return undefined
+  const parsed = parseInt(value, 10)
+  if (isNaN(parsed)) return undefined
+  return Math.min(100, Math.max(0, parsed))
+}
+
 interface LabelArtistManagerProps {
   artists: LabelArtist[]
   onAdd: (name: string) => void
@@ -32,6 +40,7 @@ function ArtistDetailEditor({
       vatNumber: artist.vatNumber,
       notes: artist.notes,
       isEuNonGerman: artist.isEuNonGerman,
+      vatRate: artist.vatRate,
       ...partial,
     })
 
@@ -85,6 +94,30 @@ function ArtistDetailEditor({
             checked={artist.isEuNonGerman ?? false}
             onCheckedChange={v => patch({ isEuNonGerman: v })}
           />
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor={`artist-vatrate-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
+            <IdentificationCard size={11} />
+            MwSt.-Satz (%) — überschreibt globale Einstellung
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id={`artist-vatrate-${artist.id}`}
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={artist.vatRate ?? ''}
+              onChange={e => patch({ vatRate: parseVatRate(e.target.value) })}
+              placeholder="z.B. 19 (leer = global)"
+              className="h-8 text-xs max-w-[140px]"
+            />
+            <span className="text-xs text-muted-foreground">%</span>
+            {artist.isEuNonGerman && (
+              <span className="text-xs text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">Reverse Charge → 0 %</span>
+            )}
+          </div>
         </div>
 
         <div className="space-y-1">

@@ -7,7 +7,7 @@ import {
   generateZipOfAllStatements,
 } from '@/lib/export-utils'
 import { createSafeFilename } from '@/lib/utils'
-import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults } from '@/lib/types'
+import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults, LabelArtist } from '@/lib/types'
 
 /**
  * Provides PDF, Excel and ZIP export actions with error handling.
@@ -19,7 +19,8 @@ export function useExports(
   periodStart: string,
   periodEnd: string,
   pdfSettings?: Partial<PdfExportSettings>,
-  appDefaults?: Partial<AppDefaults>
+  appDefaults?: Partial<AppDefaults>,
+  labelArtists?: LabelArtist[]
 ) {
   const emailOptions = useMemo(
     () =>
@@ -33,6 +34,15 @@ export function useExports(
     [appDefaults]
   )
 
+  // Pre-build a O(1) lowercase name → LabelArtist lookup map.
+  const artistInfoMap = useMemo(() => {
+    const map = new Map<string, LabelArtist>()
+    for (const la of labelArtists ?? []) {
+      map.set(la.name.toLowerCase(), la)
+    }
+    return map
+  }, [labelArtists])
+
   const handleDownloadPDF = useCallback(
     (artist: string) => {
       const artistData = processedData.find(d => d.artist === artist)
@@ -41,9 +51,12 @@ export function useExports(
         return
       }
 
-      const invoiceNumber = labelInfo.invoiceNumberPrefix
-        ? `${labelInfo.invoiceNumberPrefix}-${artist.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 4) || '0001'}`
-        : undefined
+      const currentYear = new Date().getFullYear()
+      const prefix = labelInfo.invoiceNumberPrefix ?? 'SOS'
+      const artistSlug = artist.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 4) || '0001'
+      const invoiceNumber = `${prefix}-${currentYear}-${artistSlug}`
+
+      const artistInfo = artistInfoMap.get(artist.toLowerCase())
 
       try {
         const blob = generatePDF(
@@ -53,7 +66,8 @@ export function useExports(
           periodEnd || undefined,
           invoiceNumber,
           pdfSettings,
-          emailOptions
+          emailOptions,
+          artistInfo
         )
         downloadBlob(blob, `${createSafeFilename(artist)}_statement.pdf`)
         toast.success(`PDF for "${artist}" downloaded`)
@@ -63,7 +77,7 @@ export function useExports(
         console.error('PDF export error:', err)
       }
     },
-    [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions]
+    [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, artistInfoMap]
   )
 
   const handleDownloadExcel = useCallback(
@@ -119,7 +133,8 @@ export function useExports(
           }
         },
         pdfSettings,
-        emailOptions
+        emailOptions,
+        labelArtists
       )
       downloadBlob(blob, 'artist_statements.zip')
       toast.success(`All ${total} statements downloaded`, { id: toastId })
@@ -128,7 +143,7 @@ export function useExports(
       toast.error('ZIP export failed', { id: toastId, description: message })
       console.error('ZIP export error:', err)
     }
-  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions])
+  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists])
 
   /**
    * Queued batch export for a specific subset of artists — same async queue
@@ -161,7 +176,8 @@ export function useExports(
           }
         },
         pdfSettings,
-        emailOptions
+        emailOptions,
+        labelArtists
       )
       downloadBlob(blob, 'selected_artist_statements.zip')
       toast.success(`${total} selected statement${total !== 1 ? 's' : ''} downloaded`, { id: toastId })
@@ -170,7 +186,7 @@ export function useExports(
       toast.error('ZIP export failed', { id: toastId, description: message })
       console.error('ZIP export error:', err)
     }
-  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions])
+  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists])
 
   return { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected }
 }

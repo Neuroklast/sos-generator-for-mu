@@ -1,4 +1,4 @@
-import { SlidersHorizontal, EnvelopeSimple, CalendarBlank, Coins, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { SlidersHorizontal, EnvelopeSimple, CalendarBlank, Coins, Percent, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,6 +52,34 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
             />
             <p className="text-xs text-muted-foreground">
               Wird für neue Künstler verwendet, wenn keine individuelle Split-Rate gesetzt ist.
+            </p>
+          </div>
+        </div>
+
+        {/* ── Label-Vertriebsprovision ─────────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={Percent} title="Label Vertriebsprovision" />
+
+          <div className="space-y-2">
+            <Label htmlFor="distribution-fee">Vertriebsprovision (%)</Label>
+            <Input
+              id="distribution-fee"
+              type="number"
+              min={0}
+              max={100}
+              step={0.1}
+              value={defaults.distributionFeePercentage ?? 0}
+              onChange={e => {
+                const val = parseFloat(e.target.value)
+                if (!Number.isNaN(val)) patch({ distributionFeePercentage: Math.min(100, Math.max(0, val)) })
+              }}
+              placeholder="z.B. 15"
+              className="max-w-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              Dieser Prozentsatz wird vom Streaming-/Physischen-Umsatz jedes Künstlers als
+              Label-Vertriebsprovision einbehalten, bevor die individuelle Split-Rate angewendet wird.
+              Bei 0 % wird keine Provision abgezogen.
             </p>
           </div>
         </div>

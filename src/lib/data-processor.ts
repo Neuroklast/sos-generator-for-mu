@@ -4,6 +4,7 @@ import type {
   ArtistMapping,
   SplitFee,
   ManualRevenue,
+  ExpenseEntry,
   PlatformRevenue,
   CountryRevenue,
   MonthlyRevenue,
@@ -25,6 +26,10 @@ export interface ProcessedArtistData {
   splitPercentage: number
   finalPayout: number
   totalQuantity: number
+  /** Total recoupable expenses deducted from gross revenue before split. */
+  totalExpenses: number
+  /** Label distribution fee (EUR) deducted from streaming/physical revenue before the split. */
+  distributionFeeDeducted: number
   platformBreakdown: PlatformRevenue[]
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]
@@ -36,6 +41,8 @@ export interface DataProcessorConfig {
   artistMappings: ArtistMapping[]
   splitFees: SplitFee[]
   manualRevenues: ManualRevenue[]
+  /** Recoupable expense entries deducted per artist before split. */
+  expenses?: ExpenseEntry[]
   excludePhysical?: boolean
   /** Exchange rates map (1 EUR = N units of foreign currency). Used to convert
    *  non-EUR Bandcamp transactions to EUR at processing time. */
@@ -51,6 +58,11 @@ export interface DataProcessorConfig {
    * Each entry can target a specific artist or a specific release of an artist.
    */
   ignoredEntries?: IgnoredEntry[]
+  /**
+   * Label distribution fee as a percentage (0–100) deducted from each artist's
+   * streaming/physical gross revenue before the split percentage is applied.
+   */
+  distributionFeePercentage?: number
 }
 
 export interface ProcessorResult {
@@ -338,14 +350,31 @@ export function processTransactionsWithCompilations(
       .filter(mr => mr.artist.toLowerCase() === lowerKey)
       .reduce((sum, mr) => sum + mr.amount, 0)
 
+    // Recoupable expenses: deducted from streaming/physical revenue before split.
+    const totalExpenses = (config.expenses ?? [])
+      .filter(e => e.artist.toLowerCase() === lowerKey)
+      .reduce((sum, e) => sum + e.amount, 0)
+
+    // Distribution fee: a percentage of streaming/physical revenue retained by
+    // the label before the artist's split is calculated.
+    const distributionFeeRate = (config.distributionFeePercentage ?? 0) / 100
+    const streamingPhysicalBase = digitalRevenue + physicalRevenue
+    const distributionFeeDeducted = streamingPhysicalBase * distributionFeeRate
+
+    // Revenue available for the artist split after fee and expense deductions.
+    // Math.max(0, …) ensures we never pass a negative base into the split
+    // calculation — expenses and fees cannot create a negative payout.
+    const recoupableBase = Math.max(0, streamingPhysicalBase - distributionFeeDeducted - totalExpenses)
+
     const grossRevenue = digitalRevenue + physicalRevenue + manualRevenue
 
     const splitFee = config.splitFees.find(sf => sf.artist.toLowerCase() === lowerKey)
     const splitPercentage = clampSplitPercentage(splitFee?.percentage ?? 100)
 
-    // Split percentage applies only to streaming/physical revenue;
-    // manual revenues (sync deals, etc.) are passed through in full.
-    const finalPayout = (digitalRevenue + physicalRevenue) * (splitPercentage / 100) + manualRevenue
+    // Expenses and distribution fee are deducted from the streaming/physical base
+    // before the split percentage is applied. Manual revenues (sync deals, etc.)
+    // pass through in full.
+    const finalPayout = recoupableBase * (splitPercentage / 100) + manualRevenue
 
     artistData.push({
       artist,
@@ -357,6 +386,8 @@ export function processTransactionsWithCompilations(
       splitPercentage,
       finalPayout,
       totalQuantity,
+      totalExpenses,
+      distributionFeeDeducted,
       platformBreakdown: buildPlatformBreakdown(eurTransactions),
       countryBreakdown: buildCountryBreakdown(eurTransactions),
       monthlyBreakdown: buildMonthlyBreakdown(eurTransactions),
