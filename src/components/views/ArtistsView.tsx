@@ -19,20 +19,19 @@ interface ArtistsViewProps {
   uniqueArtists: string[]
   autoMappings: ArtistMapping[]
 
-  // ── Artist mapping (Abrechnungsregeln) ───────────────────────────────────
+  // ── Artist mapping (Alias-Mapping) ────────────────────────────────────────
   artistMappings: ArtistMapping[]
   onAddMapping: (mapping: Omit<ArtistMapping, 'id'>) => void
   onRemoveMapping: (id: string) => void
   onUpdateMapping: (id: string, update: Omit<ArtistMapping, 'id'>) => void
 
-  // ── Label artist roster (Stammdaten) ─────────────────────────────────────
+  // ── Label artist roster (Stammdaten – read from IngestView CSV import) ────
   labelArtists: LabelArtist[]
   onAddLabelArtist: (name: string) => void
   onRemoveLabelArtist: (id: string) => void
   onUpdateLabelArtist: (id: string, patch: Omit<LabelArtist, 'id'>) => void
-  onImportLabelArtistsCSV: (artists: Omit<LabelArtist, 'id'>[]) => void
 
-  // ── Split fees (Abrechnungsregeln) ───────────────────────────────────────
+  // ── Split fees (Umsatz-Splits) ────────────────────────────────────────────
   splitFees: SplitFee[]
   onUpdateSplitFee: (artist: string, percentage: number) => void
   onBulkUpdateSplitFee: (artists: string[], percentage: number) => void
@@ -51,16 +50,16 @@ export function ArtistsView({
   onAddLabelArtist,
   onRemoveLabelArtist,
   onUpdateLabelArtist,
-  onImportLabelArtistsCSV,
   splitFees,
   onUpdateSplitFee,
   onBulkUpdateSplitFee,
 }: ArtistsViewProps) {
   return (
     <Tabs defaultValue="stammdaten" className="space-y-6">
-      <TabsList className="grid grid-cols-2 w-full max-w-md">
+      <TabsList className="grid grid-cols-3 w-full max-w-lg">
         <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
-        <TabsTrigger value="abrechnungsregeln">Abrechnungsregeln</TabsTrigger>
+        <TabsTrigger value="umsatz-splits">Umsatz-Splits</TabsTrigger>
+        <TabsTrigger value="alias-mapping">Alias-Mapping</TabsTrigger>
       </TabsList>
 
       {/* ── Stammdaten Tab ── */}
@@ -74,13 +73,12 @@ export function ArtistsView({
             onAdd={onAddLabelArtist}
             onRemove={onRemoveLabelArtist}
             onUpdate={onUpdateLabelArtist}
-            onImportCSV={onImportLabelArtistsCSV}
           />
         </Card>
       </TabsContent>
 
-      {/* ── Abrechnungsregeln Tab ── */}
-      <TabsContent value="abrechnungsregeln" className="space-y-8">
+      {/* ── Umsatz-Splits Tab ── */}
+      <TabsContent value="umsatz-splits">
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
           <SplitFeeManager
             splitFees={splitFees}
@@ -88,6 +86,10 @@ export function ArtistsView({
             onBulkUpdateSplitFee={onBulkUpdateSplitFee}
           />
         </Card>
+      </TabsContent>
+
+      {/* ── Alias-Mapping Tab ── */}
+      <TabsContent value="alias-mapping">
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
           <ArtistMappingManager
             mappings={artistMappings}

@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback } from 'react'
-import { Users, Plus, Trash, Upload, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil } from '@phosphor-icons/react'
+import { useState, useCallback } from 'react'
+import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,7 +22,6 @@ interface LabelArtistManagerProps {
   onAdd: (name: string) => void
   onRemove: (id: string) => void
   onUpdate: (id: string, patch: Omit<LabelArtist, 'id'>) => void
-  onImportCSV: (artists: Omit<LabelArtist, 'id'>[]) => void
 }
 
 /** Inline edit form shown when a roster row is expanded. */
@@ -144,11 +143,9 @@ export function LabelArtistManager({
   onAdd,
   onRemove,
   onUpdate,
-  onImportCSV,
 }: LabelArtistManagerProps) {
   const [newName, setNewName] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleAdd = useCallback(() => {
     const name = newName.trim()
@@ -199,57 +196,6 @@ export function LabelArtistManager({
     toast.success('Label artist roster exported')
   }, [artists])
 
-  // ── CSV Import ────────────────────────────────────────────────────────────
-
-  const handleFileSelected = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (!file) return
-      const reader = new FileReader()
-      reader.onload = event => {
-        try {
-          const text = event.target?.result as string
-          const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-
-          const firstLine = lines[0]?.toLowerCase() ?? ''
-          const hasHeader = firstLine.startsWith('name')
-          const dataLines = hasHeader ? lines.slice(1) : lines
-
-          const parsed: Omit<LabelArtist, 'id'>[] = dataLines
-            .flatMap(l => {
-              // Simple CSV split (handles quoted fields)
-              const cols = l.match(/("(?:[^"]|"")*"|[^,]*)/g)?.map(c =>
-                c.startsWith('"') ? c.slice(1, -1).replace(/""/g, '"') : c
-              ) ?? []
-              const name = cols[0]?.trim()
-              if (!name) return []
-              const entry: Omit<LabelArtist, 'id'> = {
-                name,
-                email: cols[1]?.trim() || undefined,
-                vatNumber: cols[2]?.trim() || undefined,
-                isEuNonGerman: cols[3]?.trim() === 'true',
-                notes: cols[4]?.trim() || undefined,
-              }
-              return [entry]
-            })
-
-          if (parsed.length === 0) {
-            toast.error('No artist names found in CSV')
-            return
-          }
-          onImportCSV(parsed)
-          toast.success(`${parsed.length} artist${parsed.length !== 1 ? 's' : ''} imported`)
-        } catch {
-          toast.error('Failed to parse CSV file')
-        }
-      }
-      reader.onerror = () => toast.error('Could not read file')
-      reader.readAsText(file)
-      e.target.value = ''
-    },
-    [onImportCSV]
-  )
-
   return (
     <div>
       {/* Header */}
@@ -285,17 +231,8 @@ export function LabelArtistManager({
         </Button>
       </div>
 
-      {/* Import / Export */}
+      {/* Export */}
       <div className="flex gap-2 mb-5">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 hover:border-violet-500/60"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Upload size={13} weight="bold" />
-          Import CSV
-        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -306,13 +243,6 @@ export function LabelArtistManager({
           <Download size={13} weight="bold" />
           Export CSV
         </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,text/csv"
-          onChange={handleFileSelected}
-          className="hidden"
-        />
       </div>
 
       {/* Artist list */}
@@ -320,7 +250,7 @@ export function LabelArtistManager({
         <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-xl border border-dashed border-border/50 bg-card/30">
           <Users size={28} className="text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">No artists in roster yet</p>
-          <p className="text-xs text-muted-foreground/60">Add artists manually or import a CSV. When the roster is empty, all artists are shown.</p>
+          <p className="text-xs text-muted-foreground/60">Add artists manually or import a CSV via the Ingestion view. When the roster is empty, all artists are shown.</p>
         </div>
       ) : (
         <ul className="space-y-1.5">
