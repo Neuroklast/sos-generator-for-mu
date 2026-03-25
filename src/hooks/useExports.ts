@@ -44,7 +44,7 @@ export function useExports(
   }, [labelArtists])
 
   const handleDownloadPDF = useCallback(
-    (artist: string) => {
+    async (artist: string) => {
       const artistData = processedData.find(d => d.artist === artist)
       if (!artistData) {
         toast.error(`No data found for artist "${artist}"`)
@@ -59,7 +59,7 @@ export function useExports(
       const artistInfo = artistInfoMap.get(artist.toLowerCase())
 
       try {
-        const blob = generatePDF(
+        const blob = await generatePDF(
           artistData,
           labelInfo,
           periodStart || undefined,

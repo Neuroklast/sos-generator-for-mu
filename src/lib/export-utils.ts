@@ -21,7 +21,36 @@ export function formatCurrency(value: number): string {
   }).format(value)
 }
 
-export function generatePDF(
+/**
+ * Loads an image from a data URL and returns its natural pixel dimensions.
+ * Resolves with null if the image fails to load (e.g. corrupted data).
+ */
+async function resolveImageDimensions(src: string): Promise<{ width: number; height: number } | null> {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+
+/**
+ * Scales image dimensions to fit within a bounding box of `maxSize × maxSize`
+ * while preserving the original aspect ratio (object-contain semantics).
+ * `maxSize` is both the maximum width and the maximum height of the box.
+ */
+function computeFitDimensions(
+  naturalWidth: number,
+  naturalHeight: number,
+  maxSize: number
+): { w: number; h: number } {
+  const aspectRatio = naturalWidth / naturalHeight
+  return aspectRatio >= 1
+    ? { w: maxSize, h: maxSize / aspectRatio }
+    : { w: maxSize * aspectRatio, h: maxSize }
+}
+
+export async function generatePDF(
   artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
@@ -34,10 +63,23 @@ export function generatePDF(
     donationOrg: string
   },
   artistInfo?: LabelArtist
-): Blob {
+): Promise<Blob> {
+  // Pre-load label logo dimensions so buildPDF can preserve the aspect ratio.
+  let logoDimensions: { w: number; h: number } | undefined
+  const logoSrc = labelInfo.logoBase64 ?? labelInfo.logo
+  if (logoSrc) {
+    const naturalDims = await resolveImageDimensions(logoSrc)
+    // Only compute fit dimensions when both axes are valid positive values;
+    // otherwise leave logoDimensions undefined so buildPDF falls back to the
+    // default 25×25 square rather than rendering a potentially distorted image.
+    if (naturalDims && naturalDims.width > 0 && naturalDims.height > 0) {
+      logoDimensions = computeFitDimensions(naturalDims.width, naturalDims.height, 25)
+    }
+  }
+
   try {
     const settings = { ...DEFAULT_PDF_SETTINGS, ...pdfSettings }
-    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, settings, emailOptions, artistInfo)
+    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, settings, emailOptions, artistInfo, logoDimensions)
   } catch (err) {
     throw new Error(
       `PDF generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
@@ -53,7 +95,8 @@ function buildPDF(
   invoiceNumber?: string,
   settings: PdfExportSettings = DEFAULT_PDF_SETTINGS,
   emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string },
-  artistInfo?: LabelArtist
+  artistInfo?: LabelArtist,
+  logoDimensions?: { w: number; h: number }
 ): Blob {
   const doc = new jsPDF()
   const margin = 20
@@ -99,13 +142,19 @@ function buildPDF(
     console.warn('Failed to render app logo in PDF:', err)
   }
 
-  // Add label logo if available (prefer logoBase64, fall back to logo)
+  // Add label logo if available (prefer logoBase64, fall back to logo).
+  // Uses pre-computed dimensions (logoDimensions) to preserve the original
+  // aspect ratio — equivalent to CSS object-contain within a 25×25 mm box.
   const logoSrc = labelInfo.logoBase64 ?? labelInfo.logo
   if (logoSrc) {
     try {
-      const logoSize = 25
+      const MAX_LOGO_SIZE = 25
+      const { w, h } = logoDimensions ?? { w: MAX_LOGO_SIZE, h: MAX_LOGO_SIZE }
       const pageWidth = doc.internal.pageSize.getWidth()
-      doc.addImage(logoSrc, 'PNG', pageWidth - margin - logoSize, yPos - 5, logoSize, logoSize)
+      // Right-align within the bounding box so the logo never overflows the margin.
+      const logoX = pageWidth - margin - MAX_LOGO_SIZE + (MAX_LOGO_SIZE - w) / 2
+      const logoY = yPos - 5 + (MAX_LOGO_SIZE - h) / 2
+      doc.addImage(logoSrc, 'PNG', logoX, logoY, w, h)
     } catch {
       // Logo rendering failed, continue without it
     }
@@ -536,7 +585,7 @@ export async function generateZipOfAllStatements(
     const artistInfo = artistInfoMap.get(artistData.artist.toLowerCase())
 
     if (format === 'pdf' || format === 'both') {
-      const pdfBlob = generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions, artistInfo)
+      const pdfBlob = await generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions, artistInfo)
       zip.file(`${safeArtistName}_statement.pdf`, pdfBlob)
     }
 

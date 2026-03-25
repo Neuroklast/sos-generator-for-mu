@@ -5,7 +5,7 @@
  * hooks without triggering react-refresh fast-reload warnings (which fire when
  * a file mixes component exports with non-component exports).
  */
-import type { AppDefaults, PdfExportSettings, EmailConfig } from '@/lib/types'
+import type { AppDefaults, PdfExportSettings, EmailConfig, LabelInfo } from '@/lib/types'
 
 export const DEFAULT_APP_DEFAULTS: AppDefaults = {
   defaultSplitPercentage: 50,
@@ -29,4 +29,29 @@ export const DEFAULT_EMAIL_CONFIG: EmailConfig = {
   fromEmail: '',
   replyTo: '',
   subjectTemplate: 'Statement of Sales – {period}',
+}
+
+/**
+ * Pre-filled label branding defaults for Darktunes Music Group.
+ * Used as the initial value for the label-info IndexedDB key so new
+ * installations have a fully-formed branding profile out of the box.
+ * Users can overwrite any field at any time or replace it via workspace import.
+ */
+export const DEFAULT_LABEL_INFO: LabelInfo = {
+  name: 'Darktunes',
+  legalForm: 'Darktunes Music Group UG, Raphaël Beck',
+  address: 'Friedhofweg 1, 69118 Heidelberg, Germany',
+  email: 'info@dark-tunes.com',
+  taxId: 'DE269873706',
+  vatRate: 19,
+  invoiceNumberPrefix: 'DT-2026-',
+  bankAccount: 'Not publicly listed in the legal notice. You will need to check internal bank documents or previous invoices.',
+  footerText: 'This statement was generated automatically and is valid without a signature.',
+  emailTemplate: `Hello {artist},
+
+please find attached your current statement for the period {period}.
+The payout amount of {amount} will be transferred to your registered bank account.
+
+Best regards,
+{label_name}`,
 }
