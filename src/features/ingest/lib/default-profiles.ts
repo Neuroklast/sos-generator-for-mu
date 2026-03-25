@@ -134,6 +134,9 @@ const LABEL_ARTISTS_MASTER_DATA: CsvImportProfile = {
     vatNumber:     'vatNumber',
     isEuNonGerman: 'isEuNonGerman',
     notes:         'notes',
+    accountHolder: 'accountHolder',
+    iban:          'iban',
+    bic:           'bic',
   },
   isSystemDefault: true,
 }

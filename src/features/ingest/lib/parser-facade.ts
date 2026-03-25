@@ -209,6 +209,9 @@ export function parseMasterDataCSV(
   const vatNumberIdx     = headers.indexOf((columnMapping.vatNumber ?? 'vatnumber').toLowerCase())
   const isEuNonGermanIdx = headers.indexOf((columnMapping.isEuNonGerman ?? 'iseunongerman').toLowerCase())
   const notesIdx         = headers.indexOf((columnMapping.notes ?? 'notes').toLowerCase())
+  const accountHolderIdx = headers.indexOf((columnMapping.accountHolder ?? 'accountholder').toLowerCase())
+  const ibanIdx          = headers.indexOf((columnMapping.iban ?? 'iban').toLowerCase())
+  const bicIdx           = headers.indexOf((columnMapping.bic ?? 'bic').toLowerCase())
 
   const dataLines = lines.slice(firstNonEmpty + 1)
   const result: Array<Omit<LabelArtist, 'id'>> = []
@@ -219,12 +222,19 @@ export function parseMasterDataCSV(
     const name = nameIdx >= 0 ? (cols[nameIdx] ?? '').trim() : ''
     if (!name) continue
 
+    const rawIban = ibanIdx >= 0 ? (cols[ibanIdx] ?? '').trim() : ''
+    // Normalise IBAN: remove spaces and dashes, force uppercase
+    const normalisedIban = rawIban.replace(/[\s-]/g, '').toUpperCase() || undefined
+
     result.push({
       name,
       email:         emailIdx >= 0         ? (cols[emailIdx] ?? '').trim() || undefined         : undefined,
       vatNumber:     vatNumberIdx >= 0      ? (cols[vatNumberIdx] ?? '').trim() || undefined      : undefined,
       isEuNonGerman: isEuNonGermanIdx >= 0  ? (cols[isEuNonGermanIdx] ?? '').trim().toLowerCase() === 'true' : undefined,
       notes:         notesIdx >= 0          ? (cols[notesIdx] ?? '').trim() || undefined          : undefined,
+      accountHolder: accountHolderIdx >= 0  ? (cols[accountHolderIdx] ?? '').trim() || undefined  : undefined,
+      iban:          normalisedIban,
+      bic:           bicIdx >= 0            ? (cols[bicIdx] ?? '').trim().toUpperCase() || undefined : undefined,
     })
   }
 

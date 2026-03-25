@@ -4,8 +4,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from 'sonner'
 import type { LabelInfo } from '@/lib/types'
+import { isValidIBAN, sanitiseIBAN } from '@/lib/iban-validator'
 
 const MAX_LOGO_SIZE_BYTES = 5 * 1000 * 1000 // 5 MB
 const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
@@ -301,6 +303,69 @@ export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
               placeholder={"IBAN: DE89 XXXX XXXX XXXX XXXX XX\nBIC: XXXXXXXX · Musterbank AG"}
               rows={2}
             />
+          </div>
+
+          {/* ── SEPA Absenderkonto (maschinenlesbar) ─── */}
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
+              <Bank size={12} weight="bold" />
+              SEPA-Absenderkonto (für XML-Batch-Auszahlungen)
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Diese Felder werden als <code className="font-mono bg-muted px-1 rounded">{'<Dbtr>'}</code> und{' '}
+              <code className="font-mono bg-muted px-1 rounded">{'<DbtrAcct>'}</code> in SEPA-XML-Dateien eingebettet.
+              Die IBAN muss mit deinem Geschäftskonto übereinstimmen.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="label-sepa-holder">Kontoinhaber (SEPA)</Label>
+                <Input
+                  id="label-sepa-holder"
+                  type="text"
+                  value={labelInfo.sepaAccountHolder ?? ''}
+                  onChange={e => onUpdate({ ...labelInfo, sepaAccountHolder: e.target.value || undefined })}
+                  placeholder="z.B. darkTunes Music Group UG"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Exakt wie bei deiner Bank registriert (für <code className="font-mono text-[10px] bg-muted px-1 rounded">{'<Dbtr><Nm>'}</code>).
+                </p>
+              </div>
+
+              <TooltipProvider>
+                <div className="space-y-1.5">
+                  <Label htmlFor="label-sepa-iban" className="flex items-center gap-1.5">
+                    IBAN (SEPA-Absender)
+                    {labelInfo.sepaIban && (
+                      isValidIBAN(labelInfo.sepaIban)
+                        ? <span className="text-emerald-400 text-[10px] font-medium">✓ gültig</span>
+                        : <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-red-400 text-[10px] font-medium cursor-help underline decoration-dotted">✗ fehlerhaft</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs bg-red-900/90 text-red-100 border-red-700">
+                              Prüfsumme fehlerhaft. SEPA-Export wird blockiert.
+                            </TooltipContent>
+                          </Tooltip>
+                    )}
+                  </Label>
+                  <Input
+                    id="label-sepa-iban"
+                    type="text"
+                    value={labelInfo.sepaIban ?? ''}
+                    onChange={e => {
+                      const normalised = sanitiseIBAN(e.target.value)
+                      onUpdate({ ...labelInfo, sepaIban: normalised || undefined })
+                    }}
+                    placeholder="z.B. DE89370400440532013000"
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Dein Geschäftskonto, das als Absender aller SEPA-Überweisungen fungiert.
+                  </p>
+                </div>
+              </TooltipProvider>
+            </div>
           </div>
         </div>
 
