@@ -50,6 +50,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { UploadedFile, FileProcessingState, LabelArtist } from '@/lib/types'
 import { parseCSVLine } from '@/features/ingest/lib/csv-parser'
+import { matchProfile, parseMasterDataCSV } from '@/features/ingest/lib/parser-facade'
+import {
+  SYSTEM_SHOPIFY_PROFILE_ID,
+  SYSTEM_BANDCAMP_PROFILE_ID,
+} from '@/features/ingest/lib/default-profiles'
+import type { CsvImportProfile } from '@/features/ingest/types'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,6 +78,11 @@ interface UniversalFileUploadZoneProps {
    * master data in the same upload step as revenue data.
    */
   onImportLabelArtistsCSV?: (artists: Omit<LabelArtist, 'id'>[]) => void
+  /**
+   * Active CSV import profiles used for header-based auto-detection.
+   * When provided, profile matching is attempted before the legacy heuristic.
+   */
+  csvProfiles?: CsvImportProfile[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -102,10 +113,19 @@ function humanizeError(error: string | undefined): string {
 /**
  * Reads the header row of a File without loading the whole file into memory.
  * Returns the detected source type or 'unknown'.
+ *
+ * Detection order:
+ *  1. Profile-based matching (when profiles are provided).
+ *  2. Legacy hardcoded heuristics as fallback.
  */
 async function detectCSVSource(
-  file: File
-): Promise<{ source: 'believe' | 'bandcamp' | 'artist' | 'unknown'; headers: string[] }> {
+  file: File,
+  profiles: CsvImportProfile[]
+): Promise<{
+  source: 'believe' | 'bandcamp' | 'artist' | 'shopify' | 'profile-financial' | 'unknown'
+  headers: string[]
+  matchedProfile?: CsvImportProfile
+}> {
   const buffer = await file.arrayBuffer()
   const firstBytes = new Uint8Array(buffer, 0, 2)
   let text: string
@@ -121,24 +141,40 @@ async function detectCSVSource(
   const clean = text.startsWith('\uFEFF') ? text.slice(1) : text
   const firstLine = clean.split(/\r?\n/)[0] ?? ''
   const delimiter = firstLine.includes(';') ? ';' : ','
-  const headers = parseCSVLine(firstLine, delimiter).map(h => h.trim().toLowerCase())
+  const rawHeaders = parseCSVLine(firstLine, delimiter).map(h => h.trim())
+  const normalizedHeaders = rawHeaders.map(h => h.toLowerCase())
 
-  if (headers.some(h => h === 'bandcamp transaction id')) {
-    return { source: 'bandcamp', headers }
+  // ── Phase 1: Profile-based matching ──────────────────────────────────────
+  if (profiles.length > 0) {
+    const matched = matchProfile(rawHeaders, profiles)
+    if (matched) {
+      if (matched.type === 'master-data') {
+        return { source: 'artist', headers: rawHeaders, matchedProfile: matched }
+      }
+      if (matched.id === SYSTEM_SHOPIFY_PROFILE_ID) {
+        return { source: 'shopify', headers: rawHeaders, matchedProfile: matched }
+      }
+      if (matched.id === SYSTEM_BANDCAMP_PROFILE_ID) {
+        return { source: 'bandcamp', headers: rawHeaders, matchedProfile: matched }
+      }
+      // Any other financial profile routes to the generic believe parser
+      return { source: 'profile-financial', headers: rawHeaders, matchedProfile: matched }
+    }
   }
-  if (headers.some(h => h === 'sales month') && headers.some(h => h === 'isrc')) {
-    return { source: 'believe', headers }
+
+  // ── Phase 2: Legacy hardcoded heuristics ─────────────────────────────────
+  if (normalizedHeaders.some(h => h === 'bandcamp transaction id')) {
+    return { source: 'bandcamp', headers: normalizedHeaders }
+  }
+  if (normalizedHeaders.some(h => h === 'sales month') && normalizedHeaders.some(h => h === 'isrc')) {
+    return { source: 'believe', headers: normalizedHeaders }
   }
   // Artist roster CSV: first column is "name" and at least one known artist field is present.
-  // This type-guard prevents accidental misrouting of revenue CSVs whose first column might
-  // also be labelled "name" — the additional field check makes the match specific enough.
-  // Note: all headers are already lowercased at this point, so companion fields must also
-  // be lowercase (e.g. 'vatnumber' matches the CSV column 'vatNumber' after toLowerCase).
   const ARTIST_CSV_COMPANION_FIELDS = new Set(['email', 'vatnumber', 'iseunongerman', 'notes'])
-  if (headers[0] === 'name' && headers.some(h => ARTIST_CSV_COMPANION_FIELDS.has(h))) {
-    return { source: 'artist', headers }
+  if (normalizedHeaders[0] === 'name' && normalizedHeaders.some(h => ARTIST_CSV_COMPANION_FIELDS.has(h))) {
+    return { source: 'artist', headers: rawHeaders }
   }
-  return { source: 'unknown', headers: parseCSVLine(firstLine, delimiter).map(h => h.trim()) }
+  return { source: 'unknown', headers: rawHeaders }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -192,7 +228,155 @@ function SourceBadge({ source }: { source: 'believe' | 'bandcamp' }) {
   )
 }
 
-// ── Unknown CSV mapping dialog ────────────────────────────────────────────────
+// ── Unknown CSV: profile selection dialog ──────────────────────────────────────
+
+interface ProfileSelectionDialogProps {
+  open: boolean
+  fileName: string
+  headers: string[]
+  profiles: CsvImportProfile[]
+  onSelectProfile: (profile: CsvImportProfile) => void
+  onFallbackMapping: (mapping: { artist: string; revenue: string; date: string }) => void
+  onCancel: () => void
+}
+
+function ProfileSelectionDialog({
+  open,
+  fileName,
+  headers,
+  profiles,
+  onSelectProfile,
+  onFallbackMapping,
+  onCancel,
+}: ProfileSelectionDialogProps) {
+  const [selectedProfileId, setSelectedProfileId] = useState('')
+  const [artist, setArtist] = useState('')
+  const [revenue, setRevenue] = useState('')
+  const [date, setDate] = useState('')
+  const [mode, setMode] = useState<'profile' | 'manual'>('profile')
+
+  const financialProfiles = profiles.filter(p => p.type === 'financial')
+  const canConfirmProfile = selectedProfileId !== ''
+  const canConfirmManual = artist && revenue && date
+
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel() }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Info size={20} className="text-amber-400" />
+            Unknown CSV Format
+          </DialogTitle>
+          <DialogDescription>
+            <strong className="text-foreground">{fileName}</strong> doesn&apos;t match a known format.
+            Select a profile or map columns manually.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex gap-2 mb-3">
+          <Button
+            size="sm"
+            variant={mode === 'profile' ? 'default' : 'outline'}
+            onClick={() => setMode('profile')}
+            className="flex-1 text-xs"
+          >
+            Select Profile
+          </Button>
+          <Button
+            size="sm"
+            variant={mode === 'manual' ? 'default' : 'outline'}
+            onClick={() => setMode('manual')}
+            className="flex-1 text-xs"
+          >
+            Map Manually
+          </Button>
+        </div>
+
+        {mode === 'profile' && (
+          <div className="space-y-3 py-2">
+            <Label className="text-xs font-medium">CSV Import Profile</Label>
+            <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a profile…" />
+              </SelectTrigger>
+              <SelectContent>
+                {financialProfiles.map(p => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                    {p.isSystemDefault && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">(System)</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The profile&apos;s column mapping will be applied. Add profiles in Settings → CSV-Profile.
+            </p>
+          </div>
+        )}
+
+        {mode === 'manual' && (
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Artist / Künstler column</Label>
+              <Select value={artist} onValueChange={setArtist}>
+                <SelectTrigger><SelectValue placeholder="Select column…" /></SelectTrigger>
+                <SelectContent>
+                  {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Revenue / Umsatz column</Label>
+              <Select value={revenue} onValueChange={setRevenue}>
+                <SelectTrigger><SelectValue placeholder="Select column…" /></SelectTrigger>
+                <SelectContent>
+                  {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Date / Datum column</Label>
+              <Select value={date} onValueChange={setDate}>
+                <SelectTrigger><SelectValue placeholder="Select column…" /></SelectTrigger>
+                <SelectContent>
+                  {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onCancel} size="sm">Cancel</Button>
+          {mode === 'profile' ? (
+            <Button
+              onClick={() => {
+                const profile = financialProfiles.find(p => p.id === selectedProfileId)
+                if (profile) onSelectProfile(profile)
+              }}
+              disabled={!canConfirmProfile}
+              size="sm"
+            >
+              Import with Profile
+            </Button>
+          ) : (
+            <Button
+              onClick={() => canConfirmManual && onFallbackMapping({ artist, revenue, date })}
+              disabled={!canConfirmManual}
+              size="sm"
+            >
+              Import File
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Legacy Unknown CSV mapping dialog (kept for non-profile fallback) ──────────
 
 interface MappingDialogProps {
   open: boolean
@@ -387,6 +571,7 @@ export function UniversalFileUploadZone({
   bandcampManager,
   onAddAliases,
   onImportLabelArtistsCSV,
+  csvProfiles = [],
 }: UniversalFileUploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [sizeWarning, setSizeWarning] = useState<string | null>(null)
@@ -395,6 +580,7 @@ export function UniversalFileUploadZone({
   // Pending file awaiting format mapping from the user
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [pendingHeaders, setPendingHeaders] = useState<string[]>([])
+  const [pendingHasProfiles, setPendingHasProfiles] = useState(false)
 
   // Per-file replace input refs (keyed by file id)
   const replaceRefs = useRef<Map<string, HTMLInputElement>>(new Map())
@@ -413,14 +599,25 @@ export function UniversalFileUploadZone({
   // ── File routing ──────────────────────────────────────────────────────────
 
   const routeFile = useCallback(async (file: File) => {
-    const { source, headers } = await detectCSVSource(file)
+    const { source, headers, matchedProfile } = await detectCSVSource(file, csvProfiles)
 
     if (source === 'believe') {
       toast.info(`"${file.name}" detected as Believe CSV`, { duration: 3000 })
       believeManager.addFiles([file])
     } else if (source === 'bandcamp') {
-      toast.info(`"${file.name}" detected as Bandcamp CSV`, { duration: 3000 })
+      const label = matchedProfile ? `"${matchedProfile.name}" profile` : 'Bandcamp CSV'
+      toast.info(`"${file.name}" detected as ${label}`, { duration: 3000 })
       bandcampManager.addFiles([file])
+    } else if (source === 'profile-financial') {
+      // Generic financial profile — route to believe manager (streaming parser)
+      const label = matchedProfile?.name ?? 'custom profile'
+      toast.info(`"${file.name}" matched profile "${label}"`, { duration: 3000 })
+      believeManager.addFiles([file])
+    } else if (source === 'shopify') {
+      // The Shopify upload zone handles Shopify files; inform the user.
+      toast.info(`"${file.name}" looks like a Shopify export — please use the Shopify upload zone below.`, {
+        duration: 6000,
+      })
     } else if (source === 'artist') {
       if (!onImportLabelArtistsCSV) {
         toast.error(`"${file.name}" looks like an artist roster CSV but no handler is configured.`)
@@ -428,25 +625,30 @@ export function UniversalFileUploadZone({
       }
       try {
         const text = await file.text()
-        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-        // Skip header row (first line starts with 'name')
-        const dataLines = lines[0]?.toLowerCase().startsWith('name') ? lines.slice(1) : lines
-        const parsed: Omit<LabelArtist, 'id'>[] = dataLines.flatMap(l => {
-          // Delegate to the shared parseCSVLine helper (handles quoted fields,
-          // escaped double-quotes, and semicolon delimiters) to avoid divergent
-          // edge-case behaviour from an inline regex reimplementation.
-          const delimiter = l.includes(';') ? ';' : ','
-          const cols = parseCSVLine(l, delimiter)
-          const name = cols[0]?.trim()
-          if (!name) return []
-          return [{
-            name,
-            email: cols[1]?.trim() || undefined,
-            vatNumber: cols[2]?.trim() || undefined,
-            isEuNonGerman: cols[3]?.trim() === 'true',
-            notes: cols[4]?.trim() || undefined,
-          }]
-        })
+        let parsed: Omit<LabelArtist, 'id'>[]
+
+        if (matchedProfile && matchedProfile.type === 'master-data') {
+          // Profile-driven master-data parsing
+          parsed = parseMasterDataCSV(text, matchedProfile)
+        } else {
+          // Legacy column-index based parsing
+          const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+          const dataLines = lines[0]?.toLowerCase().startsWith('name') ? lines.slice(1) : lines
+          parsed = dataLines.flatMap(l => {
+            const delimiter = l.includes(';') ? ';' : ','
+            const cols = parseCSVLine(l, delimiter)
+            const name = cols[0]?.trim()
+            if (!name) return []
+            return [{
+              name,
+              email: cols[1]?.trim() || undefined,
+              vatNumber: cols[2]?.trim() || undefined,
+              isEuNonGerman: cols[3]?.trim() === 'true',
+              notes: cols[4]?.trim() || undefined,
+            }]
+          })
+        }
+
         if (parsed.length === 0) {
           toast.error(`"${file.name}": no artist names found in CSV`)
           return
@@ -457,11 +659,12 @@ export function UniversalFileUploadZone({
         toast.error(`Failed to parse artist CSV "${file.name}"`)
       }
     } else {
-      // Unknown format: open mapping dialog
+      // Unknown format: open profile selection / mapping dialog
       setPendingFile(file)
       setPendingHeaders(headers)
+      setPendingHasProfiles(csvProfiles.filter(p => p.type === 'financial').length > 0)
     }
-  }, [believeManager, bandcampManager, onImportLabelArtistsCSV])
+  }, [believeManager, bandcampManager, onImportLabelArtistsCSV, csvProfiles])
 
   const processFiles = useCallback(async (rawFiles: File[]) => {
     const csvFiles = rawFiles.filter(f => f.name.toLowerCase().endsWith('.csv'))
@@ -515,6 +718,23 @@ export function UniversalFileUploadZone({
   )
 
   // ── Unknown CSV mapping dialog ─────────────────────────────────────────────
+
+  const handleProfileSelected = useCallback(
+    (profile: CsvImportProfile) => {
+      if (!pendingFile) return
+      // Route based on matched profile (same logic as routeFile)
+      const label = profile.name
+      if (profile.id === SYSTEM_BANDCAMP_PROFILE_ID) {
+        bandcampManager.addFiles([pendingFile])
+      } else {
+        believeManager.addFiles([pendingFile])
+      }
+      toast.success(`"${pendingFile.name}" imported with profile "${label}"`)
+      setPendingFile(null)
+      setPendingHeaders([])
+    },
+    [pendingFile, believeManager, bandcampManager]
+  )
 
   const handleMappingConfirm = useCallback(
     (mapping: { artist: string; revenue: string; date: string }) => {
@@ -665,8 +885,19 @@ export function UniversalFileUploadZone({
         )}
       </AnimatePresence>
 
-      {/* Unknown CSV mapping dialog */}
-      {pendingFile && (
+      {/* Unknown CSV dialog — profile selection or manual mapping */}
+      {pendingFile && pendingHasProfiles && (
+        <ProfileSelectionDialog
+          open={true}
+          fileName={pendingFile.name}
+          headers={pendingHeaders}
+          profiles={csvProfiles}
+          onSelectProfile={handleProfileSelected}
+          onFallbackMapping={handleMappingConfirm}
+          onCancel={handleMappingCancel}
+        />
+      )}
+      {pendingFile && !pendingHasProfiles && (
         <UnknownCSVMappingDialog
           open={true}
           headers={pendingHeaders}

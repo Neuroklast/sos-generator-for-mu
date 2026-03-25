@@ -16,6 +16,7 @@ import type {
   CSVColumnAlias,
   LabelArtist,
 } from '@/lib/types'
+import type { CsvImportProfile } from '@/features/ingest/types'
 
 interface IngestViewProps {
   detectedPeriodStart: string
@@ -41,6 +42,8 @@ interface IngestViewProps {
   handleRemoveExpense: (id: string) => void
   /** Imports artist master data when an artist CSV is dropped into the upload zone. */
   onImportLabelArtistsCSV: (artists: Omit<LabelArtist, 'id'>[]) => void
+  /** Active CSV import profiles used for auto-detection in the upload zone. */
+  csvImportProfiles?: CsvImportProfile[]
 }
 
 export function IngestView({
@@ -66,6 +69,7 @@ export function IngestView({
   handleAddExpense,
   handleRemoveExpense,
   onImportLabelArtistsCSV,
+  csvImportProfiles = [],
 }: IngestViewProps) {
   return (
     <div className="space-y-8">
@@ -104,6 +108,7 @@ export function IngestView({
             bandcampManager={bandcampManager}
             onAddAliases={aliases => aliases.forEach(handleAddAlias)}
             onImportLabelArtistsCSV={onImportLabelArtistsCSV}
+            csvProfiles={csvImportProfiles}
           />
         </Card>
 

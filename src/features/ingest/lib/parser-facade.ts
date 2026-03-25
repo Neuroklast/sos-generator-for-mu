@@ -2,23 +2,48 @@
  * parser-facade.ts
  *
  * Unified entry point for all CSV parsing in the ingest feature.
- * Auto-detects file type (Believe CSV, Bandcamp CSV, Shopify CSV) and
- * delegates to the appropriate parser implementation.
+ *
+ * The facade implements a two-phase strategy:
+ *  1. Profile-based detection — scans the CSV header against every
+ *     CsvImportProfile supplied by the caller and selects the best match.
+ *  2. Legacy fallback — if no profile matches, the original column-scoring
+ *     heuristic is applied so existing files keep working without any profile
+ *     configuration.
+ *
+ * After detection, routing is determined by the matched profile's `type`:
+ *  - 'financial'   → SalesTransaction[] (revenue / transaction store)
+ *  - 'master-data' → LabelArtist[]      (artist roster store)
  */
 import type { SalesTransaction } from './csv-parser'
+import { parseCSVLine } from './csv-parser'
 import { parseCSVContentStreaming } from './streaming-csv-parser'
 import type { StreamingParseResult } from './streaming-csv-parser'
 import { parseShopifyCSV } from './shopify-parser'
 import type { ShopifyParseResult } from './shopify-parser'
+import type { CsvImportProfile, FinancialFieldKey } from '@/features/ingest/types'
+import {
+  FINANCIAL_KEY_TO_INTERNAL,
+  SYSTEM_BANDCAMP_PROFILE_ID,
+  SYSTEM_SHOPIFY_PROFILE_ID,
+} from './default-profiles'
+import type { LabelArtist } from '@/lib/types'
 
 export type FileType = 'believe' | 'bandcamp' | 'shopify' | 'unknown'
 
 export interface ParseFileResult {
   fileType: FileType
+  /** ID of the matched CsvImportProfile, if any. */
+  profileId?: string
+  /** Type of the matched profile, drives downstream routing. */
+  profileType?: 'financial' | 'master-data'
   transactions: SalesTransaction[]
+  /** Populated when profileType === 'master-data'. */
+  labelArtists?: Array<Omit<LabelArtist, 'id'>>
   errors: Array<{ row: number; reason: string; data: string }>
   uniqueArtists: string[]
 }
+
+// ── Header normalisation helpers ──────────────────────────────────────────────
 
 /** Strips quotes and whitespace from a CSV header token for comparison. */
 function normalizeHeader(h: string): string {
@@ -27,10 +52,10 @@ function normalizeHeader(h: string): string {
 
 /**
  * Parses the header line into individual column tokens.
- * Handles comma- and tab-delimited headers.
+ * Handles comma-, semicolon-, and tab-delimited headers.
  */
 function splitHeader(headerLine: string): string[] {
-  const delimiter = headerLine.includes('\t') ? '\t' : ','
+  const delimiter = headerLine.includes('\t') ? '\t' : headerLine.includes(';') ? ';' : ','
   return headerLine.split(delimiter).map(normalizeHeader)
 }
 
@@ -39,27 +64,150 @@ function countMatches(headers: string[], candidates: string[]): number {
   return candidates.filter(c => headers.includes(c)).length
 }
 
+// ── Profile matching ──────────────────────────────────────────────────────────
+
+/**
+ * Finds the best-matching CsvImportProfile for the given CSV header tokens.
+ *
+ * Scoring: the profile whose `autoDetectHeaders` achieves the highest ratio
+ * of matched vs. required columns wins. A minimum of 2 matches (or all
+ * required columns, whichever is smaller) is required to prevent false
+ * positives on very short autoDetectHeaders lists.
+ *
+ * @param headers - Raw (un-normalised) CSV header column names.
+ * @param profiles - Candidate profiles to test against.
+ * @returns The best-matching profile, or `null` if no profile matches.
+ */
+export function matchProfile(
+  headers: string[],
+  profiles: CsvImportProfile[]
+): CsvImportProfile | null {
+  const normalized = headers.map(h => h.toLowerCase().trim())
+
+  let bestProfile: CsvImportProfile | null = null
+  let bestScore = 0
+
+  for (const profile of profiles) {
+    const required = profile.autoDetectHeaders.map(h => h.toLowerCase().trim())
+    if (required.length === 0) continue
+
+    const matches = required.filter(h => normalized.includes(h)).length
+    const minRequired = Math.min(2, required.length)
+
+    if (matches < minRequired) continue
+
+    const score = matches / required.length
+    if (score > bestScore) {
+      bestScore = score
+      bestProfile = profile
+    }
+  }
+
+  return bestProfile
+}
+
+// ── Column mapping helpers ────────────────────────────────────────────────────
+
+/**
+ * Converts a profile's `columnMapping` into the inverted format expected by
+ * the streaming CSV parser: `{ csvColumnName → internalFieldName }`.
+ *
+ * Only financial field keys are translated; master-data keys are ignored here.
+ *
+ * @param profile - A CsvImportProfile with a financial columnMapping.
+ * @returns Inverted mapping suitable for `parseCSVContentStreaming`'s
+ *   `columnMapping` parameter.
+ */
+export function buildStreamingColumnMapping(
+  profile: CsvImportProfile
+): Record<string, string> {
+  const result: Record<string, string> = {}
+
+  for (const [profileKey, csvColumn] of Object.entries(profile.columnMapping)) {
+    if (!csvColumn) continue
+    const internalKey = FINANCIAL_KEY_TO_INTERNAL[profileKey as FinancialFieldKey]
+    if (internalKey) {
+      result[csvColumn] = internalKey
+    }
+  }
+
+  return result
+}
+
+// ── Master-data CSV parser ────────────────────────────────────────────────────
+
+/**
+ * Parses a master-data CSV (artist roster) guided by a CsvImportProfile.
+ *
+ * The function reads the header row to find column indices for each
+ * MasterDataFieldKey, then maps every subsequent row to a partial
+ * LabelArtist object. Rows with an empty name column are silently skipped.
+ *
+ * @param content - Raw CSV file content as a string.
+ * @param profile - A master-data profile providing the column mapping.
+ * @returns Array of partial LabelArtist objects ready for roster import.
+ */
+export function parseMasterDataCSV(
+  content: string,
+  profile: CsvImportProfile
+): Array<Omit<LabelArtist, 'id'>> {
+  const lines = content
+    .replace(/^\uFEFF/, '')   // strip BOM
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+
+  const firstNonEmpty = lines.findIndex(l => l.trim().length > 0)
+  if (firstNonEmpty === -1) return []
+
+  const delimiter = profile.delimiter
+  const headerLine = lines[firstNonEmpty]
+  const headers = parseCSVLine(headerLine, delimiter).map(h => h.trim().toLowerCase())
+
+  // Build a lookup: master-data field → column index
+  const { columnMapping } = profile
+  const nameIdx        = headers.indexOf((columnMapping.name ?? 'name').toLowerCase())
+  const emailIdx       = headers.indexOf((columnMapping.email ?? 'email').toLowerCase())
+  const vatIdx         = headers.indexOf((columnMapping.vatNumber ?? 'vatnumber').toLowerCase())
+  const euIdx          = headers.indexOf((columnMapping.isEuNonGerman ?? 'iseunongerman').toLowerCase())
+  const notesIdx       = headers.indexOf((columnMapping.notes ?? 'notes').toLowerCase())
+
+  const dataLines = lines.slice(firstNonEmpty + 1)
+  const result: Array<Omit<LabelArtist, 'id'>> = []
+
+  for (const line of dataLines) {
+    if (!line.trim()) continue
+    const cols = parseCSVLine(line, delimiter)
+    const name = nameIdx >= 0 ? (cols[nameIdx] ?? '').trim() : ''
+    if (!name) continue
+
+    result.push({
+      name,
+      email:         emailIdx >= 0 ? (cols[emailIdx] ?? '').trim() || undefined : undefined,
+      vatNumber:     vatIdx >= 0   ? (cols[vatIdx] ?? '').trim() || undefined   : undefined,
+      isEuNonGerman: euIdx >= 0    ? (cols[euIdx] ?? '').trim().toLowerCase() === 'true' : undefined,
+      notes:         notesIdx >= 0 ? (cols[notesIdx] ?? '').trim() || undefined : undefined,
+    })
+  }
+
+  return result
+}
+
+// ── Legacy detection (fallback) ───────────────────────────────────────────────
+
 const SHOPIFY_COLUMNS = ['financial status', 'lineitem name', 'lineitem sku', 'lineitem quantity', 'lineitem price']
 const BELIEVE_COLUMNS = ['release_title', 'barcode', 'upc', 'isrc', 'net_revenue']
 const BANDCAMP_COLUMNS = ['item type', 'catalog number', 'artist', 'album title', 'net amount']
 
 /**
- * Detects the file type from the CSV header line using a column-scoring approach.
+ * Legacy file-type detector using a fixed column-scoring heuristic.
  *
- * Each supported format (Shopify, Believe, Bandcamp) has a set of characteristic
- * column names. The function counts how many of those columns appear in the header
- * and assigns a score. The format with the highest non-zero score wins.
+ * This function is kept as a fallback when no CsvImportProfile is available
+ * (e.g. the user has not configured any profiles, or profile matching returns
+ * no result). It reproduces the original scoring logic exactly so existing
+ * workspaces continue working without any migration.
  *
- * **Edge cases:**
- * - If all scores are zero (no recognisable columns found), `'unknown'` is returned.
- *   The caller should handle `'unknown'` gracefully, e.g. by falling back to a default
- *   parser or surfacing a user-facing error.
- * - If two formats receive equal scores, the first one encountered in the `scores`
- *   object wins (Shopify → Believe → Bandcamp). This precedence is intentional
- *   because Shopify columns are the most distinctive and unlikely to conflict.
- * - The scoring deliberately ignores column order; only presence matters.
- *
- * @param headerLine - The raw first line of the CSV file (comma- or tab-delimited).
+ * @param headerLine - The raw first line of the CSV file.
  * @returns The detected {@link FileType}: `'believe'`, `'bandcamp'`, `'shopify'`, or `'unknown'`.
  */
 export function detectFileType(headerLine: string): FileType {
@@ -81,19 +229,93 @@ export function detectFileType(headerLine: string): FileType {
   return best !== null ? best[0] : 'unknown'
 }
 
+// ── Main parse entry point ────────────────────────────────────────────────────
+
 /**
- * Parses a CSV file and auto-detects its type.
- * Delegates to the appropriate parser based on header detection.
- * Shopify exports do not contain artist data; uniqueArtists is empty for those files.
- * @param content - The raw CSV file content as string.
- * @param source - Optional override for file source ('believe' | 'bandcamp' | 'shopify').
- * @returns A ParseFileResult with transactions and metadata.
+ * Parses a raw CSV string, routing it through the correct parser based on
+ * profile matching (preferred) or legacy heuristic detection (fallback).
+ *
+ * **Routing rules:**
+ * 1. If `profiles` is non-empty, attempt profile matching on the header row.
+ *    - Profile type 'master-data' → parse with {@link parseMasterDataCSV};
+ *      result carries `labelArtists`, not `transactions`.
+ *    - Profile type 'financial', Shopify profile → {@link parseShopifyCSV}.
+ *    - Profile type 'financial', Bandcamp profile → streaming parser, source = 'bandcamp'.
+ *    - Profile type 'financial', any other → streaming parser, source = 'believe'.
+ * 2. If no profile matches, fall back to {@link detectFileType} + existing parsers.
+ *
+ * @param content  - Raw CSV file content as a string.
+ * @param profiles - Known CsvImportProfiles to match against (may be empty).
+ * @param source   - Optional explicit source override; bypasses detection.
+ * @returns A {@link ParseFileResult} with transactions or labelArtists depending on type.
  */
 export async function parseFile(
   content: string,
+  profiles: CsvImportProfile[] = [],
   source?: 'believe' | 'bandcamp' | 'shopify'
 ): Promise<ParseFileResult> {
   const firstLine = content.split('\n')[0] ?? ''
+  const rawHeaders = firstLine
+    .replace(/^\uFEFF/, '')
+    .split(firstLine.includes(';') ? ';' : firstLine.includes('\t') ? '\t' : ',')
+    .map(h => h.replace(/['"]/g, '').trim())
+
+  // ── Phase 1: Profile-based detection ───────────────────────────────────────
+  if (profiles.length > 0 && !source) {
+    const matched = matchProfile(rawHeaders, profiles)
+
+    if (matched) {
+      // ── master-data branch ────────────────────────────────────────────────
+      if (matched.type === 'master-data') {
+        const labelArtists = parseMasterDataCSV(content, matched)
+        return {
+          fileType: 'unknown',
+          profileId: matched.id,
+          profileType: 'master-data',
+          transactions: [],
+          labelArtists,
+          errors: [],
+          uniqueArtists: [],
+        }
+      }
+
+      // ── financial branch ──────────────────────────────────────────────────
+      if (matched.id === SYSTEM_SHOPIFY_PROFILE_ID) {
+        const shopifyResult: ShopifyParseResult = parseShopifyCSV(content)
+        return {
+          fileType: 'shopify',
+          profileId: matched.id,
+          profileType: 'financial',
+          transactions: shopifyResult.transactions,
+          errors: shopifyResult.errors,
+          uniqueArtists: [],
+        }
+      }
+
+      // Bandcamp profile needs source = 'bandcamp' to preserve EUR balance logic.
+      const parserSource: 'believe' | 'bandcamp' =
+        matched.id === SYSTEM_BANDCAMP_PROFILE_ID ? 'bandcamp' : 'believe'
+
+      const columnMapping = buildStreamingColumnMapping(matched)
+      const streamingResult: StreamingParseResult = await parseCSVContentStreaming(
+        content,
+        parserSource,
+        undefined,
+        columnMapping
+      )
+
+      return {
+        fileType: parserSource,
+        profileId: matched.id,
+        profileType: 'financial',
+        transactions: streamingResult.transactions,
+        errors: streamingResult.errors,
+        uniqueArtists: streamingResult.uniqueArtists,
+      }
+    }
+  }
+
+  // ── Phase 2: Legacy fallback ─────────────────────────────────────────────
   const detectedType: FileType = source ?? detectFileType(firstLine)
 
   if (detectedType === 'shopify') {

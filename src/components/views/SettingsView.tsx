@@ -11,6 +11,7 @@ import { CSVColumnMapper } from '@/features/ingest/components/CSVColumnMapper'
 import { DefaultSettings } from '@/features/core/components/DefaultSettings'
 import { EmailSettings } from '@/features/core/components/EmailSettings'
 import { PdfExportSettingsPanel } from '@/features/export/components/PdfExportSettingsPanel'
+import { CsvProfileManager } from '@/features/core/components/CsvProfileManager'
 import type {
   CompilationFilter,
   LabelArtist,
@@ -24,6 +25,7 @@ import type {
   PdfExportSettings,
   EmailConfig,
 } from '@/lib/types'
+import type { CsvImportProfile } from '@/features/ingest/types'
 
 interface SettingsViewProps {
   // ── Workspace backup ─────────────────────────────────────────────────────
@@ -66,6 +68,12 @@ interface SettingsViewProps {
   setEmailConfig: (config: EmailConfig) => void
   pdfExportSettings: PdfExportSettings
   setPdfExportSettings: (settings: PdfExportSettings) => void
+
+  // ── CSV Import Profiles ──────────────────────────────────────────────────
+  csvImportProfiles: CsvImportProfile[]
+  onAddCsvProfile: (profile: Omit<CsvImportProfile, 'id'>) => void
+  onUpdateCsvProfile: (id: string, patch: Omit<CsvImportProfile, 'id' | 'isSystemDefault'>) => void
+  onDeleteCsvProfile: (id: string) => void
 }
 
 export function SettingsView({
@@ -100,13 +108,18 @@ export function SettingsView({
   setEmailConfig,
   pdfExportSettings,
   setPdfExportSettings,
+  csvImportProfiles,
+  onAddCsvProfile,
+  onUpdateCsvProfile,
+  onDeleteCsvProfile,
 }: SettingsViewProps) {
   return (
     <Tabs defaultValue="app-system" className="flex flex-col h-full">
-      <TabsList className="grid grid-cols-3 w-full max-w-lg shrink-0 mb-6">
+      <TabsList className="grid grid-cols-4 w-full max-w-xl shrink-0 mb-6">
         <TabsTrigger value="app-system">App-System</TabsTrigger>
         <TabsTrigger value="label-profil">Label-Profil</TabsTrigger>
         <TabsTrigger value="export-regeln">Export &amp; Regeln</TabsTrigger>
+        <TabsTrigger value="csv-profile">CSV-Profile</TabsTrigger>
       </TabsList>
 
       {/* ── App-System Tab ── */}
@@ -244,6 +257,22 @@ export function SettingsView({
               onCheckedChange={checked => setExcludePhysical(checked)}
             />
           </div>
+        </Card>
+      </TabsContent>
+
+      {/* ── CSV-Profile Tab ── */}
+      <TabsContent
+        value="csv-profile"
+        className="flex-1 overflow-y-auto space-y-8 pr-1"
+        style={{ maxHeight: 'calc(100vh - 12rem)' }}
+      >
+        <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+          <CsvProfileManager
+            profiles={csvImportProfiles}
+            onAdd={onAddCsvProfile}
+            onUpdate={onUpdateCsvProfile}
+            onDelete={onDeleteCsvProfile}
+          />
         </Card>
       </TabsContent>
     </Tabs>
