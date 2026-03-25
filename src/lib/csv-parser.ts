@@ -227,8 +227,10 @@ export function parseCSVContent(
         country: mappedData.country || '',
         main_artist: originalArtist,
         original_artist: originalArtist,
-        release_title: mappedData.release_title || '',
-        track_title: mappedData.track_title || '',
+        // Bandcamp only provides "item name" → release_title, leaving track_title empty.
+        // Apply mutual fallback so both fields carry a usable title regardless of source format.
+        release_title: mappedData.release_title || mappedData.track_title || '',
+        track_title: mappedData.track_title || mappedData.release_title || '',
         upc_ean: mappedData.upc_ean || '',
         isrc: mappedData.isrc || '',
         catalog_number: mappedData.catalog_number || '',
