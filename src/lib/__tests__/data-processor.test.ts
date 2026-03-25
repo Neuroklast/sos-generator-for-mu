@@ -205,6 +205,96 @@ describe('processTransactions', () => {
   })
 })
 
+// ── Per-type distribution fee ─────────────────────────────────────────────────
+
+describe('per-type distribution fee', () => {
+  it('applies a global distribution fee to both digital and physical revenue', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 50, is_physical: true }),
+    ]
+    // 10 % global fee → €10 from digital + €5 from physical = €15 total fee
+    const result = processTransactions(txs, { ...emptyConfig, distributionFeePercentage: 10 })
+    expect(result[0].distributionFeeDeducted).toBeCloseTo(15)
+    // 90 digital + 45 physical = 135 recoupable; 100% split → payout = 135
+    expect(result[0].finalPayout).toBeCloseTo(135)
+  })
+
+  it('applies per-type digital fee override independently of physical', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: true }),
+    ]
+    // Digital fee = 20 %, physical fee = 5 %
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      distributionFeePercentage: 10,
+      distributionFeeDigital: 20,
+      distributionFeePhysical: 5,
+    })
+    // Digital: 100 × 20% = 20 deducted → 80 net
+    // Physical: 100 × 5% = 5 deducted → 95 net
+    expect(result[0].distributionFeeDeducted).toBeCloseTo(25)
+    expect(result[0].finalPayout).toBeCloseTo(175) // 80 + 95 at 100% split
+  })
+
+  it('falls back to global fee when per-type override is not set', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 50, is_physical: true }),
+    ]
+    // Only digital override set; physical falls back to global 10%
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      distributionFeePercentage: 10,
+      distributionFeeDigital: 0,
+    })
+    // Digital: 0% fee → 100 net; Physical: 10% → 5 deducted → 45 net
+    expect(result[0].distributionFeeDeducted).toBeCloseTo(5)
+    expect(result[0].finalPayout).toBeCloseTo(145)
+  })
+})
+
+// ── Per-type artist splits ────────────────────────────────────────────────────
+
+describe('per-type artist splits', () => {
+  it('applies different split percentages to digital and physical revenue', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: true }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 50,
+      digitalPercentage: 80,
+      physicalPercentage: 40,
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // Digital: €100 × 80% = €80; Physical: €100 × 40% = €40; total = €120
+    expect(result[0].finalPayout).toBeCloseTo(120)
+  })
+
+  it('falls back to base split when type-specific overrides are not set', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: true }),
+    ]
+    const splitFees: SplitFee[] = [{ artist: 'Omnimar', percentage: 60 }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // Both at 60%: 100×60 + 100×60 = 120
+    expect(result[0].finalPayout).toBeCloseTo(120)
+  })
+
+  it('type-specific split overrides do not affect manual revenue pass-through', () => {
+    const txs = [makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false })]
+    const splitFees: SplitFee[] = [{ artist: 'Omnimar', percentage: 100, digitalPercentage: 50 }]
+    const manualRevenues: ManualRevenue[] = [{ id: '1', artist: 'Omnimar', description: 'Sync', amount: 200 }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees, manualRevenues })
+    // Digital: €100 × 50% = €50; Manual: €200 pass-through; total = €250
+    expect(result[0].finalPayout).toBeCloseTo(250)
+  })
+})
+
 // ── processTransactionsWithCompilations ───────────────────────────────────────
 
 describe('processTransactionsWithCompilations', () => {

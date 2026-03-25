@@ -204,6 +204,8 @@ function App() {
       labelArtists: stableLabelArtists,
       ignoredEntries: stableIgnoredEntries,
       distributionFeePercentage: appDefaults?.distributionFeePercentage ?? 0,
+      distributionFeeDigital: appDefaults?.distributionFeeDigital,
+      distributionFeePhysical: appDefaults?.distributionFeePhysical,
     },
     shopifyManager.files,
     printfulManager.files
@@ -328,6 +330,21 @@ function App() {
         return [...updated, ...newEntries]
       })
       pushUndo({ description: `Bulk edit split fees (${artists.length} artists)`, undo: () => setSplitFees(snapshot) })
+    },
+    [splitFees, setSplitFees, pushUndo]
+  )
+  const handleUpdateSplitFeeTypeOverride = useCallback(
+    (artist: string, digitalPercentage: number | undefined, physicalPercentage: number | undefined) => {
+      const snapshot = splitFees ?? []
+      setSplitFees(current => {
+        const fees = current ?? []
+        return fees.map(sf =>
+          sf.artist === artist
+            ? { ...sf, digitalPercentage, physicalPercentage }
+            : sf
+        )
+      })
+      pushUndo({ description: `Edit type split for ${artist}`, undo: () => setSplitFees(snapshot) })
     },
     [splitFees, setSplitFees, pushUndo]
   )
@@ -917,6 +934,7 @@ function App() {
                   splitFees={stableSplitFees}
                   onUpdateSplitFee={handleUpdateSplitFee}
                   onBulkUpdateSplitFee={handleBulkUpdateSplitFee}
+                  onUpdateSplitFeeTypeOverride={handleUpdateSplitFeeTypeOverride}
                 />
               )}
 

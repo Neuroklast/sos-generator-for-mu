@@ -18,6 +18,11 @@ function SectionHeading({ icon: Icon, title }: { icon: PhosphorIcon; title: stri
   )
 }
 
+/** Clamps a percentage value to the valid 0–100 range. */
+function clampPct(value: number): number {
+  return Math.min(100, Math.max(0, value))
+}
+
 export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
   const patch = (partial: Partial<AppDefaults>) => onUpdate({ ...defaults, ...partial })
 
@@ -45,7 +50,7 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
               value={defaults.defaultSplitPercentage}
               onChange={e => {
                 const val = parseFloat(e.target.value)
-                if (!Number.isNaN(val)) patch({ defaultSplitPercentage: Math.min(100, Math.max(0, val)) })
+                if (!Number.isNaN(val)) patch({ defaultSplitPercentage: clampPct(val) })
               }}
               placeholder="z.B. 50"
               className="max-w-xs"
@@ -61,7 +66,7 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
           <SectionHeading icon={Percent} title="Label Vertriebsprovision" />
 
           <div className="space-y-2">
-            <Label htmlFor="distribution-fee">Vertriebsprovision (%)</Label>
+            <Label htmlFor="distribution-fee">Globale Vertriebsprovision (%)</Label>
             <Input
               id="distribution-fee"
               type="number"
@@ -71,7 +76,7 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
               value={defaults.distributionFeePercentage ?? 0}
               onChange={e => {
                 const val = parseFloat(e.target.value)
-                if (!Number.isNaN(val)) patch({ distributionFeePercentage: Math.min(100, Math.max(0, val)) })
+                if (!Number.isNaN(val)) patch({ distributionFeePercentage: clampPct(val) })
               }}
               placeholder="z.B. 15"
               className="max-w-xs"
@@ -81,6 +86,62 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
               Label-Vertriebsprovision einbehalten, bevor die individuelle Split-Rate angewendet wird.
               Bei 0 % wird keine Provision abgezogen.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="distribution-fee-digital">Digital-Provision (%) – optional</Label>
+              <Input
+                id="distribution-fee-digital"
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={defaults.distributionFeeDigital ?? ''}
+                onChange={e => {
+                  const raw = e.target.value
+                  if (raw === '') {
+                    patch({ distributionFeeDigital: undefined })
+                  } else {
+                    const val = parseFloat(raw)
+                    if (!Number.isNaN(val)) patch({ distributionFeeDigital: clampPct(val) })
+                  }
+                }}
+                placeholder="Leer = globale Rate"
+                className="max-w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Überschreibt die globale Rate ausschließlich für Streaming-Einnahmen.
+                Leer lassen, um die globale Rate zu verwenden.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="distribution-fee-physical">Physisch/Merch-Provision (%) – optional</Label>
+              <Input
+                id="distribution-fee-physical"
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={defaults.distributionFeePhysical ?? ''}
+                onChange={e => {
+                  const raw = e.target.value
+                  if (raw === '') {
+                    patch({ distributionFeePhysical: undefined })
+                  } else {
+                    const val = parseFloat(raw)
+                    if (!Number.isNaN(val)) patch({ distributionFeePhysical: clampPct(val) })
+                  }
+                }}
+                placeholder="Leer = globale Rate"
+                className="max-w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Überschreibt die globale Rate ausschließlich für physische / Merch-Einnahmen.
+                Leer lassen, um die globale Rate zu verwenden.
+              </p>
+            </div>
           </div>
         </div>
 

@@ -35,6 +35,7 @@ interface ArtistsViewProps {
   splitFees: SplitFee[]
   onUpdateSplitFee: (artist: string, percentage: number) => void
   onBulkUpdateSplitFee: (artists: string[], percentage: number) => void
+  onUpdateSplitFeeTypeOverride?: (artist: string, digitalPercentage: number | undefined, physicalPercentage: number | undefined) => void
 }
 
 export function ArtistsView({
@@ -53,6 +54,7 @@ export function ArtistsView({
   splitFees,
   onUpdateSplitFee,
   onBulkUpdateSplitFee,
+  onUpdateSplitFeeTypeOverride,
 }: ArtistsViewProps) {
   return (
     <Tabs defaultValue="stammdaten" className="space-y-6">
@@ -84,6 +86,7 @@ export function ArtistsView({
             splitFees={splitFees}
             onUpdateSplitFee={onUpdateSplitFee}
             onBulkUpdateSplitFee={onBulkUpdateSplitFee}
+            onUpdateSplitFeeTypeOverride={onUpdateSplitFeeTypeOverride}
           />
         </Card>
       </TabsContent>

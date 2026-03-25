@@ -125,7 +125,20 @@ export interface ArtistMapping {
 
 export interface SplitFee {
   artist: string
+  /** Default split percentage (0–100) applied to all revenue types. */
   percentage: number
+  /**
+   * Optional override split percentage (0–100) applied exclusively to digital
+   * (streaming) revenue. When set, overrides `percentage` for digital revenue.
+   * When omitted, `percentage` is used for digital revenue instead.
+   */
+  digitalPercentage?: number
+  /**
+   * Optional override split percentage (0–100) applied exclusively to physical
+   * and merch revenue. When set, overrides `percentage` for physical revenue.
+   * When omitted, `percentage` is used for physical revenue instead.
+   */
+  physicalPercentage?: number
 }
 
 export interface ManualRevenue {
@@ -204,6 +217,18 @@ export interface AppDefaults {
    * Defaults to 0 (no distribution fee).
    */
   distributionFeePercentage: number
+  /**
+   * Optional override distribution fee (0–100) applied exclusively to digital
+   * (streaming) revenue. When set, overrides `distributionFeePercentage` for
+   * digital revenue. When omitted, `distributionFeePercentage` is used.
+   */
+  distributionFeeDigital?: number
+  /**
+   * Optional override distribution fee (0–100) applied exclusively to physical
+   * and merch revenue. When set, overrides `distributionFeePercentage` for
+   * physical revenue. When omitted, `distributionFeePercentage` is used.
+   */
+  distributionFeePhysical?: number
 }
 
 /**

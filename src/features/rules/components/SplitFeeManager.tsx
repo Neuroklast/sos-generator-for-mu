@@ -4,54 +4,147 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SplitFee } from '@/lib/types'
 
 interface SplitFeeManagerProps {
   splitFees: SplitFee[]
   onUpdateSplitFee: (artist: string, percentage: number) => void
   onBulkUpdateSplitFee?: (artists: string[], percentage: number) => void
+  onUpdateSplitFeeTypeOverride?: (
+    artist: string,
+    digitalPercentage: number | undefined,
+    physicalPercentage: number | undefined
+  ) => void
 }
+
+// ── Shared validation ─────────────────────────────────────────────────────────
+
+type ParseResult =
+  | { ok: true; value: number }
+  | { ok: true; value: undefined } // empty string → clear override
+  | { ok: false; error: string }
+
+/**
+ * Parses and validates a raw percentage string input.
+ * Returns a typed discriminated union so callers handle both success and failure.
+ *
+ * @param raw - Raw string from an input element.
+ * @param required - When true an empty string is treated as an error instead of clearing the value.
+ */
+function parsePercentInput(raw: string, required: boolean): ParseResult {
+  const trimmed = raw.trim()
+  if (trimmed === '') {
+    return required
+      ? { ok: false, error: 'Required' }
+      : { ok: true, value: undefined }
+  }
+  const num = parseFloat(trimmed)
+  if (isNaN(num)) return { ok: false, error: 'Must be a number' }
+  if (num < 0 || num > 100) return { ok: false, error: 'Must be 0–100' }
+  return { ok: true, value: Math.round(num * 10) / 10 }
+}
+
+// ── PercentInput ──────────────────────────────────────────────────────────────
+
+/** Converts an optional percentage number to its string representation for input state. */
+function formatPercentValue(value: number | undefined): string {
+  return value != null ? String(value) : ''
+}
+
+/**
+ * Controlled optional numeric input for percentage values (0–100).
+ * An empty value clears the override and triggers `onChange(undefined)`.
+ * Synchronises the local draft with external `value` prop changes so that
+ * undo / workspace-reset operations always reflect the current state.
+ */
+function PercentInput({
+  id,
+  value,
+  onChange,
+  placeholder = 'e.g. 70',
+}: {
+  id: string
+  value: number | undefined
+  onChange: (value: number | undefined) => void
+  placeholder?: string
+}) {
+  const [draft, setDraft] = useState(formatPercentValue(value))
+  const [error, setError] = useState('')
+
+  // Sync draft whenever the external value changes (e.g. after undo or reset).
+  useEffect(() => {
+    setDraft(formatPercentValue(value))
+    setError('')
+  }, [value])
+
+  const handleBlur = useCallback(() => {
+    const result = parsePercentInput(draft, false)
+    if (!result.ok) { setError(result.error); return }
+    setError('')
+    if (result.value != null) setDraft(String(result.value))
+    onChange(result.value)
+  }, [draft, onChange])
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1">
+        <Input
+          id={id}
+          type="number"
+          min="0"
+          max="100"
+          step="0.1"
+          placeholder={placeholder}
+          value={draft}
+          onChange={e => { setDraft(e.target.value); setError('') }}
+          onBlur={handleBlur}
+          className={[
+            'w-20 text-right font-mono text-xs',
+            error ? 'border-destructive focus-visible:ring-destructive' : '',
+          ].join(' ')}
+        />
+        <span className="text-xs text-muted-foreground">%</span>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+// ── SplitFeeRow ───────────────────────────────────────────────────────────────
 
 function SplitFeeRow({
   split,
   selected,
   onSelect,
   onUpdate,
+  onUpdateTypeOverride,
 }: {
   split: SplitFee
   selected: boolean
   onSelect: (e: React.MouseEvent) => void
   onUpdate: (artist: string, percentage: number) => void
+  onUpdateTypeOverride?: (artist: string, digital: number | undefined, physical: number | undefined) => void
 }) {
-  // Keep a local draft value while the user is typing
   const [draft, setDraft] = useState(String(split.percentage))
   const [error, setError] = useState('')
+  const [showOverrides, setShowOverrides] = useState(
+    split.digitalPercentage != null || split.physicalPercentage != null
+  )
 
-  const handleChange = (value: string) => {
-    setDraft(value)
+  // Sync base draft with external changes (undo / reset).
+  useEffect(() => {
+    setDraft(String(split.percentage))
     setError('')
-  }
+  }, [split.percentage])
 
   const handleBlur = useCallback(() => {
-    const raw = draft.trim()
-    if (raw === '') {
-      setError('Required')
-      return
-    }
-    const num = parseFloat(raw)
-    if (isNaN(num)) {
-      setError('Must be a number')
-      return
-    }
-    if (num < 0 || num > 100) {
-      setError('Must be between 0 and 100')
-      return
-    }
-    const clamped = Math.round(num * 10) / 10 // Round to 1 decimal place for display consistency
-    setDraft(String(clamped))
+    const result = parsePercentInput(draft, true)
+    if (!result.ok) { setError(result.error); return }
+    const value = result.value as number // required=true guarantees a number on success
+    setDraft(String(value))
     setError('')
-    onUpdate(split.artist, clamped)
+    onUpdate(split.artist, value)
   }, [draft, split.artist, onUpdate])
 
   return (
@@ -72,8 +165,10 @@ function SplitFeeRow({
           </Label>
         </div>
 
+        {/* Base split % */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Base</span>
             <Input
               id={`split-${split.artist}`}
               type="number"
@@ -81,7 +176,7 @@ function SplitFeeRow({
               max="100"
               step="0.1"
               value={draft}
-              onChange={e => handleChange(e.target.value)}
+              onChange={e => { setDraft(e.target.value); setError('') }}
               onBlur={handleBlur}
               className={[
                 'w-24 text-right font-mono',
@@ -91,13 +186,59 @@ function SplitFeeRow({
             <span className="text-sm text-muted-foreground w-4">%</span>
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
+
+          {/* Toggle for type-specific overrides */}
+          {onUpdateTypeOverride && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setShowOverrides(v => !v) }}
+              className="text-xs text-primary/70 hover:text-primary underline underline-offset-2 mt-1"
+            >
+              {showOverrides ? 'Hide type overrides' : 'Set per-type override…'}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Per-type override inputs */}
+      {showOverrides && onUpdateTypeOverride && (
+        <div
+          className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-4"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Digital override</Label>
+            <PercentInput
+              id={`split-digital-${split.artist}`}
+              value={split.digitalPercentage}
+              placeholder="e.g. 80"
+              onChange={digitalPercentage =>
+                onUpdateTypeOverride(split.artist, digitalPercentage, split.physicalPercentage)
+              }
+            />
+            <p className="text-[10px] text-muted-foreground/60">Streaming · empty = use base</p>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Physical / Merch override</Label>
+            <PercentInput
+              id={`split-physical-${split.artist}`}
+              value={split.physicalPercentage}
+              placeholder="e.g. 60"
+              onChange={physicalPercentage =>
+                onUpdateTypeOverride(split.artist, split.digitalPercentage, physicalPercentage)
+              }
+            />
+            <p className="text-[10px] text-muted-foreground/60">Physical · Merch · empty = use base</p>
+          </div>
+        </div>
+      )}
     </Card>
   )
 }
 
-export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee }: SplitFeeManagerProps) {
+// ── SplitFeeManager ───────────────────────────────────────────────────────────
+
+export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride }: SplitFeeManagerProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [bulkDraft, setBulkDraft] = useState('')
   const [bulkError, setBulkError] = useState('')
@@ -142,17 +283,14 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
   }
 
   const applyBulk = () => {
-    const raw = bulkDraft.trim()
-    if (!raw) { setBulkError('Required'); return }
-    const num = parseFloat(raw)
-    if (isNaN(num)) { setBulkError('Must be a number'); return }
-    if (num < 0 || num > 100) { setBulkError('Must be between 0 and 100'); return }
-    const clamped = Math.round(num * 10) / 10
+    const result = parsePercentInput(bulkDraft, true)
+    if (!result.ok) { setBulkError(result.error); return }
+    const value = result.value as number
     const artists = Array.from(selectedArtists)
     if (onBulkUpdateSplitFee) {
-      onBulkUpdateSplitFee(artists, clamped)
+      onBulkUpdateSplitFee(artists, value)
     } else {
-      artists.forEach(a => onUpdateSplitFee(a, clamped))
+      artists.forEach(a => onUpdateSplitFee(a, value))
     }
     setBulkDraft('')
     setBulkError('')
@@ -242,6 +380,7 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
               selected={selectedArtists.has(split.artist)}
               onSelect={e => handleRowSelect(split.artist, index, e)}
               onUpdate={onUpdateSplitFee}
+              onUpdateTypeOverride={onUpdateSplitFeeTypeOverride}
             />
           ))}
         </div>
