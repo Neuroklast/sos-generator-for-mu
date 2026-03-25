@@ -249,7 +249,8 @@ export function LabelArtistManager({
       toast.error('No artists to export')
       return
     }
-    const header = 'name,email,vatNumber,isEuNonGerman,notes,accountHolder,iban,bic'
+    const CSV_FIELDS = ['name', 'email', 'vatNumber', 'isEuNonGerman', 'notes', 'accountHolder', 'iban', 'bic'] as const
+    const header = CSV_FIELDS.join(',')
     const rows = artists.map(a => {
       const fields = [
         `"${a.name.replace(/"/g, '""')}"`,

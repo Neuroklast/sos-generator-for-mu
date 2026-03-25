@@ -141,7 +141,17 @@ function generateMsgId(): string {
   return `SEPA-${dateStamp}-${random}`
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+/**
+ * SEPA standard fallback BIC value for domestic transfers that do not require
+ * an explicit BIC (IBAN-only since 2016 within the SEPA area).
+ * Accepted by all major German and EU banking portals.
+ */
+const BIC_FALLBACK_VALUE = 'NOTPROVIDED'
+
+/** Maximum length of the `<Ustrd>` (remittance information) field per ISO 20022. */
+const USTRD_MAX_LENGTH = 140
 
 /**
  * Generates a SEPA Credit Transfer Initiation XML document (`pain.001.001.03`)
@@ -187,8 +197,8 @@ export function generateSepaXml(
   const labelIban     = escapeXml(labelConfig.iban)
   const periodLabel   = escapeXml(labelConfig.periodLabel)
   const ustrdBase     = `Abrechnung ${periodLabel} ${escapeXml(labelConfig.accountHolder)}`
-  // Truncate Ustrd to 140 chars max (ISO 20022 RemittanceInformation limit)
-  const ustrdTruncated = ustrdBase.length > 140 ? ustrdBase.slice(0, 140) : ustrdBase
+  // Truncate Ustrd to maximum allowed length (ISO 20022 RemittanceInformation limit)
+  const ustrdTruncated = ustrdBase.length > USTRD_MAX_LENGTH ? ustrdBase.slice(0, USTRD_MAX_LENGTH) : ustrdBase
 
   // ── Debitor agent block ────────────────────────────────────────────────────
   const dbtrAgtBlock = labelConfig.bic
@@ -200,7 +210,7 @@ export function generateSepaXml(
     : `      <DbtrAgt>
         <FinInstnId>
           <Othr>
-            <Id>NOTPROVIDED</Id>
+            <Id>${BIC_FALLBACK_VALUE}</Id>
           </Othr>
         </FinInstnId>
       </DbtrAgt>`
