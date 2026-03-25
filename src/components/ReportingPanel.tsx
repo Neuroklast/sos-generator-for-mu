@@ -3,7 +3,9 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { FileDown, FileText, Table2, Archive, Search } from 'lucide-react'
-import type { ArtistRevenue } from '@/lib/types'
+import { EnvelopeSimple } from '@phosphor-icons/react'
+import type { ArtistRevenue, LabelArtist, LabelInfo, AppDefaults, EmailConfig } from '@/lib/types'
+import { buildMailtoLink } from '@/lib/utils'
 
 interface ReportingPanelProps {
   revenues: ArtistRevenue[]
@@ -11,6 +13,13 @@ interface ReportingPanelProps {
   onDownloadExcel: (artist: string) => void
   onDownloadAll: () => void
   onDownloadSelected: (artistNames: string[]) => void
+  /** Artist roster — used to look up artist e-mail addresses. */
+  labelArtists?: LabelArtist[]
+  labelInfo?: LabelInfo
+  appDefaults?: Partial<AppDefaults>
+  emailConfig?: Partial<EmailConfig>
+  periodStart?: string
+  periodEnd?: string
 }
 
 function fmtEur(value: number) {
@@ -42,9 +51,51 @@ const INITIAL_COLUMNS: ColDef[] = [
   { id: 'payout',       label: 'Payout',         defaultWidth: 150, minWidth: 90,  align: 'right' },
 ]
 
-export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDownloadAll, onDownloadSelected }: ReportingPanelProps) {
+export function ReportingPanel({
+  revenues,
+  onDownloadPDF,
+  onDownloadExcel,
+  onDownloadAll,
+  onDownloadSelected,
+  labelArtists = [],
+  labelInfo,
+  appDefaults,
+  emailConfig,
+  periodStart,
+  periodEnd,
+}: ReportingPanelProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
+
+  const period = useMemo(() => {
+    if (periodStart && periodEnd) return `${periodStart} – ${periodEnd}`
+    return periodStart ?? periodEnd ?? ''
+  }, [periodStart, periodEnd])
+
+  const handleSendEmail = useCallback(
+    (r: ArtistRevenue) => {
+      const roster = labelArtists.find(a => a.name.toLowerCase() === r.artist.toLowerCase())
+      const artistEmail = roster?.email ?? ''
+      const template = labelInfo?.emailTemplate ?? ''
+      if (!template) {
+        alert(`No e-mail template configured. Please add one in Branding > E-Mail-Anschreiben.`)
+        return
+      }
+      const amount = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(r.finalAmount)
+      const href = buildMailtoLink(
+        r.artist,
+        artistEmail,
+        period,
+        amount,
+        labelInfo ?? { name: '', address: '' },
+        emailConfig ?? {},
+        appDefaults ?? {},
+        template
+      )
+      window.open(href, '_blank')
+    },
+    [labelArtists, labelInfo, appDefaults, emailConfig, period]
+  )
 
   // ── Column state ──────────────────────────────────────────────────────────
   const [colOrder, setColOrder] = useState<ColId[]>(INITIAL_COLUMNS.map(c => c.id))
@@ -272,6 +323,12 @@ export function ReportingPanel({ revenues, onDownloadPDF, onDownloadExcel, onDow
 
                       <td className="py-3 text-right px-4">
                         <div className="flex items-center justify-end gap-1.5">
+                          {labelInfo?.emailTemplate && (
+                            <Button size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs" onClick={() => handleSendEmail(r)} title={`Send e-mail to ${r.artist}`}>
+                              <EnvelopeSimple size={13} />
+                              Email
+                            </Button>
+                          )}
                           <Button size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs" onClick={() => onDownloadPDF(r.artist)} title={`Download PDF for ${r.artist}`}>
                             <FileText size={13} />
                             PDF

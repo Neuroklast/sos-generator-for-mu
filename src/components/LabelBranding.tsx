@@ -1,4 +1,4 @@
-import { Image as ImageIcon, Buildings, X, EnvelopeSimple, Bank, FileText, IdentificationCard, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Image as ImageIcon, Buildings, X, EnvelopeSimple, Bank, FileText, IdentificationCard, EnvelopeOpen, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,6 +9,43 @@ import type { LabelInfo } from '@/lib/types'
 
 const MAX_LOGO_SIZE_BYTES = 5 * 1000 * 1000 // 5 MB
 const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
+
+/**
+ * Default e-mail template pre-filled with a darkTunes-style example.
+ * Placeholders: {artist}, {period}, {amount}, {label_name}, {label_vat_id},
+ * {invoice_email}, {deadline_date}, {donation_org}.
+ */
+export const DEFAULT_EMAIL_TEMPLATE = `Hello,
+
+Please find attached your Statement of Sales for the period {period}.
+
+Your earnings: {amount}
+
+To receive your payment, please send your invoice to {invoice_email}.
+Important: Payments are only processed upon receipt of a correct invoice.
+
+IMPORTANT DEADLINE
+Due to accounting regulations, we need your invoice within 25 days. If we do not receive it by {deadline_date}, your royalties will be donated to a non-profit organization (e.g. {donation_org}). Please note: Unclaimed royalties will NOT be carried over to your next statement.
+
+If the amount is too low and you prefer not to send an invoice, kindly reply with the following declaration:
+"We, [Band Name], hereby certify that we do not wish to claim our royalties for {period}. {label_name} is allowed to keep them."
+
+PLEASE NOTE:
+Non-German VAT holders: Include your VAT number and mention the {label_name} VAT number {label_vat_id}. Do not apply any taxes.
+
+Invoice recipient: {label_name}
+
+Description: State the earnings period clearly: "Music distribution for {period}"
+
+Mandatory tax clause (EU): Add the following line to your invoice:
+"Die Umsatzsteuer wird vom Leistungsempfänger geschuldet."
+
+If you need help creating your invoice, just ask your label manager – we're here to support you.
+
+Thank you for your continued collaboration with {label_name}!
+
+Stay dark,
+{label_name}`
 
 interface LabelBrandingProps {
   labelInfo: LabelInfo
@@ -267,7 +304,7 @@ export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
           </div>
         </div>
 
-        {/* ── Fußzeile ────────────────────────────── */}
+        {/* ── Rechtliche Fußzeile ────────────────────── */}
         <div className="space-y-4">
           <SectionHeading icon={FileText} title="Rechtliche Fußzeile" />
 
@@ -281,6 +318,41 @@ export function LabelBranding({ labelInfo, onUpdate }: LabelBrandingProps) {
               rows={3}
             />
             <p className="text-xs text-muted-foreground">Erscheint in der Fußzeile von PDF-Abrechnungen</p>
+          </div>
+        </div>
+
+        {/* ── E-Mail-Vorlage ──────────────────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={EnvelopeOpen} title="E-Mail-Anschreiben (Vorlage)" />
+
+          <div className="space-y-2">
+            <Label htmlFor="label-email-template">Vorlage</Label>
+            <Textarea
+              id="label-email-template"
+              value={labelInfo.emailTemplate ?? ''}
+              onChange={e => onUpdate({ ...labelInfo, emailTemplate: e.target.value })}
+              placeholder="Klicke auf »Standardvorlage laden« um die Vorlage zu befüllen."
+              rows={18}
+              className="font-mono text-xs leading-relaxed"
+            />
+            <div className="flex flex-wrap gap-2 mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onUpdate({ ...labelInfo, emailTemplate: DEFAULT_EMAIL_TEMPLATE })}
+              >
+                Standardvorlage laden
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Verfügbare Platzhalter:{' '}
+              {[
+                '{artist}', '{period}', '{amount}', '{label_name}',
+                '{label_vat_id}', '{invoice_email}', '{deadline_date}', '{donation_org}',
+              ].map(p => (
+                <code key={p} className="mx-0.5 px-1 py-0.5 rounded bg-muted text-xs font-mono">{p}</code>
+              ))}
+            </p>
           </div>
         </div>
 

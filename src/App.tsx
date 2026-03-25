@@ -24,6 +24,10 @@ import { WorkspaceManager } from '@/components/WorkspaceManager'
 import type { WorkspaceBackup } from '@/components/WorkspaceManager'
 import { LabelArtistManager } from '@/components/LabelArtistManager'
 import { IgnoredEntriesManager } from '@/components/IgnoredEntriesManager'
+import { DefaultSettings } from '@/components/DefaultSettings'
+import { EmailSettings } from '@/components/EmailSettings'
+import { PdfExportSettingsPanel } from '@/components/PdfExportSettingsPanel'
+import { DEFAULT_APP_DEFAULTS, DEFAULT_EMAIL_CONFIG, DEFAULT_PDF_EXPORT_SETTINGS } from '@/lib/defaults'
 import { useFileManager } from '@/hooks/useFileManager'
 import { useCSVProcessor } from '@/hooks/useCSVProcessor'
 import { useExports } from '@/hooks/useExports'
@@ -41,6 +45,9 @@ import type {
   GuestPayoutRule,
   LabelArtist,
   IgnoredEntry,
+  AppDefaults,
+  PdfExportSettings,
+  EmailConfig,
 } from '@/lib/types'
 import { toast } from 'sonner'
 import {
@@ -460,6 +467,9 @@ function App() {
   const [periodEnd, setPeriodEnd, , periodEndLoaded] = useKV<string>('period-end', '')
   const [csvAliases, setCsvAliases] = useKV<CSVColumnAlias[]>('csv-aliases', [])
   const [guestPayoutRules, setGuestPayoutRules] = useKV<GuestPayoutRule[]>('guest-payout-rules', [])
+  const [appDefaults, setAppDefaults] = useKV<AppDefaults>('app-defaults', DEFAULT_APP_DEFAULTS)
+  const [pdfExportSettings, setPdfExportSettings] = useKV<PdfExportSettings>('pdf-export-settings', DEFAULT_PDF_EXPORT_SETTINGS)
+  const [emailConfig, setEmailConfig] = useKV<EmailConfig>('email-config', DEFAULT_EMAIL_CONFIG)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
   const { push: pushUndo, undo } = useUndoStack()
@@ -570,7 +580,9 @@ function App() {
     processedData,
     labelInfo ?? { name: '', address: '' },
     periodStart ?? '',
-    periodEnd ?? ''
+    periodEnd ?? '',
+    pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS,
+    appDefaults ?? DEFAULT_APP_DEFAULTS
   )
 
   const handleAddCompilationFilter = useCallback(
@@ -750,6 +762,13 @@ function App() {
       toast.info('Artist removed from roster')
     },
     [labelArtists, setLabelArtists, pushUndo]
+  )
+
+  const handleUpdateLabelArtist = useCallback(
+    (id: string, patch: Omit<LabelArtist, 'id'>) => {
+      setLabelArtists(current => (current ?? []).map(a => (a.id === id ? { ...a, ...patch } : a)))
+    },
+    [setLabelArtists]
   )
 
   const handleImportLabelArtistsCSV = useCallback(
@@ -1404,6 +1423,12 @@ function App() {
                     onDownloadExcel={handleDownloadExcel}
                     onDownloadAll={handleDownloadAll}
                     onDownloadSelected={handleDownloadSelected}
+                    labelArtists={labelArtists ?? []}
+                    labelInfo={labelInfo ?? { name: '', address: '' }}
+                    appDefaults={appDefaults ?? DEFAULT_APP_DEFAULTS}
+                    emailConfig={emailConfig ?? DEFAULT_EMAIL_CONFIG}
+                    periodStart={periodStart ?? ''}
+                    periodEnd={periodEnd ?? ''}
                   />
                 </Card>
               )}
@@ -1949,6 +1974,7 @@ function App() {
                       artists={labelArtists ?? []}
                       onAdd={handleAddLabelArtist}
                       onRemove={handleRemoveLabelArtist}
+                      onUpdate={handleUpdateLabelArtist}
                       onImportCSV={handleImportLabelArtistsCSV}
                     />
                   </Card>
@@ -2045,6 +2071,30 @@ function App() {
                       aliases={csvAliases ?? []}
                       onAddAlias={handleAddAlias}
                       onRemoveAlias={handleRemoveAlias}
+                    />
+                  </Card>
+
+                  {/* ── Standard-Voreinstellungen ── */}
+                  <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
+                    <DefaultSettings
+                      defaults={appDefaults ?? DEFAULT_APP_DEFAULTS}
+                      onUpdate={setAppDefaults}
+                    />
+                  </Card>
+
+                  {/* ── E-Mail-Dienst ── */}
+                  <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
+                    <EmailSettings
+                      config={emailConfig ?? DEFAULT_EMAIL_CONFIG}
+                      onUpdate={setEmailConfig}
+                    />
+                  </Card>
+
+                  {/* ── PDF-Export-Module ── */}
+                  <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
+                    <PdfExportSettingsPanel
+                      settings={pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS}
+                      onUpdate={setPdfExportSettings}
                     />
                   </Card>
                 </div>

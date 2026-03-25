@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
   generatePDF,
@@ -7,8 +7,7 @@ import {
   generateZipOfAllStatements,
 } from '@/lib/export-utils'
 import { createSafeFilename } from '@/lib/utils'
-import type { SafeProcessedArtistData } from '@/lib/types'
-import type { LabelInfo } from '@/lib/types'
+import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults } from '@/lib/types'
 
 /**
  * Provides PDF, Excel and ZIP export actions with error handling.
@@ -18,8 +17,22 @@ export function useExports(
   processedData: SafeProcessedArtistData[],
   labelInfo: LabelInfo,
   periodStart: string,
-  periodEnd: string
+  periodEnd: string,
+  pdfSettings?: Partial<PdfExportSettings>,
+  appDefaults?: Partial<AppDefaults>
 ) {
+  const emailOptions = useMemo(
+    () =>
+      appDefaults
+        ? {
+            financeEmail: appDefaults.financeEmail ?? '',
+            deadlineDate: appDefaults.invoiceDeadlineDate ?? '',
+            donationOrg: appDefaults.royaltyDonationOrg ?? '',
+          }
+        : undefined,
+    [appDefaults]
+  )
+
   const handleDownloadPDF = useCallback(
     (artist: string) => {
       const artistData = processedData.find(d => d.artist === artist)
@@ -38,7 +51,9 @@ export function useExports(
           labelInfo,
           periodStart || undefined,
           periodEnd || undefined,
-          invoiceNumber
+          invoiceNumber,
+          pdfSettings,
+          emailOptions
         )
         downloadBlob(blob, `${createSafeFilename(artist)}_statement.pdf`)
         toast.success(`PDF for "${artist}" downloaded`)
@@ -48,7 +63,7 @@ export function useExports(
         console.error('PDF export error:', err)
       }
     },
-    [processedData, labelInfo, periodStart, periodEnd]
+    [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions]
   )
 
   const handleDownloadExcel = useCallback(
@@ -102,7 +117,9 @@ export function useExports(
           if (done < tot) {
             toast.loading(`Generating ${done + 1} / ${tot} statements…`, { id: toastId })
           }
-        }
+        },
+        pdfSettings,
+        emailOptions
       )
       downloadBlob(blob, 'artist_statements.zip')
       toast.success(`All ${total} statements downloaded`, { id: toastId })
@@ -111,7 +128,7 @@ export function useExports(
       toast.error('ZIP export failed', { id: toastId, description: message })
       console.error('ZIP export error:', err)
     }
-  }, [processedData, labelInfo, periodStart, periodEnd])
+  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions])
 
   /**
    * Queued batch export for a specific subset of artists — same async queue
@@ -142,7 +159,9 @@ export function useExports(
           if (done < tot) {
             toast.loading(`Generating ${done + 1} / ${tot} statements…`, { id: toastId })
           }
-        }
+        },
+        pdfSettings,
+        emailOptions
       )
       downloadBlob(blob, 'selected_artist_statements.zip')
       toast.success(`${total} selected statement${total !== 1 ? 's' : ''} downloaded`, { id: toastId })
@@ -151,7 +170,7 @@ export function useExports(
       toast.error('ZIP export failed', { id: toastId, description: message })
       console.error('ZIP export error:', err)
     }
-  }, [processedData, labelInfo, periodStart, periodEnd])
+  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions])
 
   return { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected }
 }
