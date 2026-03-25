@@ -1,4 +1,4 @@
-import { jsPDF } from 'jspdf'
+import { jsPDF, GState } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, LabelArtist } from '@/lib/types'
@@ -35,20 +35,36 @@ async function resolveImageDimensions(src: string): Promise<{ width: number; hei
 }
 
 /**
- * Scales image dimensions to fit within a bounding box of `maxSize × maxSize`
+ * Scales image dimensions to fit within a bounding box of `maxWidth × maxHeight`
  * while preserving the original aspect ratio (object-contain semantics).
- * `maxSize` is both the maximum width and the maximum height of the box.
  */
 function computeFitDimensions(
   naturalWidth: number,
   naturalHeight: number,
-  maxSize: number
+  maxWidth: number,
+  maxHeight: number
 ): { w: number; h: number } {
-  const aspectRatio = naturalWidth / naturalHeight
-  return aspectRatio >= 1
-    ? { w: maxSize, h: maxSize / aspectRatio }
-    : { w: maxSize * aspectRatio, h: maxSize }
+  const scale = Math.min(maxWidth / naturalWidth, maxHeight / naturalHeight)
+  return { w: naturalWidth * scale, h: naturalHeight * scale }
 }
+
+/**
+ * Maximum label logo width in mm: fills the right third of an A4 page (210/3 = 70mm)
+ * minus the right margin (20mm), giving 50mm of usable header space.
+ */
+const LABEL_LOGO_MAX_WIDTH_MM = 50
+
+/**
+ * Maximum label logo height in mm: constrains the logo to remain within the page
+ * header area while the width expands to fill the right third.
+ */
+const LABEL_LOGO_MAX_HEIGHT_MM = 30
+
+/**
+ * Software branding logo size in mm: rendered at the bottom-left corner of every
+ * page at 50% opacity as a subtle watermark.
+ */
+const APP_LOGO_FOOTER_SIZE_MM = 10
 
 export async function generatePDF(
   artistData: SafeProcessedArtistData,
@@ -73,7 +89,7 @@ export async function generatePDF(
     // otherwise leave logoDimensions undefined so buildPDF falls back to the
     // default 25×25 square rather than rendering a potentially distorted image.
     if (naturalDims && naturalDims.width > 0 && naturalDims.height > 0) {
-      logoDimensions = computeFitDimensions(naturalDims.width, naturalDims.height, 25)
+      logoDimensions = computeFitDimensions(naturalDims.width, naturalDims.height, LABEL_LOGO_MAX_WIDTH_MM, LABEL_LOGO_MAX_HEIGHT_MM)
     }
   }
 
@@ -132,28 +148,17 @@ function buildPDF(
 
   let yPos = margin
 
-  // Add app branding logo in the top-left corner of the first page
-  const APP_LOGO_SIZE = 12
-  const APP_LOGO_OFFSET_X = -5
-  const APP_LOGO_OFFSET_Y = -8
-  try {
-    doc.addImage(APP_LOGO, 'PNG', margin + APP_LOGO_OFFSET_X, yPos + APP_LOGO_OFFSET_Y, APP_LOGO_SIZE, APP_LOGO_SIZE)
-  } catch (err) {
-    console.warn('Failed to render app logo in PDF:', err)
-  }
-
-  // Add label logo if available (prefer logoBase64, fall back to logo).
+  // Add label logo in the header, filling the right third of the page width.
   // Uses pre-computed dimensions (logoDimensions) to preserve the original
-  // aspect ratio — equivalent to CSS object-contain within a 25×25 mm box.
+  // aspect ratio — equivalent to CSS object-contain within the right-third area.
   const logoSrc = labelInfo.logoBase64 ?? labelInfo.logo
   if (logoSrc) {
     try {
-      const MAX_LOGO_SIZE = 25
-      const { w, h } = logoDimensions ?? { w: MAX_LOGO_SIZE, h: MAX_LOGO_SIZE }
       const pageWidth = doc.internal.pageSize.getWidth()
-      // Right-align within the bounding box so the logo never overflows the margin.
-      const logoX = pageWidth - margin - MAX_LOGO_SIZE + (MAX_LOGO_SIZE - w) / 2
-      const logoY = yPos - 5 + (MAX_LOGO_SIZE - h) / 2
+      const { w, h } = logoDimensions ?? { w: LABEL_LOGO_MAX_WIDTH_MM, h: LABEL_LOGO_MAX_HEIGHT_MM }
+      // Right-align against the right margin so the logo never overflows.
+      const logoX = pageWidth - margin - w
+      const logoY = yPos - 5
       doc.addImage(logoSrc, 'PNG', logoX, logoY, w, h)
     } catch {
       // Logo rendering failed, continue without it
@@ -408,6 +413,30 @@ function buildPDF(
       margin: { left: margin, right: margin },
       didDrawPage: drawPageFooter,
     })
+  }
+
+  // ── Software branding logo — bottom-left, 50% transparent, on every page ──
+  // Rendered after all content so it always appears at the bottom-left corner
+  // regardless of how many pages autoTable generated.
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const totalPages = doc.internal.pages.length - 1
+  try {
+    for (let pageIndex = 1; pageIndex <= totalPages; pageIndex++) {
+      doc.setPage(pageIndex)
+      doc.saveGraphicsState()
+      doc.setGState(new GState({ opacity: 0.5 }))
+      doc.addImage(
+        APP_LOGO,
+        'PNG',
+        margin - 5,
+        pageHeight - APP_LOGO_FOOTER_SIZE_MM - 3,
+        APP_LOGO_FOOTER_SIZE_MM,
+        APP_LOGO_FOOTER_SIZE_MM
+      )
+      doc.restoreGraphicsState()
+    }
+  } catch (err) {
+    console.warn('Failed to render app logo in PDF footer:', err)
   }
 
   return doc.output('blob')
