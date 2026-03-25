@@ -88,6 +88,21 @@ const FOOTER_ROW_SPACING_MM = 6
 const FOOTER_TEXT_WIDTH_RATIO = 0.6
 
 /**
+ * Total vertical space in mm reserved at the bottom of every page for the two-row
+ * footer. Applied as a `bottom` margin on every `autoTable` call so tables page-break
+ * before entering the footer zone, and used to compute the cover-letter page-break
+ * threshold instead of the previous hard-coded magic number (280 mm).
+ *
+ * Composed of:
+ *   FOOTER_BOTTOM_MARGIN_MM (6 mm) — gap between Row 2 baseline and page edge
+ * + FOOTER_ROW_SPACING_MM   (6 mm) — gap between Row 1 and Row 2 baselines
+ * + 6 mm safety buffer             — one average line-height (≈ font-size 9 pt ≈ 3 mm
+ *                                    plus leading) to ensure text on the last
+ *                                    content line never visually overlaps Row 1.
+ */
+const FOOTER_RESERVED_MM = FOOTER_BOTTOM_MARGIN_MM + FOOTER_ROW_SPACING_MM + 6
+
+/**
  * Maximum rows rendered per breakdown table (releases, platforms, countries, months).
  * Prevents memory exhaustion in the browser for artists with extremely large catalogues
  * that would otherwise produce documents exceeding 10 pages per section.
@@ -187,9 +202,10 @@ function buildPDF(
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
     const coverLines = doc.splitTextToSize(covered, 170)
+    const coverPageHeight = doc.internal.pageSize.getHeight()
     let yC = margin
     coverLines.forEach((line: string) => {
-      if (yC > 280) { doc.addPage(); yC = margin }
+      if (yC > coverPageHeight - FOOTER_RESERVED_MM) { doc.addPage(); yC = margin }
       doc.text(line, margin, yC)
       yC += 5
     })
@@ -428,8 +444,7 @@ function buildPDF(
     headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245, 245, 250] },
     columnStyles: { 1: { halign: 'right' } },
-    margin: { left: margin, right: margin },
-    didDrawPage: drawPageFooter,
+    margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
   })
   yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
 
@@ -470,8 +485,7 @@ function buildPDF(
         1: { halign: 'right' },
         2: { halign: 'right' },
       },
-      margin: { left: margin, right: margin },
-      didDrawPage: drawPageFooter,
+      margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
     })
     yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
@@ -495,8 +509,7 @@ function buildPDF(
         1: { halign: 'right' },
         2: { halign: 'right' },
       },
-      margin: { left: margin, right: margin },
-      didDrawPage: drawPageFooter,
+      margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
     })
     yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
@@ -520,8 +533,7 @@ function buildPDF(
         1: { halign: 'right' },
         2: { halign: 'right' },
       },
-      margin: { left: margin, right: margin },
-      didDrawPage: drawPageFooter,
+      margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
     })
     yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
@@ -541,9 +553,19 @@ function buildPDF(
       headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [245, 245, 250] },
       columnStyles: { 1: { halign: 'right' } },
-      margin: { left: margin, right: margin },
-      didDrawPage: drawPageFooter,
+      margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
     })
+  }
+
+  // ── Post-processing: draw footer on every page ────────────────────────────
+  // By iterating over all pages here (rather than relying solely on autoTable's
+  // `didDrawPage` callback), we guarantee that manually created pages — such as
+  // the e-mail cover letter pages produced via `doc.addPage()` — also receive the
+  // complete two-row footer with bank info, branding logo, and "Page X of Y".
+  const totalPages = doc.getNumberOfPages()
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p)
+    drawPageFooter({ pageNumber: p })
   }
 
   // Replace all occurrences of the placeholder with the actual final page count.

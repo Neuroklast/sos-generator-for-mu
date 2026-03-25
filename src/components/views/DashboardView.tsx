@@ -3,8 +3,8 @@ import { UploadCloud, TrendingUp, Users, Zap, CalendarDays } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StatCard } from '@/features/core/components/StatCard'
-import { RevenueDashboard } from '@/features/analytics/components/RevenueDashboard'
-import type { ArtistRevenue, FilteredCompilation, SplitFee } from '@/lib/types'
+import { RevenueSummaryCard } from '@/features/analytics/components/RevenueSummaryCard'
+import type { ArtistRevenue, SplitFee } from '@/lib/types'
 
 interface StepItem {
   id: string
@@ -30,7 +30,6 @@ interface DashboardViewProps {
   currentStep: number
   periodStart: string
   periodEnd: string
-  filteredCompilations: FilteredCompilation[]
   navigate: (view: string) => void
   handleDownloadAll: () => void
   handleDownloadPDF: (artist?: string) => void
@@ -51,7 +50,6 @@ export function DashboardView({
   currentStep,
   periodStart,
   periodEnd,
-  filteredCompilations,
   navigate,
   handleDownloadAll,
   handleDownloadPDF,
@@ -162,9 +160,8 @@ export function DashboardView({
 
       {revenues.length > 0 && (
         <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
-          <RevenueDashboard
+          <RevenueSummaryCard
             revenues={revenues}
-            filteredCompilations={filteredCompilations}
             onDownloadAll={handleDownloadAll}
             onDownloadPDF={handleDownloadPDF}
             onDownloadExcel={handleDownloadExcel}

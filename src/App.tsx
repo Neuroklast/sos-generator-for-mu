@@ -805,7 +805,6 @@ function App() {
                   currentStep={currentStep}
                   periodStart={periodStart ?? ''}
                   periodEnd={periodEnd ?? ''}
-                  filteredCompilations={filteredCompilations}
                   navigate={navigate}
                   handleDownloadAll={handleDownloadAll}
                   handleDownloadPDF={handleDownloadPDF}
