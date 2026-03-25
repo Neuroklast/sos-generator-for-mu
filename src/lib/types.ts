@@ -16,6 +16,19 @@ export interface LabelArtist {
    * Set to 0 when the artist is not VAT-liable (e.g. Kleinunternehmer).
    */
   vatRate?: number
+  /** Legal account holder name as it appears on the bank account. */
+  accountHolder?: string
+  /**
+   * International Bank Account Number (IBAN) for SEPA credit transfers.
+   * Stored without spaces in uppercase, e.g. "DE89370400440532013000".
+   */
+  iban?: string
+  /**
+   * Bank Identifier Code (BIC / SWIFT code) for the artist's bank.
+   * Optional since SEPA transactions within the EU/EEA no longer require
+   * a BIC when both accounts are in SEPA countries (IBAN-only since 2016).
+   */
+  bic?: string
 }
 
 /**
@@ -139,6 +152,17 @@ export interface LabelInfo {
   email?: string
   /** Bankverbindung im Freitext, z.B. "IBAN: DE89… · BIC: DEUTDEDB". */
   bankAccount?: string
+  /**
+   * Structured IBAN for the label's own bank account used as the SEPA debitor
+   * account (`<DbtrAcct>`) when generating batch payment XML files.
+   * Stored without spaces in uppercase, e.g. "DE89370400440532013000".
+   */
+  sepaIban?: string
+  /**
+   * Legal name of the label as registered with its bank — used as `<Dbtr><Nm>`
+   * in SEPA XML exports. Must exactly match the bank account holder name.
+   */
+  sepaAccountHolder?: string
   /** Rechtlicher Hinweistext für die Fußzeile von Abrechnungen. */
   footerText?: string
   /**

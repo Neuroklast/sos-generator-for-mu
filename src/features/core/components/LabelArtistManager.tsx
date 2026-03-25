@@ -1,13 +1,15 @@
 import { useState, useCallback } from 'react'
-import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil } from '@phosphor-icons/react'
+import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil, Bank } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { LabelArtist } from '@/lib/types'
+import { isValidIBAN, maskIBAN, sanitiseIBAN } from '@/lib/iban-validator'
 
 /** Parses a VAT rate string into an integer percentage, or undefined if empty. */
 function parseVatRate(value: string): number | undefined {
@@ -40,6 +42,9 @@ function ArtistDetailEditor({
       notes: artist.notes,
       isEuNonGerman: artist.isEuNonGerman,
       vatRate: artist.vatRate,
+      accountHolder: artist.accountHolder,
+      iban: artist.iban,
+      bic: artist.bic,
       ...partial,
     })
 
@@ -133,6 +138,78 @@ function ArtistDetailEditor({
             className="text-xs resize-none"
           />
         </div>
+
+        {/* ── Bankverbindung für SEPA-Auszahlungen ──────────────────── */}
+        <div className="mt-1 pt-2 border-t border-white/8 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+            <Bank size={10} weight="bold" />
+            Bankverbindung (SEPA)
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor={`artist-accholder-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
+                Kontoinhaber
+              </Label>
+              <Input
+                id={`artist-accholder-${artist.id}`}
+                type="text"
+                value={artist.accountHolder ?? ''}
+                onChange={e => patch({ accountHolder: e.target.value || undefined })}
+                placeholder="Vollständiger Name (wie auf dem Konto)"
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <TooltipProvider>
+              <div className="space-y-1">
+                <Label htmlFor={`artist-iban-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
+                  IBAN
+                  {artist.iban && (
+                    isValidIBAN(artist.iban)
+                      ? <span className="ml-1 text-emerald-400 text-[10px]">✓ gültig</span>
+                      : <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="ml-1 text-red-400 text-[10px] cursor-help underline decoration-dotted">✗ fehlerhaft</span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs bg-red-900/90 text-red-100 border-red-700">
+                            Prüfsumme fehlerhaft. SEPA-Export blockiert.
+                          </TooltipContent>
+                        </Tooltip>
+                  )}
+                </Label>
+                <Input
+                  id={`artist-iban-${artist.id}`}
+                  type="text"
+                  value={artist.iban ?? ''}
+                  onChange={e => {
+                    const normalised = sanitiseIBAN(e.target.value)
+                    patch({ iban: normalised || undefined })
+                  }}
+                  placeholder="z.B. DE89370400440532013000"
+                  className="h-8 text-xs font-mono"
+                />
+                {artist.iban && (
+                  <p className="text-[10px] text-muted-foreground">{maskIBAN(artist.iban)}</p>
+                )}
+              </div>
+            </TooltipProvider>
+          </div>
+
+          <div className="space-y-1 max-w-[200px]">
+            <Label htmlFor={`artist-bic-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
+              BIC / SWIFT (optional)
+            </Label>
+            <Input
+              id={`artist-bic-${artist.id}`}
+              type="text"
+              value={artist.bic ?? ''}
+              onChange={e => patch({ bic: e.target.value.trim().toUpperCase() || undefined })}
+              placeholder="z.B. COBADEFFXXX"
+              className="h-8 text-xs font-mono"
+            />
+          </div>
+        </div>
       </div>
     </motion.div>
   )
@@ -172,7 +249,8 @@ export function LabelArtistManager({
       toast.error('No artists to export')
       return
     }
-    const header = 'name,email,vatNumber,isEuNonGerman,notes'
+    const CSV_FIELDS = ['name', 'email', 'vatNumber', 'isEuNonGerman', 'notes', 'accountHolder', 'iban', 'bic'] as const
+    const header = CSV_FIELDS.join(',')
     const rows = artists.map(a => {
       const fields = [
         `"${a.name.replace(/"/g, '""')}"`,
@@ -180,6 +258,9 @@ export function LabelArtistManager({
         `"${(a.vatNumber ?? '').replace(/"/g, '""')}"`,
         a.isEuNonGerman ? 'true' : 'false',
         `"${(a.notes ?? '').replace(/"/g, '""')}"`,
+        `"${(a.accountHolder ?? '').replace(/"/g, '""')}"`,
+        `"${(a.iban ?? '').replace(/"/g, '""')}"`,
+        `"${(a.bic ?? '').replace(/"/g, '""')}"`,
       ]
       return fields.join(',')
     })

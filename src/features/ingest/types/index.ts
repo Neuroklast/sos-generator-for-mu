@@ -48,6 +48,9 @@ export type MasterDataFieldKey =
   | 'vatNumber'
   | 'isEuNonGerman'
   | 'notes'
+  | 'accountHolder'
+  | 'iban'
+  | 'bic'
 
 /**
  * A CSV Import Profile describes how a specific CSV format (e.g. from
