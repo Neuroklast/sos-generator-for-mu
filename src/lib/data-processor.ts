@@ -130,16 +130,35 @@ function clampSplitPercentage(value: number): number {
 
 /**
  * Resolves the effective distribution fee rate for a given revenue type.
- * When a type-specific override is provided it takes priority; otherwise the
- * global fallback rate is used.
+ *
+ * When a per-type override is configured it takes precedence over the global
+ * fallback rate. This allows labels to charge, e.g., a higher fee on physical
+ * merch than on digital streaming without touching every artist's individual
+ * split rule.
+ *
+ * The result is a decimal rate (0–1), so a 15 % fee becomes 0.15.
+ *
+ * @param override - Per-type fee percentage (0–100) or `undefined` when not configured.
+ * @param fallback - Global fee percentage (0–100) used when `override` is absent.
  */
 function resolveDistributionFeeRate(override: number | undefined, fallback: number): number {
   return (override != null ? override : fallback) / 100
 }
 
 /**
- * Resolves the effective split percentage for a given revenue type.
- * Type-specific override → base split → 100 % (pass-through).
+ * Resolves the effective artist split percentage for a given revenue type.
+ *
+ * Fallback chain:
+ *   1. Type-specific override on the `SplitFee` entry (e.g. `digitalPercentage`)
+ *   2. Base `percentage` on the `SplitFee` entry
+ *   3. 100 % — full pass-through when no split rule exists at all
+ *
+ * 100 % is used as the ultimate fallback because a missing split rule means the
+ * label has not yet configured a deduction for that artist, so we should never
+ * silently zero out their payout.
+ *
+ * @param splitFee - The artist's split-fee entry from the config, or `undefined` when no rule is configured.
+ * @param typeOverride - Revenue type determining which optional override field to read.
  */
 function resolveSplitPercentage(
   splitFee: { percentage: number; digitalPercentage?: number; physicalPercentage?: number } | undefined,

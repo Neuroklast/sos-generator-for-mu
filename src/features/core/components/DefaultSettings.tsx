@@ -18,6 +18,11 @@ function SectionHeading({ icon: Icon, title }: { icon: PhosphorIcon; title: stri
   )
 }
 
+/** Clamps a percentage value to the valid 0–100 range. */
+function clampPct(value: number): number {
+  return Math.min(100, Math.max(0, value))
+}
+
 export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
   const patch = (partial: Partial<AppDefaults>) => onUpdate({ ...defaults, ...partial })
 
@@ -45,7 +50,7 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
               value={defaults.defaultSplitPercentage}
               onChange={e => {
                 const val = parseFloat(e.target.value)
-                if (!Number.isNaN(val)) patch({ defaultSplitPercentage: Math.min(100, Math.max(0, val)) })
+                if (!Number.isNaN(val)) patch({ defaultSplitPercentage: clampPct(val) })
               }}
               placeholder="z.B. 50"
               className="max-w-xs"
@@ -71,7 +76,7 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
               value={defaults.distributionFeePercentage ?? 0}
               onChange={e => {
                 const val = parseFloat(e.target.value)
-                if (!Number.isNaN(val)) patch({ distributionFeePercentage: Math.min(100, Math.max(0, val)) })
+                if (!Number.isNaN(val)) patch({ distributionFeePercentage: clampPct(val) })
               }}
               placeholder="z.B. 15"
               className="max-w-xs"
@@ -99,7 +104,7 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
                     patch({ distributionFeeDigital: undefined })
                   } else {
                     const val = parseFloat(raw)
-                    if (!Number.isNaN(val)) patch({ distributionFeeDigital: Math.min(100, Math.max(0, val)) })
+                    if (!Number.isNaN(val)) patch({ distributionFeeDigital: clampPct(val) })
                   }
                 }}
                 placeholder="Leer = globale Rate"
@@ -126,7 +131,7 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
                     patch({ distributionFeePhysical: undefined })
                   } else {
                     const val = parseFloat(raw)
-                    if (!Number.isNaN(val)) patch({ distributionFeePhysical: Math.min(100, Math.max(0, val)) })
+                    if (!Number.isNaN(val)) patch({ distributionFeePhysical: clampPct(val) })
                   }
                 }}
                 placeholder="Leer = globale Rate"

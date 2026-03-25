@@ -18,7 +18,46 @@ interface SplitFeeManagerProps {
   ) => void
 }
 
-/** Controlled numeric input that validates and calls back on blur. */
+// ── Shared validation ─────────────────────────────────────────────────────────
+
+type ParseResult =
+  | { ok: true; value: number }
+  | { ok: true; value: undefined } // empty string → clear override
+  | { ok: false; error: string }
+
+/**
+ * Parses and validates a raw percentage string input.
+ * Returns a typed discriminated union so callers handle both success and failure.
+ *
+ * @param raw - Raw string from an input element.
+ * @param required - When true an empty string is treated as an error instead of clearing the value.
+ */
+function parsePercentInput(raw: string, required: boolean): ParseResult {
+  const trimmed = raw.trim()
+  if (trimmed === '') {
+    return required
+      ? { ok: false, error: 'Required' }
+      : { ok: true, value: undefined }
+  }
+  const num = parseFloat(trimmed)
+  if (isNaN(num)) return { ok: false, error: 'Must be a number' }
+  if (num < 0 || num > 100) return { ok: false, error: 'Must be 0–100' }
+  return { ok: true, value: Math.round(num * 10) / 10 }
+}
+
+// ── PercentInput ──────────────────────────────────────────────────────────────
+
+/** Converts an optional percentage number to its string representation for input state. */
+function formatPercentValue(value: number | undefined): string {
+  return value != null ? String(value) : ''
+}
+
+/**
+ * Controlled optional numeric input for percentage values (0–100).
+ * An empty value clears the override and triggers `onChange(undefined)`.
+ * Synchronises the local draft with external `value` prop changes so that
+ * undo / workspace-reset operations always reflect the current state.
+ */
 function PercentInput({
   id,
   value,
@@ -30,28 +69,21 @@ function PercentInput({
   onChange: (value: number | undefined) => void
   placeholder?: string
 }) {
-  const [draft, setDraft] = useState(value != null ? String(value) : '')
+  const [draft, setDraft] = useState(formatPercentValue(value))
   const [error, setError] = useState('')
 
-  const handleChange = (raw: string) => {
-    setDraft(raw)
+  // Sync draft whenever the external value changes (e.g. after undo or reset).
+  useEffect(() => {
+    setDraft(formatPercentValue(value))
     setError('')
-  }
+  }, [value])
 
   const handleBlur = useCallback(() => {
-    const trimmed = draft.trim()
-    if (trimmed === '') {
-      setError('')
-      onChange(undefined)
-      return
-    }
-    const num = parseFloat(trimmed)
-    if (isNaN(num)) { setError('Must be a number'); return }
-    if (num < 0 || num > 100) { setError('Must be 0–100'); return }
-    const clamped = Math.round(num * 10) / 10
-    setDraft(String(clamped))
+    const result = parsePercentInput(draft, false)
+    if (!result.ok) { setError(result.error); return }
     setError('')
-    onChange(clamped)
+    if (result.value != null) setDraft(String(result.value))
+    onChange(result.value)
   }, [draft, onChange])
 
   return (
@@ -65,7 +97,7 @@ function PercentInput({
           step="0.1"
           placeholder={placeholder}
           value={draft}
-          onChange={e => handleChange(e.target.value)}
+          onChange={e => { setDraft(e.target.value); setError('') }}
           onBlur={handleBlur}
           className={[
             'w-20 text-right font-mono text-xs',
@@ -78,6 +110,8 @@ function PercentInput({
     </div>
   )
 }
+
+// ── SplitFeeRow ───────────────────────────────────────────────────────────────
 
 function SplitFeeRow({
   split,
@@ -92,37 +126,25 @@ function SplitFeeRow({
   onUpdate: (artist: string, percentage: number) => void
   onUpdateTypeOverride?: (artist: string, digital: number | undefined, physical: number | undefined) => void
 }) {
-  // Keep a local draft value while the user is typing
   const [draft, setDraft] = useState(String(split.percentage))
   const [error, setError] = useState('')
   const [showOverrides, setShowOverrides] = useState(
     split.digitalPercentage != null || split.physicalPercentage != null
   )
 
-  const handleChange = (value: string) => {
-    setDraft(value)
+  // Sync base draft with external changes (undo / reset).
+  useEffect(() => {
+    setDraft(String(split.percentage))
     setError('')
-  }
+  }, [split.percentage])
 
   const handleBlur = useCallback(() => {
-    const raw = draft.trim()
-    if (raw === '') {
-      setError('Required')
-      return
-    }
-    const num = parseFloat(raw)
-    if (isNaN(num)) {
-      setError('Must be a number')
-      return
-    }
-    if (num < 0 || num > 100) {
-      setError('Must be between 0 and 100')
-      return
-    }
-    const clamped = Math.round(num * 10) / 10
-    setDraft(String(clamped))
+    const result = parsePercentInput(draft, true)
+    if (!result.ok) { setError(result.error); return }
+    const value = result.value as number // required=true guarantees a number on success
+    setDraft(String(value))
     setError('')
-    onUpdate(split.artist, clamped)
+    onUpdate(split.artist, value)
   }, [draft, split.artist, onUpdate])
 
   return (
@@ -154,7 +176,7 @@ function SplitFeeRow({
               max="100"
               step="0.1"
               value={draft}
-              onChange={e => handleChange(e.target.value)}
+              onChange={e => { setDraft(e.target.value); setError('') }}
               onBlur={handleBlur}
               className={[
                 'w-24 text-right font-mono',
@@ -190,8 +212,8 @@ function SplitFeeRow({
               id={`split-digital-${split.artist}`}
               value={split.digitalPercentage}
               placeholder="e.g. 80"
-              onChange={digital =>
-                onUpdateTypeOverride(split.artist, digital, split.physicalPercentage)
+              onChange={digitalPercentage =>
+                onUpdateTypeOverride(split.artist, digitalPercentage, split.physicalPercentage)
               }
             />
             <p className="text-[10px] text-muted-foreground/60">Streaming · empty = use base</p>
@@ -202,8 +224,8 @@ function SplitFeeRow({
               id={`split-physical-${split.artist}`}
               value={split.physicalPercentage}
               placeholder="e.g. 60"
-              onChange={physical =>
-                onUpdateTypeOverride(split.artist, split.digitalPercentage, physical)
+              onChange={physicalPercentage =>
+                onUpdateTypeOverride(split.artist, split.digitalPercentage, physicalPercentage)
               }
             />
             <p className="text-[10px] text-muted-foreground/60">Physical · Merch · empty = use base</p>
@@ -213,6 +235,8 @@ function SplitFeeRow({
     </Card>
   )
 }
+
+// ── SplitFeeManager ───────────────────────────────────────────────────────────
 
 export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride }: SplitFeeManagerProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
@@ -259,17 +283,14 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
   }
 
   const applyBulk = () => {
-    const raw = bulkDraft.trim()
-    if (!raw) { setBulkError('Required'); return }
-    const num = parseFloat(raw)
-    if (isNaN(num)) { setBulkError('Must be a number'); return }
-    if (num < 0 || num > 100) { setBulkError('Must be between 0 and 100'); return }
-    const clamped = Math.round(num * 10) / 10
+    const result = parsePercentInput(bulkDraft, true)
+    if (!result.ok) { setBulkError(result.error); return }
+    const value = result.value as number
     const artists = Array.from(selectedArtists)
     if (onBulkUpdateSplitFee) {
-      onBulkUpdateSplitFee(artists, clamped)
+      onBulkUpdateSplitFee(artists, value)
     } else {
-      artists.forEach(a => onUpdateSplitFee(a, clamped))
+      artists.forEach(a => onUpdateSplitFee(a, value))
     }
     setBulkDraft('')
     setBulkError('')
