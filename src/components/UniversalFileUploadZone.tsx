@@ -50,7 +50,7 @@ import { parseCSVLine } from '@/lib/csv-parser'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface FileManagerCallbacks {
+export interface FileManagerCallbacks {
   files: UploadedFile[]
   fileStates: Record<string, FileProcessingState>
   addFiles: (files: File[]) => void

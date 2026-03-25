@@ -3,7 +3,7 @@ import { Loader2, CalendarDays, Sparkles } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { UniversalFileUploadZone } from '@/components/UniversalFileUploadZone'
+import { UniversalFileUploadZone, type FileManagerCallbacks } from '@/components/UniversalFileUploadZone'
 import { ManualRevenueManager } from '@/components/ManualRevenueManager'
 import { ExpenseManager } from '@/components/ExpenseManager'
 import { DetectedPeriodBanner } from '@/components/DetectedPeriodBanner'
@@ -16,12 +16,6 @@ import type {
   CSVColumnAlias,
 } from '@/lib/types'
 
-interface FileManager {
-  files: UploadedFile[]
-  addFiles: (files: File[]) => void
-  removeFile: (id: string) => void
-}
-
 interface IngestViewProps {
   detectedPeriodStart: string
   detectedPeriodEnd: string
@@ -29,8 +23,8 @@ interface IngestViewProps {
   periodEnd: string
   setPeriodStart: (val: string) => void
   setPeriodEnd: (val: string) => void
-  believeManager: FileManager
-  bandcampManager: FileManager
+  believeManager: FileManagerCallbacks
+  bandcampManager: FileManagerCallbacks
   shopifyManager: ShopifyManager
   exchangeRatesLoading: boolean
   handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void

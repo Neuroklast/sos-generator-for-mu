@@ -21,7 +21,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { UniversalFileUploadZone } from '@/components/UniversalFileUploadZone'
+import { UniversalFileUploadZone, type FileManagerCallbacks } from '@/components/UniversalFileUploadZone'
 import { CompilationFilterManager } from '@/components/CompilationFilterManager'
 import { ArtistMappingManager } from '@/components/ArtistMappingManager'
 import { ManualRevenueManager } from '@/components/ManualRevenueManager'
@@ -36,23 +36,16 @@ import type {
   ExpenseEntry,
   GuestPayoutRule,
   ArtistCollabNode,
-  UploadedFile,
   CSVColumnAlias,
 } from '@/lib/types'
 
 export type MasterSortField = 'artist' | 'totalQuantity' | 'totalRevenue' | 'finalAmount'
 export type MasterSortDir = 'asc' | 'desc'
 
-interface FileManager {
-  files: UploadedFile[]
-  addFiles: (files: File[]) => void
-  removeFile: (id: string) => void
-}
-
 interface ProcessCockpitViewProps {
   revenues: ArtistRevenue[]
-  believeManager: FileManager
-  bandcampManager: FileManager
+  believeManager: FileManagerCallbacks
+  bandcampManager: FileManagerCallbacks
   totalFiles: number
   uniqueArtists: string[]
   exchangeRatesLoading: boolean
