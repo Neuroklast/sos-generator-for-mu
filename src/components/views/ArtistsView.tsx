@@ -1,9 +1,9 @@
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ArtistTreeView } from '@/components/ArtistTreeView'
-import { ArtistMappingManager } from '@/components/ArtistMappingManager'
-import { LabelArtistManager } from '@/components/LabelArtistManager'
-import { SplitFeeManager } from '@/components/SplitFeeManager'
+import { ArtistMappingManager } from '@/features/rules/components/ArtistMappingManager'
+import { LabelArtistManager } from '@/features/core/components/LabelArtistManager'
+import { SplitFeeManager } from '@/features/rules/components/SplitFeeManager'
 import type {
   ArtistTreeNode,
   ArtistCollabNode,

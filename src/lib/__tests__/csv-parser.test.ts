@@ -8,7 +8,7 @@ import {
   parseCSVContent,
   buildMergedDictionary,
   semanticDictionary,
-} from '../csv-parser'
+} from '@/features/ingest/lib/csv-parser'
 
 // ── extractFeaturedArtistsDetailed ────────────────────────────────────────────
 

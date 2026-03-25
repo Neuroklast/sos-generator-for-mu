@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card'
-import { ReportingPanel } from '@/components/ReportingPanel'
+import { ReportingPanel } from '@/features/export/components/ReportingPanel'
 import type { ArtistRevenue, LabelArtist, LabelInfo, AppDefaults, EmailConfig } from '@/lib/types'
 
 interface ReportsViewProps {

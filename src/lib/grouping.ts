@@ -1,5 +1,5 @@
-import type { SalesTransaction } from './csv-parser'
-import { extractFeaturedArtistsDetailed } from './csv-parser'
+import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
+import { extractFeaturedArtistsDetailed } from '@/features/ingest/lib/csv-parser'
 import type { GroupByField, GroupNode, FilterState, ArtistCollabNode, ArtistMapping } from './types'
 
 // Re-export all grouping-related types from the canonical types.ts location
