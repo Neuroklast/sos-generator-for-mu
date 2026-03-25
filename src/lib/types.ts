@@ -10,6 +10,28 @@ export interface LabelArtist {
   notes?: string
   /** When true, EU reverse-charge rules apply (no German VAT on invoice). */
   isEuNonGerman?: boolean
+  /**
+   * Per-artist VAT rate as an integer percentage, e.g. 19 for 19 % MwSt.
+   * Overrides the global labelInfo.vatRate when set.
+   * Set to 0 when the artist is not VAT-liable (e.g. Kleinunternehmer).
+   */
+  vatRate?: number
+}
+
+/**
+ * A recoupable expense entry that is deducted from an artist's gross revenue
+ * before the split percentage is applied.
+ */
+export interface ExpenseEntry {
+  id: string
+  /** Artist name this expense is attributed to. */
+  artist: string
+  /** Short description, e.g. "Musikvideo-Produktion" or "PR-Agentur Q3". */
+  description: string
+  /** Expense amount in EUR (positive number = deducted from revenue). */
+  amount: number
+  /** ISO 8601 date string of when the expense was incurred. */
+  date: string
 }
 
 /**
@@ -152,6 +174,12 @@ export interface AppDefaults {
   invoiceDeadlineDate: string
   /** Organisation name that receives unclaimed royalties, e.g. "animal shelter". */
   royaltyDonationOrg: string
+  /**
+   * Label distribution fee as a percentage (0–100) deducted from each artist's
+   * gross streaming/physical revenue before the individual split is applied.
+   * Defaults to 0 (no distribution fee).
+   */
+  distributionFeePercentage: number
 }
 
 /**
@@ -243,6 +271,10 @@ export interface ArtistRevenue {
   splitPercentage: number
   finalAmount: number
   totalQuantity: number
+  /** Total recoupable expenses deducted from gross revenue before split. */
+  totalExpenses: number
+  /** Distribution fee amount deducted before the artist split was applied. */
+  distributionFeeDeducted: number
   platformBreakdown: PlatformRevenue[]
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]
@@ -387,6 +419,10 @@ export interface SafeProcessedArtistData {
   splitPercentage: number
   finalPayout: number
   totalQuantity: number
+  /** Total recoupable expenses deducted from gross revenue before split. */
+  totalExpenses: number
+  /** Label distribution fee (EUR) deducted from streaming/physical revenue before split. */
+  distributionFeeDeducted: number
   platformBreakdown: PlatformRevenue[]
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]

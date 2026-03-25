@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings } from '@/lib/types'
+import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, LabelArtist } from '@/lib/types'
 import { resolveTemplate } from '@/lib/utils'
 
 /** Default PDF export settings — all major sections enabled, cover letter off. */
@@ -31,11 +31,12 @@ export function generatePDF(
     financeEmail: string
     deadlineDate: string
     donationOrg: string
-  }
+  },
+  artistInfo?: LabelArtist
 ): Blob {
   try {
     const settings = { ...DEFAULT_PDF_SETTINGS, ...pdfSettings }
-    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, settings, emailOptions)
+    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, settings, emailOptions, artistInfo)
   } catch (err) {
     throw new Error(
       `PDF generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
@@ -50,7 +51,8 @@ function buildPDF(
   periodEnd?: string,
   invoiceNumber?: string,
   settings: PdfExportSettings = DEFAULT_PDF_SETTINGS,
-  emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string }
+  emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string },
+  artistInfo?: LabelArtist
 ): Blob {
   const doc = new jsPDF()
   const margin = 20
@@ -152,38 +154,84 @@ function buildPDF(
 
   doc.setLineWidth(0.5)
   doc.line(margin, yPos, 190, yPos)
-  yPos += 15
+  yPos += 10
+
+  // ── Legal keyword: "Gutschrift" ────────────────────────────────────────────
+  // Required by German VAT law (§ 14 Abs. 2 UStG) for the issuing party
+  // (label) to claim input-tax deduction on artist payouts.
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(80, 80, 80)
+  doc.text('Gutschrift im Sinne des Umsatzsteuergesetzes (§ 14 Abs. 2 UStG)', margin, yPos)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(0, 0, 0)
+  yPos += 8
 
   doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text('Statement of Sales', margin, yPos)
+  doc.text('Gutschrift / Statement of Sales', margin, yPos)
   yPos += 10
 
   doc.setFontSize(12)
-  doc.text(`Artist: ${artistData.artist}`, margin, yPos)
-  yPos += 10
+  doc.text(`Künstler / Artist: ${artistData.artist}`, margin, yPos)
+  yPos += 6
 
+  // ── Artist VAT / Reverse Charge info ───────────────────────────────────────
   doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  const artistVatId = artistInfo?.vatNumber
+  const artistIsEuNonGerman = artistInfo?.isEuNonGerman ?? false
+
+  if (artistVatId) {
+    doc.text(`USt-IdNr. Leistungsempfänger: ${artistVatId}`, margin, yPos)
+    yPos += 5
+  }
+
+  if (artistIsEuNonGerman) {
+    doc.setTextColor(80, 80, 80)
+    doc.text(
+      'Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge, Art. 196 MwStSystRL)',
+      margin,
+      yPos
+    )
+    doc.setTextColor(0, 0, 0)
+    yPos += 5
+  }
+
   doc.setFontSize(10)
 
-  const vatRate = labelInfo.vatRate ?? 0
+  // ── Per-artist VAT rate: prefer artistInfo.vatRate, fall back to labelInfo.vatRate
+  const effectiveVatRate = artistInfo?.vatRate ?? labelInfo.vatRate ?? 0
+  const vatRate = artistIsEuNonGerman ? 0 : effectiveVatRate
   const vatAmount = vatRate > 0 ? artistData.finalPayout * (vatRate / 100) : 0
   const grossPayout = artistData.finalPayout + vatAmount
 
-  const summaryData = [
+  const summaryData: string[][] = [
     ['Digitale Einnahmen', formatCurrency(artistData.totalDigitalRevenue)],
     ['Physische Einnahmen', formatCurrency(artistData.totalPhysicalRevenue)],
     ['Manuelle Einnahmen', formatCurrency(artistData.manualRevenue)],
     ['Bruttoeinnahmen', formatCurrency(artistData.grossRevenue)],
+  ]
+
+  if (artistData.distributionFeeDeducted > 0) {
+    summaryData.push(['Label Vertriebsprovision', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
+  }
+
+  if (artistData.totalExpenses > 0) {
+    summaryData.push(['Verrechenbare Kosten / Vorschüsse', `- ${formatCurrency(artistData.totalExpenses)}`])
+  }
+
+  summaryData.push(
     ['Split-Prozentsatz', `${artistData.splitPercentage}%`],
     ['Netto-Auszahlung', formatCurrency(artistData.finalPayout)],
-    ...(vatRate > 0
-      ? [
-          [`USt. ${vatRate}%`, formatCurrency(vatAmount)],
-          ['Brutto-Auszahlung', formatCurrency(grossPayout)],
-        ]
-      : []),
-  ]
+  )
+
+  if (vatRate > 0) {
+    summaryData.push(
+      [`USt. ${vatRate}%`, formatCurrency(vatAmount)],
+      ['Brutto-Auszahlung', formatCurrency(grossPayout)],
+    )
+  }
 
   summaryData.forEach(([label, value]) => {
     doc.text(label + ':', margin, yPos)
@@ -447,11 +495,19 @@ export async function generateZipOfAllStatements(
   format: 'pdf' | 'excel' | 'both' = 'both',
   onProgress?: (done: number, total: number) => void,
   pdfSettings?: Partial<PdfExportSettings>,
-  emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string }
+  emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string },
+  labelArtists?: LabelArtist[]
 ): Promise<Blob> {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
   const total = artistsData.length
+  const currentYear = new Date().getFullYear()
+
+  // Build a O(1) lookup map by lowercase artist name to avoid O(n²) in the loop.
+  const artistInfoMap = new Map<string, LabelArtist>()
+  for (const la of labelArtists ?? []) {
+    artistInfoMap.set(la.name.toLowerCase(), la)
+  }
 
   for (let i = 0; i < artistsData.length; i++) {
     const artistData = artistsData[i]
@@ -461,12 +517,15 @@ export async function generateZipOfAllStatements(
     await new Promise<void>(resolve => setTimeout(resolve, 0))
 
     const safeArtistName = artistData.artist.replace(/[^a-z0-9]/gi, '_')
-    const invoiceNumber = labelInfo.invoiceNumberPrefix
-      ? `${labelInfo.invoiceNumberPrefix}-${String(i + 1).padStart(4, '0')}`
-      : undefined
+
+    // Sequential invoice number: PREFIX-YEAR-NNNN
+    const prefix = labelInfo.invoiceNumberPrefix ?? 'SOS'
+    const invoiceNumber = `${prefix}-${currentYear}-${String(i + 1).padStart(4, '0')}`
+
+    const artistInfo = artistInfoMap.get(artistData.artist.toLowerCase())
 
     if (format === 'pdf' || format === 'both') {
-      const pdfBlob = generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions)
+      const pdfBlob = generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions, artistInfo)
       zip.file(`${safeArtistName}_statement.pdf`, pdfBlob)
     }
 

@@ -9,6 +9,7 @@ import type {
   ArtistMapping,
   SplitFee,
   ManualRevenue,
+  ExpenseEntry,
   ArtistRevenue,
   CSVColumnAlias,
   SafeProcessedArtistData,
@@ -25,6 +26,8 @@ interface CSVProcessorConfig {
   artistMappings: ArtistMapping[]
   splitFees: SplitFee[]
   manualRevenues: ManualRevenue[]
+  /** Recoupable expense entries deducted per artist before split. */
+  expenses: ExpenseEntry[]
   excludePhysical: boolean
   /** User-defined additional column synonyms from the CSV Column Mapping settings. */
   csvAliases: CSVColumnAlias[]
@@ -32,6 +35,8 @@ interface CSVProcessorConfig {
   labelArtists: LabelArtist[]
   /** Entries explicitly ignored in the statement of sales. */
   ignoredEntries: IgnoredEntry[]
+  /** Label distribution fee percentage (0–100) deducted before artist splits. */
+  distributionFeePercentage: number
 }
 
 const EMPTY_RESULT: WorkerResult = {
@@ -120,10 +125,12 @@ export function useCSVProcessor(
     config.artistMappings.map(m => m.id).join(','),
     config.splitFees.map(s => `${s.artist}:${s.percentage}`).join(','),
     config.manualRevenues.map(r => r.id).join(','),
+    config.expenses.map(e => `${e.id}:${e.amount}`).join(','),
     String(config.excludePhysical),
     Object.keys(exchangeRates).length > 0 ? 'rates' : 'no-rates',
     config.labelArtists.map(la => la.id).join(','),
     config.ignoredEntries.map(ie => ie.id).join(','),
+    String(config.distributionFeePercentage),
   ].join('|')
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -133,11 +140,13 @@ export function useCSVProcessor(
     artistMappings: config.artistMappings,
     splitFees: config.splitFees,
     manualRevenues: config.manualRevenues,
+    expenses: config.expenses,
     excludePhysical: config.excludePhysical,
     exchangeRates,
     labelArtists: config.labelArtists,
     ignoredEntries: config.ignoredEntries,
-  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries])
+    distributionFeePercentage: config.distributionFeePercentage,
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage])
 
   const sendProcess = useCallback(() => {
     const cfg = latestConfigRef.current ?? buildConfig()
@@ -287,6 +296,8 @@ export function useCSVProcessor(
         splitPercentage: data.splitPercentage,
         finalAmount: data.finalPayout,
         totalQuantity: data.totalQuantity,
+        totalExpenses: data.totalExpenses,
+        distributionFeeDeducted: data.distributionFeeDeducted,
         platformBreakdown: data.platformBreakdown,
         countryBreakdown: data.countryBreakdown,
         monthlyBreakdown: data.monthlyBreakdown,

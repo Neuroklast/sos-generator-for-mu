@@ -39,6 +39,7 @@ import type {
   ArtistMapping,
   SplitFee,
   ManualRevenue,
+  ExpenseEntry,
   LabelArtist,
   IgnoredEntry,
 } from '@/lib/types'
@@ -51,6 +52,8 @@ export interface WorkerProcessConfig {
   artistMappings: ArtistMapping[]
   splitFees: SplitFee[]
   manualRevenues: ManualRevenue[]
+  /** Recoupable expenses deducted per artist before split. */
+  expenses: ExpenseEntry[]
   excludePhysical: boolean
   /** ECB exchange rates (1 EUR = N units of foreign currency). */
   exchangeRates: ExchangeRates
@@ -58,6 +61,8 @@ export interface WorkerProcessConfig {
   labelArtists: LabelArtist[]
   /** Entries explicitly ignored in the statement of sales. */
   ignoredEntries: IgnoredEntry[]
+  /** Label distribution fee percentage (0–100) deducted before artist splits. */
+  distributionFeePercentage: number
 }
 
 export interface WorkerResult {
@@ -131,7 +136,6 @@ function runProcess(config: WorkerProcessConfig): void {
       allTransactions,
       config
     )
-
     // Pre-compute tree structures while we still have raw transactions in scope
     const artistTrees: ArtistTreeNode[] = buildArtistTree(artistData)
     const collabTransactions = config.excludePhysical
@@ -159,6 +163,8 @@ function runProcess(config: WorkerProcessConfig): void {
         splitPercentage: d.splitPercentage,
         finalPayout: d.finalPayout,
         totalQuantity: d.totalQuantity,
+        totalExpenses: d.totalExpenses,
+        distributionFeeDeducted: d.distributionFeeDeducted,
         platformBreakdown: d.platformBreakdown,
         countryBreakdown: d.countryBreakdown,
         monthlyBreakdown: d.monthlyBreakdown,

@@ -13,6 +13,7 @@ import { CompilationFilterManager } from '@/components/CompilationFilterManager'
 import { ArtistMappingManager } from '@/components/ArtistMappingManager'
 import { SplitFeeManager } from '@/components/SplitFeeManager'
 import { ManualRevenueManager } from '@/components/ManualRevenueManager'
+import { ExpenseManager } from '@/components/ExpenseManager'
 import { LabelBranding } from '@/components/LabelBranding'
 import { RevenueDashboard } from '@/components/RevenueDashboard'
 import { ReportingPanel } from '@/components/ReportingPanel'
@@ -39,6 +40,7 @@ import type {
   ArtistMapping,
   SplitFee,
   ManualRevenue,
+  ExpenseEntry,
   LabelInfo,
   CSVColumnAlias,
   UploadedFile,
@@ -124,6 +126,10 @@ const fmtEur = (n: number) =>
 
 const fmtPct = (part: number, total: number) =>
   total > 0 ? ((part / total) * 100).toFixed(1) : '0.0'
+
+/** Returns the combined distribution fee + recoupable expenses for an artist row. */
+const totalDeductions = (rev: { distributionFeeDeducted: number; totalExpenses: number }) =>
+  rev.distributionFeeDeducted + rev.totalExpenses
 
 // ── KPI stat card ─────────────────────────────────────────────────────────────
 
@@ -457,6 +463,7 @@ function App() {
   const [artistMappings, setArtistMappings] = useKV<ArtistMapping[]>('artist-mappings', [])
   const [splitFees, setSplitFees] = useKV<SplitFee[]>('split-fees', [])
   const [manualRevenues, setManualRevenues] = useKV<ManualRevenue[]>('manual-revenues', [])
+  const [expenses, setExpenses] = useKV<ExpenseEntry[]>('expenses', [])
   const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', { name: '', address: '' })
   const [excludePhysical, setExcludePhysical] = useKV<boolean>('exclude-physical', false)
   const [labelArtists, setLabelArtists] = useKV<LabelArtist[]>('label-artists', [])
@@ -511,6 +518,7 @@ function App() {
   const stableArtistMappings = useMemo(() => artistMappings ?? [], [artistMappings])
   const stableSplitFees = useMemo(() => splitFees ?? [], [splitFees])
   const stableManualRevenues = useMemo(() => manualRevenues ?? [], [manualRevenues])
+  const stableExpenses = useMemo(() => expenses ?? [], [expenses])
   const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
   const stableLabelArtists = useMemo(() => labelArtists ?? [], [labelArtists])
   const stableIgnoredEntries = useMemo(() => ignoredEntries ?? [], [ignoredEntries])
@@ -535,10 +543,12 @@ function App() {
       artistMappings: stableArtistMappings,
       splitFees: stableSplitFees,
       manualRevenues: stableManualRevenues,
+      expenses: stableExpenses,
       excludePhysical: excludePhysical ?? false,
       csvAliases: stableCsvAliases,
       labelArtists: stableLabelArtists,
       ignoredEntries: stableIgnoredEntries,
+      distributionFeePercentage: appDefaults?.distributionFeePercentage ?? 0,
     },
     shopifyManager.files
   )
@@ -582,7 +592,8 @@ function App() {
     periodStart ?? '',
     periodEnd ?? '',
     pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS,
-    appDefaults ?? DEFAULT_APP_DEFAULTS
+    appDefaults ?? DEFAULT_APP_DEFAULTS,
+    stableLabelArtists
   )
 
   const handleAddCompilationFilter = useCallback(
@@ -682,6 +693,24 @@ function App() {
     },
     [manualRevenues, setManualRevenues, pushUndo]
   )
+  const handleAddExpense = useCallback(
+    (expense: Omit<ExpenseEntry, 'id'>) => {
+      const snapshot = expenses ?? []
+      setExpenses(current => [...(current ?? []), { ...expense, id: crypto.randomUUID() }])
+      pushUndo({ description: 'Add expense', undo: () => setExpenses(snapshot) })
+      toast.success('Expense added')
+    },
+    [expenses, setExpenses, pushUndo]
+  )
+  const handleRemoveExpense = useCallback(
+    (id: string) => {
+      const snapshot = expenses ?? []
+      setExpenses(current => (current ?? []).filter(e => e.id !== id))
+      pushUndo({ description: 'Remove expense', undo: () => setExpenses(snapshot) })
+      toast.info('Expense removed')
+    },
+    [expenses, setExpenses, pushUndo]
+  )
   const handleAddAlias = useCallback(
     (alias: Omit<CSVColumnAlias, 'id'>) => {
       const snapshot = csvAliases ?? []
@@ -724,11 +753,12 @@ function App() {
     bandcampManager.clearAll()
     shopifyManager.clearAll()
     setManualRevenues([])
+    setExpenses([])
     setPeriodStart('')
     setPeriodEnd('')
     setClearConfirmOpen(false)
     toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
-  }, [believeManager, bandcampManager, shopifyManager, setManualRevenues, setPeriodStart, setPeriodEnd])
+  }, [believeManager, bandcampManager, shopifyManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
 
   const handleWorkspaceImport = useCallback(
     (backup: WorkspaceBackup) => {
@@ -1385,6 +1415,23 @@ function App() {
                       />
                     </Card>
                   </div>
+
+                  {/* ── Step 4: Recoupable Expenses ── */}
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-destructive text-destructive-foreground text-sm font-bold shrink-0">4</span>
+                      <h2 className="text-base font-semibold">Recoupable Expenses <span className="text-muted-foreground font-normal">(Kosten & Vorschüsse)</span></h2>
+                    </div>
+
+                    <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+                      <ExpenseManager
+                        expenses={expenses ?? []}
+                        artists={uniqueArtists}
+                        onAddExpense={handleAddExpense}
+                        onRemoveExpense={handleRemoveExpense}
+                      />
+                    </Card>
+                  </div>
                 </div>
               )}
 
@@ -1602,6 +1649,7 @@ function App() {
                                     {masterSortField === 'totalRevenue' ? (masterSortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={12} className="opacity-40" />}
                                   </span>
                                 </th>
+                                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-rose-400/70">Deductions</th>
                                 <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Split Rate</th>
                                 <th
                                   className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
@@ -1618,7 +1666,7 @@ function App() {
                             <tbody>
                               {masterTableRevenues.length === 0 ? (
                                 <tr>
-                                  <td colSpan={9} className="py-8 text-center text-sm text-muted-foreground">No artists match your search.</td>
+                                  <td colSpan={10} className="py-8 text-center text-sm text-muted-foreground">No artists match your search.</td>
                                 </tr>
                               ) : masterTableRevenues.map(rev => {
                                 const isExpanded = expandedArtists.has(rev.artist)
@@ -1658,6 +1706,9 @@ function App() {
                                         {collabRevenue > 0 ? `€${fmtEur(collabRevenue)}` : '—'}
                                       </td>
                                       <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-foreground">€{fmtEur(rev.totalRevenue)}</td>
+                                      <td className="py-4 px-4 text-right font-mono tabular-nums text-rose-400">
+                                        {totalDeductions(rev) > 0 ? `- €${fmtEur(totalDeductions(rev))}` : '—'}
+                                      </td>
                                       <td className="py-4 px-4 text-right font-mono tabular-nums text-primary">{rev.splitPercentage.toFixed(1)}%</td>
                                       <td className="py-4 px-4 text-right font-mono tabular-nums font-bold text-primary">€{fmtEur(rev.finalAmount)}</td>
                                       <td className="py-4 px-4 text-right" onClick={e => e.stopPropagation()}>
@@ -1689,7 +1740,7 @@ function App() {
                                     {/* Sub Row (expanded) */}
                                     {isExpanded && (
                                       <tr>
-                                        <td colSpan={9} className="p-0">
+                                        <td colSpan={10} className="p-0">
                                           <div className="bg-white/5 shadow-inner border-b border-white/10">
                                             <div className="px-8 lg:px-12 py-6 space-y-5">
 
@@ -1847,6 +1898,11 @@ function App() {
                                 <td className="py-4 px-4 text-right font-mono tabular-nums font-bold text-foreground">
                                   €{revenues.reduce((s, r) => s + r.totalRevenue, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
+                                <td className="py-4 px-4 text-right font-mono tabular-nums font-semibold text-rose-400">
+                                  {revenues.reduce((s, r) => s + totalDeductions(r), 0) > 0
+                                    ? `- €${fmtEur(revenues.reduce((s, r) => s + totalDeductions(r), 0))}`
+                                    : '—'}
+                                </td>
                                 <td className="py-4 px-4"></td>
                                 <td className="py-4 px-4 text-right font-mono tabular-nums font-bold text-primary text-base">
                                   €{revenues.reduce((s, r) => s + r.finalAmount, 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1888,6 +1944,27 @@ function App() {
                           artists={uniqueArtists}
                           onAddRevenue={handleAddManualRevenue}
                           onRemoveRevenue={handleRemoveManualRevenue}
+                        />
+                      </div>
+                    </Card>
+
+                    {/* ─ Card 5: Recoupable Expenses — 6 columns ─ */}
+                    <Card className="col-span-12 lg:col-span-6 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl flex flex-col gap-6 overflow-hidden">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shrink-0 shadow-lg shadow-red-500/25">
+                          <TrendingUp size={20} className="text-white" style={{ transform: 'scaleY(-1)' }} />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Recoupable Expenses</h3>
+                          <p className="text-xs text-muted-foreground">Marketing, advances & production costs</p>
+                        </div>
+                      </div>
+                      <div className="flex-1 overflow-y-auto min-h-0">
+                        <ExpenseManager
+                          expenses={expenses ?? []}
+                          artists={uniqueArtists}
+                          onAddExpense={handleAddExpense}
+                          onRemoveExpense={handleRemoveExpense}
                         />
                       </div>
                     </Card>
