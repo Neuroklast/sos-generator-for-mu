@@ -21,6 +21,7 @@ import {
   CaretUp,
   FloppyDisk,
   PencilSimple,
+  FileCsv,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -371,13 +372,7 @@ export function CsvProfileManager({
       {/* Header */}
       <div className="flex items-start gap-3 mb-6">
         <div className="p-2.5 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 shrink-0 shadow-lg shadow-orange-500/25">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20" height="20" fill="white" viewBox="0 0 256 256"
-            aria-hidden="true"
-          >
-            <path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z" />
-          </svg>
+          <FileCsv size={20} weight="fill" className="text-white" />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">CSV Import Profiles</h3>

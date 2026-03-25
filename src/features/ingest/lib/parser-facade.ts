@@ -28,7 +28,7 @@ import {
 } from './default-profiles'
 import type { LabelArtist } from '@/lib/types'
 
-export type FileType = 'believe' | 'bandcamp' | 'shopify' | 'unknown'
+export type FileType = 'believe' | 'bandcamp' | 'shopify' | 'master-data' | 'unknown'
 
 export interface ParseFileResult {
   fileType: FileType
@@ -55,13 +55,34 @@ function normalizeHeader(h: string): string {
  * Handles comma-, semicolon-, and tab-delimited headers.
  */
 function splitHeader(headerLine: string): string[] {
-  const delimiter = headerLine.includes('\t') ? '\t' : headerLine.includes(';') ? ';' : ','
+  let delimiter: string
+  if (headerLine.includes('\t')) {
+    delimiter = '\t'
+  } else if (headerLine.includes(';')) {
+    delimiter = ';'
+  } else {
+    delimiter = ','
+  }
   return headerLine.split(delimiter).map(normalizeHeader)
 }
 
 /** Counts how many of the given candidate column names are present in the headers. */
 function countMatches(headers: string[], candidates: string[]): number {
   return candidates.filter(c => headers.includes(c)).length
+}
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Strips BOM and normalises line endings to `\n` in raw CSV content.
+ * Applied once before any line-based processing to ensure consistent behaviour
+ * across UTF-8, UTF-16 LE/BE, and Windows CRLF files.
+ */
+function normaliseCsvContent(content: string): string {
+  return content
+    .replace(/^\uFEFF/, '')   // strip BOM
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
 }
 
 // ── Profile matching ──────────────────────────────────────────────────────────
@@ -151,11 +172,7 @@ export function parseMasterDataCSV(
   content: string,
   profile: CsvImportProfile
 ): Array<Omit<LabelArtist, 'id'>> {
-  const lines = content
-    .replace(/^\uFEFF/, '')   // strip BOM
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .split('\n')
+  const lines = normaliseCsvContent(content).split('\n')
 
   const firstNonEmpty = lines.findIndex(l => l.trim().length > 0)
   if (firstNonEmpty === -1) return []
@@ -166,11 +183,11 @@ export function parseMasterDataCSV(
 
   // Build a lookup: master-data field → column index
   const { columnMapping } = profile
-  const nameIdx        = headers.indexOf((columnMapping.name ?? 'name').toLowerCase())
-  const emailIdx       = headers.indexOf((columnMapping.email ?? 'email').toLowerCase())
-  const vatIdx         = headers.indexOf((columnMapping.vatNumber ?? 'vatnumber').toLowerCase())
-  const euIdx          = headers.indexOf((columnMapping.isEuNonGerman ?? 'iseunongerman').toLowerCase())
-  const notesIdx       = headers.indexOf((columnMapping.notes ?? 'notes').toLowerCase())
+  const nameIdx          = headers.indexOf((columnMapping.name ?? 'name').toLowerCase())
+  const emailIdx         = headers.indexOf((columnMapping.email ?? 'email').toLowerCase())
+  const vatNumberIdx     = headers.indexOf((columnMapping.vatNumber ?? 'vatnumber').toLowerCase())
+  const isEuNonGermanIdx = headers.indexOf((columnMapping.isEuNonGerman ?? 'iseunongerman').toLowerCase())
+  const notesIdx         = headers.indexOf((columnMapping.notes ?? 'notes').toLowerCase())
 
   const dataLines = lines.slice(firstNonEmpty + 1)
   const result: Array<Omit<LabelArtist, 'id'>> = []
@@ -183,10 +200,10 @@ export function parseMasterDataCSV(
 
     result.push({
       name,
-      email:         emailIdx >= 0 ? (cols[emailIdx] ?? '').trim() || undefined : undefined,
-      vatNumber:     vatIdx >= 0   ? (cols[vatIdx] ?? '').trim() || undefined   : undefined,
-      isEuNonGerman: euIdx >= 0    ? (cols[euIdx] ?? '').trim().toLowerCase() === 'true' : undefined,
-      notes:         notesIdx >= 0 ? (cols[notesIdx] ?? '').trim() || undefined : undefined,
+      email:         emailIdx >= 0         ? (cols[emailIdx] ?? '').trim() || undefined         : undefined,
+      vatNumber:     vatNumberIdx >= 0      ? (cols[vatNumberIdx] ?? '').trim() || undefined      : undefined,
+      isEuNonGerman: isEuNonGermanIdx >= 0  ? (cols[isEuNonGermanIdx] ?? '').trim().toLowerCase() === 'true' : undefined,
+      notes:         notesIdx >= 0          ? (cols[notesIdx] ?? '').trim() || undefined          : undefined,
     })
   }
 
@@ -199,6 +216,9 @@ const SHOPIFY_COLUMNS = ['financial status', 'lineitem name', 'lineitem sku', 'l
 const BELIEVE_COLUMNS = ['release_title', 'barcode', 'upc', 'isrc', 'net_revenue']
 const BANDCAMP_COLUMNS = ['item type', 'catalog number', 'artist', 'album title', 'net amount']
 
+/** Legacy file type (excludes the new 'master-data' variant which requires profile matching). */
+type LegacyFileType = 'believe' | 'bandcamp' | 'shopify' | 'unknown'
+
 /**
  * Legacy file-type detector using a fixed column-scoring heuristic.
  *
@@ -208,19 +228,19 @@ const BANDCAMP_COLUMNS = ['item type', 'catalog number', 'artist', 'album title'
  * workspaces continue working without any migration.
  *
  * @param headerLine - The raw first line of the CSV file.
- * @returns The detected {@link FileType}: `'believe'`, `'bandcamp'`, `'shopify'`, or `'unknown'`.
+ * @returns The detected {@link LegacyFileType}: `'believe'`, `'bandcamp'`, `'shopify'`, or `'unknown'`.
  */
-export function detectFileType(headerLine: string): FileType {
+export function detectFileType(headerLine: string): LegacyFileType {
   const headers = splitHeader(headerLine)
 
-  const scores: Record<Exclude<FileType, 'unknown'>, number> = {
+  const scores: Record<Exclude<LegacyFileType, 'unknown'>, number> = {
     shopify: countMatches(headers, SHOPIFY_COLUMNS),
     believe: countMatches(headers, BELIEVE_COLUMNS),
     bandcamp: countMatches(headers, BANDCAMP_COLUMNS),
   }
 
-  const best = (Object.entries(scores) as Array<[Exclude<FileType, 'unknown'>, number]>)
-    .reduce<[Exclude<FileType, 'unknown'>, number] | null>((acc, [type, score]) => {
+  const best = (Object.entries(scores) as Array<[Exclude<LegacyFileType, 'unknown'>, number]>)
+    .reduce<[Exclude<LegacyFileType, 'unknown'>, number] | null>((acc, [type, score]) => {
       if (score === 0) return acc
       if (acc === null || score > acc[1]) return [type, score]
       return acc
@@ -254,9 +274,9 @@ export async function parseFile(
   profiles: CsvImportProfile[] = [],
   source?: 'believe' | 'bandcamp' | 'shopify'
 ): Promise<ParseFileResult> {
-  const firstLine = content.split('\n')[0] ?? ''
+  const normalised = normaliseCsvContent(content)
+  const firstLine = normalised.split('\n')[0] ?? ''
   const rawHeaders = firstLine
-    .replace(/^\uFEFF/, '')
     .split(firstLine.includes(';') ? ';' : firstLine.includes('\t') ? '\t' : ',')
     .map(h => h.replace(/['"]/g, '').trim())
 
@@ -269,7 +289,7 @@ export async function parseFile(
       if (matched.type === 'master-data') {
         const labelArtists = parseMasterDataCSV(content, matched)
         return {
-          fileType: 'unknown',
+          fileType: 'master-data',
           profileId: matched.id,
           profileType: 'master-data',
           transactions: [],
@@ -316,7 +336,7 @@ export async function parseFile(
   }
 
   // ── Phase 2: Legacy fallback ─────────────────────────────────────────────
-  const detectedType: FileType = source ?? detectFileType(firstLine)
+  const detectedType: LegacyFileType = source ?? detectFileType(firstLine)
 
   if (detectedType === 'shopify') {
     const shopifyResult: ShopifyParseResult = parseShopifyCSV(content)

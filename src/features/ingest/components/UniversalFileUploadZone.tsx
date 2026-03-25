@@ -137,7 +137,6 @@ async function detectCSVSource(
     text = new TextDecoder('utf-8').decode(buffer)
   }
 
-  // Strip BOM and get only the first line
   const clean = text.startsWith('\uFEFF') ? text.slice(1) : text
   const firstLine = clean.split(/\r?\n/)[0] ?? ''
   const delimiter = firstLine.includes(';') ? ';' : ','
