@@ -14,7 +14,7 @@ import { SettingsView } from '@/components/views/SettingsView'
 import { HistoryView } from '@/components/views/HistoryView'
 import { BrandingView } from '@/components/views/BrandingView'
 import { SideNavItem, StepNavItem, MobileNavItem, type NavItem } from '@/components/nav/NavItems'
-import type { WorkspaceBackup } from '@/components/WorkspaceManager'
+import type { WorkspaceBackup } from '@/features/core/components/WorkspaceManager'
 import { useFileManager } from '@/hooks/useFileManager'
 import { useCSVProcessor } from '@/hooks/useCSVProcessor'
 import { useExports } from '@/hooks/useExports'
@@ -890,12 +890,8 @@ function App() {
               {activeView === 'process' && (
                 <ProcessCockpitView
                   revenues={revenues}
-                  believeManager={believeManager}
-                  bandcampManager={bandcampManager}
                   totalFiles={totalFiles}
                   uniqueArtists={uniqueArtists}
-                  exchangeRatesLoading={exchangeRatesLoading}
-                  handleAddAlias={handleAddAlias}
                   compilationFilters={stableCompilationFilters}
                   handleAddCompilationFilter={handleAddCompilationFilter}
                   handleRemoveCompilationFilter={handleRemoveCompilationFilter}

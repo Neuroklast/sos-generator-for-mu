@@ -2,8 +2,8 @@ import { motion } from 'framer-motion'
 import { UploadCloud, TrendingUp, Users, Zap, CalendarDays } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { StatCard } from '@/components/StatCard'
-import { RevenueDashboard } from '@/components/RevenueDashboard'
+import { StatCard } from '@/features/core/components/StatCard'
+import { RevenueDashboard } from '@/features/analytics/components/RevenueDashboard'
 import type { ArtistRevenue, FilteredCompilation, SplitFee } from '@/lib/types'
 
 interface StepItem {

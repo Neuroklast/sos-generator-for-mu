@@ -1,4 +1,4 @@
-import type { SalesTransaction } from './csv-parser'
+import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
 import type {
   CompilationFilter,
   ArtistMapping,

@@ -22,14 +22,14 @@
  *   error           Any unrecoverable error.
  */
 
-import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
-import { parseShopifyCSV } from '@/lib/shopify-parser'
+import { parseCSVContentStreaming } from '@/features/ingest/lib/streaming-csv-parser'
+import { parseShopifyCSV } from '@/features/ingest/lib/shopify-parser'
 import {
   processTransactionsWithCompilations,
   buildArtistTree,
 } from '@/lib/data-processor'
 import { buildArtistCollabTree } from '@/lib/grouping'
-import type { SalesTransaction } from '@/lib/csv-parser'
+import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
 import type {
   SafeProcessedArtistData,
   ArtistTreeNode,

@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { semanticDictionary } from '@/lib/csv-parser'
+import { semanticDictionary } from '@/features/ingest/lib/csv-parser'
 import type { CSVColumnAlias } from '@/lib/types'
 
 interface CSVColumnMapperProps {

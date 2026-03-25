@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card'
-import { LabelBranding } from '@/components/LabelBranding'
+import { LabelBranding } from '@/features/core/components/LabelBranding'
 import type { LabelInfo } from '@/lib/types'
 
 interface BrandingViewProps {

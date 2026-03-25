@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card'
-import { AnalyticsDashboard } from '@/components/AnalyticsDashboard'
+import { AnalyticsDashboard } from '@/features/analytics/components/AnalyticsDashboard'
 import type { ArtistRevenue } from '@/lib/types'
 
 interface AnalyticsViewProps {

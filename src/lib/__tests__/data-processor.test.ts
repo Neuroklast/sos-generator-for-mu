@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { SalesTransaction } from '../csv-parser'
+import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
 import {
   isCompilation,
   resolveMainArtist,

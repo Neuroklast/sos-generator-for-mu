@@ -9,7 +9,7 @@ import {
   buildArtistCollabTree,
 } from '../grouping'
 import type { FilterState, ArtistMapping } from '../grouping'
-import type { SalesTransaction } from '../csv-parser'
+import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
 
 // ── Fixture factories ─────────────────────────────────────────────────────────
 

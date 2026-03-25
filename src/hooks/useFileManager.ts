@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useKV } from '@/hooks/useLocalKV'
 import { toast } from 'sonner'
-import { parseCSVContentStreaming } from '@/lib/streaming-csv-parser'
-import { parseShopifyCSV } from '@/lib/shopify-parser'
+import { parseCSVContentStreaming } from '@/features/ingest/lib/streaming-csv-parser'
+import { parseShopifyCSV } from '@/features/ingest/lib/shopify-parser'
 import type { UploadedFile, FileProcessingState } from '@/lib/types'
 
 type FileType = 'believe' | 'bandcamp' | 'shopify'

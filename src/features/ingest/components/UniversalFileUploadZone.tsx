@@ -49,7 +49,7 @@ import { useCallback, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { UploadedFile, FileProcessingState, LabelArtist } from '@/lib/types'
-import { parseCSVLine } from '@/lib/csv-parser'
+import { parseCSVLine } from '@/features/ingest/lib/csv-parser'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card'
-import { HistoryPanel } from '@/components/HistoryPanel'
+import { HistoryPanel } from '@/features/core/components/HistoryPanel'
 import type { HistoryEntry } from '@/lib/types'
 
 interface HistoryViewProps {
