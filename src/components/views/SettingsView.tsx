@@ -4,10 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { WorkspaceManager, type WorkspaceBackup } from '@/features/core/components/WorkspaceManager'
-import { LabelArtistManager } from '@/features/core/components/LabelArtistManager'
+import { LabelBranding } from '@/features/core/components/LabelBranding'
 import { IgnoredEntriesManager } from '@/features/rules/components/IgnoredEntriesManager'
 import { CompilationFilterManager } from '@/features/rules/components/CompilationFilterManager'
-import { SplitFeeManager } from '@/features/rules/components/SplitFeeManager'
 import { CSVColumnMapper } from '@/features/ingest/components/CSVColumnMapper'
 import { DefaultSettings } from '@/features/core/components/DefaultSettings'
 import { EmailSettings } from '@/features/core/components/EmailSettings'
@@ -16,9 +15,9 @@ import type {
   CompilationFilter,
   LabelArtist,
   IgnoredEntry,
-  SplitFee,
   ManualRevenue,
   ArtistMapping,
+  SplitFee,
   CSVColumnAlias,
   LabelInfo,
   AppDefaults,
@@ -27,6 +26,7 @@ import type {
 } from '@/lib/types'
 
 interface SettingsViewProps {
+  // ── Workspace backup ─────────────────────────────────────────────────────
   compilationFilters: CompilationFilter[]
   artistMappings: ArtistMapping[]
   splitFees: SplitFee[]
@@ -36,27 +36,30 @@ interface SettingsViewProps {
   labelArtists: LabelArtist[]
   ignoredEntries: IgnoredEntry[]
   onImport: (backup: WorkspaceBackup) => void
-  handleAddLabelArtist: (name: string) => void
-  handleRemoveLabelArtist: (id: string) => void
-  handleUpdateLabelArtist: (id: string, patch: Omit<LabelArtist, 'id'>) => void
-  handleImportLabelArtistsCSV: (artists: Omit<LabelArtist, 'id'>[]) => void
-  uniqueArtists: string[]
-  handleAddIgnoredEntry: (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => void
-  handleRemoveIgnoredEntry: (id: string) => void
+
+  // ── Label branding ───────────────────────────────────────────────────────
+  onUpdateLabelInfo: (info: LabelInfo) => void
+
+  // ── Danger zone ──────────────────────────────────────────────────────────
   clearConfirmOpen: boolean
   setClearConfirmOpen: (open: boolean) => void
   handleClearWorkspace: () => void
   totalFiles: number
   periodStart: string
   periodEnd: string
+
+  // ── Rules ────────────────────────────────────────────────────────────────
+  uniqueArtists: string[]
+  handleAddIgnoredEntry: (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => void
+  handleRemoveIgnoredEntry: (id: string) => void
   excludePhysical: boolean
   setExcludePhysical: (checked: boolean) => void
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
   handleRemoveCompilationFilter: (id: string) => void
-  handleUpdateSplitFee: (artist: string, percentage: number) => void
-  handleBulkUpdateSplitFee: (artists: string[], percentage: number) => void
   handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void
   handleRemoveAlias: (id: string) => void
+
+  // ── Export settings ──────────────────────────────────────────────────────
   appDefaults: AppDefaults
   setAppDefaults: (defaults: AppDefaults) => void
   emailConfig: EmailConfig
@@ -75,25 +78,20 @@ export function SettingsView({
   labelArtists,
   ignoredEntries,
   onImport,
-  handleAddLabelArtist,
-  handleRemoveLabelArtist,
-  handleUpdateLabelArtist,
-  handleImportLabelArtistsCSV,
-  uniqueArtists,
-  handleAddIgnoredEntry,
-  handleRemoveIgnoredEntry,
+  onUpdateLabelInfo,
   clearConfirmOpen,
   setClearConfirmOpen,
   handleClearWorkspace,
   totalFiles,
   periodStart,
   periodEnd,
+  uniqueArtists,
+  handleAddIgnoredEntry,
+  handleRemoveIgnoredEntry,
   excludePhysical,
   setExcludePhysical,
   handleAddCompilationFilter,
   handleRemoveCompilationFilter,
-  handleUpdateSplitFee,
-  handleBulkUpdateSplitFee,
   handleAddAlias,
   handleRemoveAlias,
   appDefaults,
@@ -104,16 +102,19 @@ export function SettingsView({
   setPdfExportSettings,
 }: SettingsViewProps) {
   return (
-    <Tabs defaultValue="workspace" className="space-y-6">
-      <TabsList className="grid grid-cols-4 w-full max-w-2xl">
-        <TabsTrigger value="workspace">Workspace</TabsTrigger>
-        <TabsTrigger value="artists">Artists &amp; Rules</TabsTrigger>
-        <TabsTrigger value="csv">CSV &amp; Defaults</TabsTrigger>
-        <TabsTrigger value="export">Export &amp; Email</TabsTrigger>
+    <Tabs defaultValue="app-system" className="flex flex-col h-full">
+      <TabsList className="grid grid-cols-3 w-full max-w-lg shrink-0 mb-6">
+        <TabsTrigger value="app-system">App-System</TabsTrigger>
+        <TabsTrigger value="label-profil">Label-Profil</TabsTrigger>
+        <TabsTrigger value="export-regeln">Export &amp; Regeln</TabsTrigger>
       </TabsList>
 
-      {/* ── Workspace Tab ── */}
-      <TabsContent value="workspace" className="space-y-8">
+      {/* ── App-System Tab ── */}
+      <TabsContent
+        value="app-system"
+        className="flex-1 overflow-y-auto space-y-8 pr-1"
+        style={{ maxHeight: 'calc(100vh - 12rem)' }}
+      >
         <WorkspaceManager
           compilationFilters={compilationFilters}
           artistMappings={artistMappings}
@@ -126,7 +127,7 @@ export function SettingsView({
           onImport={onImport}
         />
 
-        {/* Clear Workspace */}
+        {/* Danger Zone */}
         <Card className="p-8 border border-red-500/20 bg-card backdrop-blur-md rounded-2xl">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1.5">
@@ -176,15 +177,40 @@ export function SettingsView({
         </Card>
       </TabsContent>
 
-      {/* ── Artists & Rules Tab ── */}
-      <TabsContent value="artists" className="space-y-8">
+      {/* ── Label-Profil Tab ── */}
+      <TabsContent
+        value="label-profil"
+        className="flex-1 overflow-y-auto space-y-8 pr-1"
+        style={{ maxHeight: 'calc(100vh - 12rem)' }}
+      >
+        <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
+          <LabelBranding labelInfo={labelInfo} onUpdate={onUpdateLabelInfo} />
+        </Card>
+
+        <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
+          <EmailSettings config={emailConfig} onUpdate={setEmailConfig} />
+        </Card>
+      </TabsContent>
+
+      {/* ── Export & Regeln Tab ── */}
+      <TabsContent
+        value="export-regeln"
+        className="flex-1 overflow-y-auto space-y-8 pr-1"
+        style={{ maxHeight: 'calc(100vh - 12rem)' }}
+      >
+        <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
+          <PdfExportSettingsPanel settings={pdfExportSettings} onUpdate={setPdfExportSettings} />
+        </Card>
+
+        <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
+          <DefaultSettings defaults={appDefaults} onUpdate={setAppDefaults} />
+        </Card>
+
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
-          <LabelArtistManager
-            artists={labelArtists}
-            onAdd={handleAddLabelArtist}
-            onRemove={handleRemoveLabelArtist}
-            onUpdate={handleUpdateLabelArtist}
-            onImportCSV={handleImportLabelArtistsCSV}
+          <CSVColumnMapper
+            aliases={csvAliases}
+            onAddAlias={handleAddAlias}
+            onRemoveAlias={handleRemoveAlias}
           />
         </Card>
 
@@ -218,49 +244,6 @@ export function SettingsView({
               onCheckedChange={checked => setExcludePhysical(checked)}
             />
           </div>
-        </Card>
-
-        <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
-          <SplitFeeManager
-            splitFees={splitFees}
-            onUpdateSplitFee={handleUpdateSplitFee}
-            onBulkUpdateSplitFee={handleBulkUpdateSplitFee}
-          />
-        </Card>
-      </TabsContent>
-
-      {/* ── CSV & Defaults Tab ── */}
-      <TabsContent value="csv" className="space-y-8">
-        <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
-          <CSVColumnMapper
-            aliases={csvAliases}
-            onAddAlias={handleAddAlias}
-            onRemoveAlias={handleRemoveAlias}
-          />
-        </Card>
-
-        <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
-          <DefaultSettings
-            defaults={appDefaults}
-            onUpdate={setAppDefaults}
-          />
-        </Card>
-      </TabsContent>
-
-      {/* ── Export & Email Tab ── */}
-      <TabsContent value="export" className="space-y-8">
-        <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
-          <EmailSettings
-            config={emailConfig}
-            onUpdate={setEmailConfig}
-          />
-        </Card>
-
-        <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
-          <PdfExportSettingsPanel
-            settings={pdfExportSettings}
-            onUpdate={setPdfExportSettings}
-          />
         </Card>
       </TabsContent>
     </Tabs>

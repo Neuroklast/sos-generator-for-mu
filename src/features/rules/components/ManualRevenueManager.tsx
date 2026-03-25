@@ -1,4 +1,4 @@
-import { Plus, Trash, CurrencyEur } from '@phosphor-icons/react'
+import { Plus, Trash, CurrencyEur, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ManualRevenue } from '@/lib/types'
 
@@ -43,6 +43,10 @@ export function ManualRevenueManager({
   const [customArtist, setCustomArtist] = useState('')
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
+
+  // ── Artist filter ─────────────────────────────────────────────────────────
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterArtist, setFilterArtist] = useState<string | null>(null)
 
   const effectiveArtist = artist === CUSTOM_ARTIST_VALUE ? customArtist.trim() : artist
 
@@ -75,6 +79,32 @@ export function ManualRevenueManager({
       currency: 'EUR',
     }).format(value)
   }
+
+  // All known artists from the list + any custom ones already in revenues.
+  // We merge both sources so that revenues added with a "custom artist name"
+  // still appear in the filter even if that artist is not yet in the roster.
+  const allKnownArtists = useMemo(() => {
+    const fromRevenues = revenues.map(r => r.artist)
+    return Array.from(new Set([...artists, ...fromRevenues])).sort((a, b) =>
+      a.localeCompare(b)
+    )
+  }, [artists, revenues])
+
+  const filteredSearchArtists = useMemo(
+    () =>
+      allKnownArtists.filter(a =>
+        a.toLowerCase().includes(filterSearch.toLowerCase())
+      ),
+    [allKnownArtists, filterSearch]
+  )
+
+  const displayedRevenues = useMemo(
+    () =>
+      filterArtist
+        ? revenues.filter(r => r.artist === filterArtist)
+        : revenues,
+    [revenues, filterArtist]
+  )
 
   return (
     <div className="space-y-4">
@@ -168,14 +198,84 @@ export function ManualRevenueManager({
         </Dialog>
       </div>
 
+      {/* ── Artist filter ── */}
+      {revenues.length > 0 && (
+        <div className="relative flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
+          <MagnifyingGlass size={14} className="text-muted-foreground shrink-0" />
+          <Input
+            placeholder="Filter by artist…"
+            value={filterSearch}
+            onChange={e => {
+              setFilterSearch(e.target.value)
+              if (!e.target.value) setFilterArtist(null)
+            }}
+            className="h-7 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1"
+          />
+          {(filterSearch || filterArtist) && (
+            <button
+              onClick={() => {
+                setFilterSearch('')
+                setFilterArtist(null)
+              }}
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Clear filter"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {filterSearch && !filterArtist && filteredSearchArtists.length > 0 && (
+            <div className="absolute z-50 mt-1 w-56 rounded-lg border border-border bg-popover shadow-lg py-1"
+              style={{ top: 'calc(100% + 4px)', left: 0 }}
+            >
+              {filteredSearchArtists.slice(0, 8).map(a => (
+                <button
+                  key={a}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 truncate"
+                  onClick={() => {
+                    setFilterArtist(a)
+                    setFilterSearch(a)
+                  }}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          )}
+          {filterArtist && (
+            <span className="text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">
+              {displayedRevenues.length} entry{displayedRevenues.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── Artist quick-select pills ── */}
+      {revenues.length > 0 && allKnownArtists.length > 0 && !filterSearch && (
+        <div className="flex flex-wrap gap-1.5">
+          {allKnownArtists.filter(a => revenues.some(r => r.artist === a)).map(a => (
+            <button
+              key={a}
+              onClick={() => setFilterArtist(prev => prev === a ? null : a)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                filterArtist === a
+                  ? 'bg-primary/20 border-primary/60 text-primary'
+                  : 'bg-white/5 border-white/10 text-muted-foreground hover:border-white/30'
+              }`}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      )}
+
       <AnimatePresence mode="popLayout">
-        {revenues.length > 0 ? (
+        {displayedRevenues.length > 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="space-y-2"
           >
-            {revenues.map((revenue, index) => (
+            {displayedRevenues.map((revenue, index) => (
               <motion.div
                 key={revenue.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -215,7 +315,7 @@ export function ManualRevenueManager({
           <Card className="p-8 text-center border-dashed">
             <CurrencyEur size={32} className="mx-auto mb-2 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              No manual revenue entries yet
+              {filterArtist ? `No manual revenues for ${filterArtist}` : 'No manual revenue entries yet'}
             </p>
           </Card>
         )}

@@ -1,4 +1,4 @@
-import { Minus, Trash } from '@phosphor-icons/react'
+import { Minus, Trash, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ExpenseEntry } from '@/lib/types'
 
@@ -44,6 +44,10 @@ export function ExpenseManager({
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+
+  // ── Artist filter ─────────────────────────────────────────────────────────
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterArtist, setFilterArtist] = useState<string | null>(null)
 
   const effectiveArtist = artist === CUSTOM_ARTIST_VALUE ? customArtist.trim() : artist
 
@@ -77,6 +81,32 @@ export function ExpenseManager({
     new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value)
 
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
+
+  // All known artists from the list + any custom ones already in expenses.
+  // We merge both sources so that expenses added with a "custom artist name"
+  // still appear in the filter even if that artist is not yet in the roster.
+  const allKnownArtists = useMemo(() => {
+    const fromExpenses = expenses.map(e => e.artist)
+    return Array.from(new Set([...artists, ...fromExpenses])).sort((a, b) =>
+      a.localeCompare(b)
+    )
+  }, [artists, expenses])
+
+  const filteredSearchArtists = useMemo(
+    () =>
+      allKnownArtists.filter(a =>
+        a.toLowerCase().includes(filterSearch.toLowerCase())
+      ),
+    [allKnownArtists, filterSearch]
+  )
+
+  const displayedExpenses = useMemo(
+    () =>
+      filterArtist
+        ? expenses.filter(e => e.artist === filterArtist)
+        : expenses,
+    [expenses, filterArtist]
+  )
 
   return (
     <div className="space-y-4">
@@ -188,14 +218,84 @@ export function ExpenseManager({
         </Dialog>
       </div>
 
+      {/* ── Artist filter ── */}
+      {expenses.length > 0 && (
+        <div className="relative flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
+          <MagnifyingGlass size={14} className="text-muted-foreground shrink-0" />
+          <Input
+            placeholder="Filter by artist…"
+            value={filterSearch}
+            onChange={e => {
+              setFilterSearch(e.target.value)
+              if (!e.target.value) setFilterArtist(null)
+            }}
+            className="h-7 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1"
+          />
+          {(filterSearch || filterArtist) && (
+            <button
+              onClick={() => {
+                setFilterSearch('')
+                setFilterArtist(null)
+              }}
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Clear filter"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {filterSearch && !filterArtist && filteredSearchArtists.length > 0 && (
+            <div className="absolute z-50 mt-1 w-56 rounded-lg border border-border bg-popover shadow-lg py-1"
+              style={{ top: 'calc(100% + 4px)', left: 0 }}
+            >
+              {filteredSearchArtists.slice(0, 8).map(a => (
+                <button
+                  key={a}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 truncate"
+                  onClick={() => {
+                    setFilterArtist(a)
+                    setFilterSearch(a)
+                  }}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          )}
+          {filterArtist && (
+            <span className="text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">
+              {displayedExpenses.length} entry{displayedExpenses.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── Artist quick-select pills ── */}
+      {expenses.length > 0 && allKnownArtists.length > 0 && !filterSearch && (
+        <div className="flex flex-wrap gap-1.5">
+          {allKnownArtists.filter(a => expenses.some(e => e.artist === a)).map(a => (
+            <button
+              key={a}
+              onClick={() => setFilterArtist(prev => prev === a ? null : a)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                filterArtist === a
+                  ? 'bg-primary/20 border-primary/60 text-primary'
+                  : 'bg-white/5 border-white/10 text-muted-foreground hover:border-white/30'
+              }`}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      )}
+
       <AnimatePresence mode="popLayout">
-        {expenses.length > 0 ? (
+        {displayedExpenses.length > 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="space-y-2"
           >
-            {expenses.map((expense, index) => (
+            {displayedExpenses.map((expense, index) => (
               <motion.div
                 key={expense.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -240,11 +340,13 @@ export function ExpenseManager({
           <Card className="p-8 text-center border-dashed">
             <Minus size={32} className="mx-auto mb-2 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              No expense entries yet
+              {filterArtist ? `No expenses for ${filterArtist}` : 'No expense entries yet'}
             </p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              Add marketing costs, advances, and production expenses to deduct them before the split.
-            </p>
+            {!filterArtist && (
+              <p className="text-xs text-muted-foreground/60 mt-1">
+                Add marketing costs, advances, and production expenses to deduct them before the split.
+              </p>
+            )}
           </Card>
         )}
       </AnimatePresence>

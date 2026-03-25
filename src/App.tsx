@@ -861,7 +861,6 @@ function App() {
                   onAddLabelArtist={handleAddLabelArtist}
                   onRemoveLabelArtist={handleRemoveLabelArtist}
                   onUpdateLabelArtist={handleUpdateLabelArtist}
-                  onImportLabelArtistsCSV={handleImportLabelArtistsCSV}
                   splitFees={stableSplitFees}
                   onUpdateSplitFee={handleUpdateSplitFee}
                   onBulkUpdateSplitFee={handleBulkUpdateSplitFee}
@@ -944,10 +943,7 @@ function App() {
                   labelArtists={stableLabelArtists}
                   ignoredEntries={stableIgnoredEntries}
                   onImport={handleWorkspaceImport}
-                  handleAddLabelArtist={handleAddLabelArtist}
-                  handleRemoveLabelArtist={handleRemoveLabelArtist}
-                  handleUpdateLabelArtist={handleUpdateLabelArtist}
-                  handleImportLabelArtistsCSV={handleImportLabelArtistsCSV}
+                  onUpdateLabelInfo={setLabelInfo}
                   uniqueArtists={uniqueArtists}
                   handleAddIgnoredEntry={handleAddIgnoredEntry}
                   handleRemoveIgnoredEntry={handleRemoveIgnoredEntry}
@@ -961,8 +957,6 @@ function App() {
                   setExcludePhysical={setExcludePhysical}
                   handleAddCompilationFilter={handleAddCompilationFilter}
                   handleRemoveCompilationFilter={handleRemoveCompilationFilter}
-                  handleUpdateSplitFee={handleUpdateSplitFee}
-                  handleBulkUpdateSplitFee={handleBulkUpdateSplitFee}
                   handleAddAlias={handleAddAlias}
                   handleRemoveAlias={handleRemoveAlias}
                   appDefaults={appDefaults ?? DEFAULT_APP_DEFAULTS}
