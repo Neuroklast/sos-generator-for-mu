@@ -68,7 +68,14 @@ export interface FileManagerCallbacks {
   replaceFile: (id: string, file: File) => void
 }
 
-/** Minimal manager interface for e-commerce upload zones (Shopify / Printful). */
+/**
+ * Minimal manager interface for e-commerce upload zones (Shopify / Printful).
+ *
+ * E-commerce managers do not expose `fileStates` or `replaceFile` because their
+ * underlying parsers produce raw order buffers (not SalesTransactions), and
+ * replacing a single file would silently break the Shopify↔Printful reconciliation.
+ * Users should remove and re-add files instead.
+ */
 export interface EcommerceManagerCallbacks {
   files: UploadedFile[]
   addFiles: (files: File[]) => void
@@ -228,14 +235,17 @@ function StatPill({ label, value }: { label: string; value: string }) {
   )
 }
 
+// ── Source badge config ───────────────────────────────────────────────────────
+
+const SOURCE_BADGE_CONFIG: Record<'believe' | 'bandcamp' | 'shopify' | 'printful', { label: string; className: string }> = {
+  believe:  { label: 'Believe',  className: 'bg-primary/15 text-primary' },
+  bandcamp: { label: 'Bandcamp', className: 'bg-cyan-400/15 text-cyan-400' },
+  shopify:  { label: 'Shopify',  className: 'bg-green-500/15 text-green-400' },
+  printful: { label: 'Printful', className: 'bg-purple-500/15 text-purple-400' },
+}
+
 function SourceBadge({ source }: { source: 'believe' | 'bandcamp' | 'shopify' | 'printful' }) {
-  const config = {
-    believe:  { label: 'Believe',  className: 'bg-primary/15 text-primary' },
-    bandcamp: { label: 'Bandcamp', className: 'bg-cyan-400/15 text-cyan-400' },
-    shopify:  { label: 'Shopify',  className: 'bg-green-500/15 text-green-400' },
-    printful: { label: 'Printful', className: 'bg-purple-500/15 text-purple-400' },
-  }
-  const { label, className } = config[source]
+  const { label, className } = SOURCE_BADGE_CONFIG[source]
   return (
     <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${className}`}>
       {label}
@@ -583,11 +593,17 @@ function FileItem({ file, source, state, index, onRemove, onReplace, replaceRef,
   )
 }
 
-// ── File entry union type (for combined file list) ────────────────────────────
+// ── File entry type (for combined file list) ─────────────────────────────────
 
-type FileEntry =
-  | { file: UploadedFile; source: 'believe' | 'bandcamp'; manager: FileManagerCallbacks; isEcommerce: false }
-  | { file: UploadedFile; source: 'shopify' | 'printful'; manager: EcommerceManagerCallbacks; isEcommerce: true }
+interface FileEntry {
+  file: UploadedFile
+  source: 'believe' | 'bandcamp' | 'shopify' | 'printful'
+  state: FileProcessingState | undefined
+  onRemove: () => void
+  onReplace: (() => void) | null
+  replaceRef: ((el: HTMLInputElement | null) => void) | null
+  onReplaceInput: ((e: React.ChangeEvent<HTMLInputElement>) => void) | null
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -793,13 +809,42 @@ export function UniversalFileUploadZone({
 
   // ── Combined file list (all sources) ─────────────────────────────────────
 
-  const believeFileList: FileEntry[] = believeManager.files.map(f => ({ file: f, source: 'believe' as const, manager: believeManager, isEcommerce: false as const }))
-  const bandcampFileList: FileEntry[] = bandcampManager.files.map(f => ({ file: f, source: 'bandcamp' as const, manager: bandcampManager, isEcommerce: false as const }))
-  const shopifyFileList: FileEntry[] = shopifyManager.files.map(f => ({ file: f, source: 'shopify' as const, manager: shopifyManager, isEcommerce: true as const }))
-  const printfulFileList: FileEntry[] = printfulManager.files.map(f => ({ file: f, source: 'printful' as const, manager: printfulManager, isEcommerce: true as const }))
-  const allFiles = [...believeFileList, ...bandcampFileList, ...shopifyFileList, ...printfulFileList].sort(
-    (a, b) => new Date(a.file.uploadedAt).getTime() - new Date(b.file.uploadedAt).getTime()
+  /** Builds FileEntry objects for a streaming-parser manager (believe/bandcamp). */
+  const makeStreamingEntries = useCallback(
+    (manager: FileManagerCallbacks, source: 'believe' | 'bandcamp'): FileEntry[] =>
+      manager.files.map(f => ({
+        file: f,
+        source,
+        state: manager.fileStates[f.id],
+        onRemove: () => manager.removeFile(f.id),
+        onReplace: () => replaceRefs.current.get(f.id)?.click(),
+        replaceRef: makeRefSetter(f.id),
+        onReplaceInput: (e: React.ChangeEvent<HTMLInputElement>) => handleReplaceInput(manager, f.id, e),
+      })),
+    [makeRefSetter, handleReplaceInput]
   )
+
+  /** Builds FileEntry objects for an e-commerce manager (shopify/printful). */
+  const makeEcommerceEntries = useCallback(
+    (manager: EcommerceManagerCallbacks, source: 'shopify' | 'printful'): FileEntry[] =>
+      manager.files.map(f => ({
+        file: f,
+        source,
+        state: undefined,
+        onRemove: () => manager.removeFile(f.id),
+        onReplace: null,
+        replaceRef: null,
+        onReplaceInput: null,
+      })),
+    []
+  )
+
+  const allFiles: FileEntry[] = [
+    ...makeStreamingEntries(believeManager, 'believe'),
+    ...makeStreamingEntries(bandcampManager, 'bandcamp'),
+    ...makeEcommerceEntries(shopifyManager, 'shopify'),
+    ...makeEcommerceEntries(printfulManager, 'printful'),
+  ].sort((a, b) => new Date(a.file.uploadedAt).getTime() - new Date(b.file.uploadedAt).getTime())
 
   return (
     <div className="space-y-3">
@@ -901,17 +946,17 @@ export function UniversalFileUploadZone({
             exit={{ opacity: 0, height: 0 }}
             className="space-y-2"
           >
-            {allFiles.map(({ file, source, manager, isEcommerce }, index) => (
+            {allFiles.map(({ file, source, state, onRemove, onReplace, replaceRef, onReplaceInput }, index) => (
               <FileItem
                 key={file.id}
                 file={file}
                 source={source}
-                state={isEcommerce ? undefined : (manager as FileManagerCallbacks).fileStates[file.id]}
+                state={state}
                 index={index}
-                onRemove={() => manager.removeFile(file.id)}
-                onReplace={isEcommerce ? null : () => replaceRefs.current.get(file.id)?.click()}
-                replaceRef={isEcommerce ? null : makeRefSetter(file.id)}
-                onReplaceInput={isEcommerce ? null : e => handleReplaceInput(manager as FileManagerCallbacks, file.id, e)}
+                onRemove={onRemove}
+                onReplace={onReplace}
+                replaceRef={replaceRef}
+                onReplaceInput={onReplaceInput}
               />
             ))}
           </motion.div>
