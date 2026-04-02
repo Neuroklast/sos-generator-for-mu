@@ -3,12 +3,10 @@ import { Loader2, CalendarDays, Sparkles } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { UniversalFileUploadZone, type FileManagerCallbacks } from '@/features/ingest/components/UniversalFileUploadZone'
+import { UniversalFileUploadZone, type FileManagerCallbacks, type EcommerceManagerCallbacks } from '@/features/ingest/components/UniversalFileUploadZone'
 import { ManualRevenueManager } from '@/features/rules/components/ManualRevenueManager'
 import { ExpenseManager } from '@/features/rules/components/ExpenseManager'
 import { DetectedPeriodBanner } from '@/features/ingest/components/DetectedPeriodBanner'
-import { ShopifyUploadCard, type ShopifyManager } from '@/features/ingest/components/ShopifyUploadCard'
-import { PrintfulUploadCard, type PrintfulManager } from '@/features/ingest/components/PrintfulUploadCard'
 import { toast } from 'sonner'
 import type {
   UploadedFile,
@@ -28,8 +26,8 @@ interface IngestViewProps {
   setPeriodEnd: (val: string) => void
   believeManager: FileManagerCallbacks
   bandcampManager: FileManagerCallbacks
-  shopifyManager: ShopifyManager
-  printfulManager: PrintfulManager
+  shopifyManager: EcommerceManagerCallbacks
+  printfulManager: EcommerceManagerCallbacks
   exchangeRatesLoading: boolean
   handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void
   isProcessing: boolean
@@ -109,27 +107,13 @@ export function IngestView({
           <UniversalFileUploadZone
             believeManager={believeManager}
             bandcampManager={bandcampManager}
+            shopifyManager={shopifyManager}
+            printfulManager={printfulManager}
             onAddAliases={aliases => aliases.forEach(handleAddAlias)}
             onImportLabelArtistsCSV={onImportLabelArtistsCSV}
             csvProfiles={csvImportProfiles}
           />
         </Card>
-
-        {/* ── Shopify + Printful Merch Upload ── */}
-        <ShopifyUploadCard shopifyManager={shopifyManager} />
-        <PrintfulUploadCard
-          printfulManager={printfulManager}
-          matchedOrderCount={
-            printfulManager.files.length > 0
-              ? printfulManager.files.reduce((s, f) => s + (f.rowsParsed ?? 0), 0)
-              : undefined
-          }
-          totalShopifyOrders={
-            printfulManager.files.length > 0
-              ? shopifyManager.files.reduce((s, f) => s + (f.rowsParsed ?? 0), 0)
-              : undefined
-          }
-        />
 
         {/* Summary stats after processing */}
         {!isProcessing && revenues.length > 0 && (
