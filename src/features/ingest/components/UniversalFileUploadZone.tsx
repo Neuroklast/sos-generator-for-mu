@@ -53,6 +53,7 @@ import { parseCSVLine } from '@/features/ingest/lib/csv-parser'
 import { matchProfile, parseMasterDataCSV } from '@/features/ingest/lib/parser-facade'
 import {
   SYSTEM_SHOPIFY_PROFILE_ID,
+  SYSTEM_PRINTFUL_PROFILE_ID,
   SYSTEM_BANDCAMP_PROFILE_ID,
 } from '@/features/ingest/lib/default-profiles'
 import type { CsvImportProfile } from '@/features/ingest/types'
@@ -67,9 +68,27 @@ export interface FileManagerCallbacks {
   replaceFile: (id: string, file: File) => void
 }
 
+/**
+ * Minimal manager interface for e-commerce upload zones (Shopify / Printful).
+ *
+ * E-commerce managers do not expose `fileStates` or `replaceFile` because their
+ * underlying parsers produce raw order buffers (not SalesTransactions), and
+ * replacing a single file would silently break the Shopify↔Printful reconciliation.
+ * Users should remove and re-add files instead.
+ */
+export interface EcommerceManagerCallbacks {
+  files: UploadedFile[]
+  addFiles: (files: File[]) => void
+  removeFile: (id: string) => void
+}
+
 interface UniversalFileUploadZoneProps {
   believeManager: FileManagerCallbacks
   bandcampManager: FileManagerCallbacks
+  /** Manager for Shopify orders export CSVs. */
+  shopifyManager: EcommerceManagerCallbacks
+  /** Manager for Printful orders export CSVs. */
+  printfulManager: EcommerceManagerCallbacks
   /** Called when an unknown CSV is confirmed with user-defined column aliases. */
   onAddAliases: (aliases: { fieldName: string; synonym: string }[]) => void
   /**
@@ -122,7 +141,7 @@ async function detectCSVSource(
   file: File,
   profiles: CsvImportProfile[]
 ): Promise<{
-  source: 'believe' | 'bandcamp' | 'artist' | 'shopify' | 'profile-financial' | 'unknown'
+  source: 'believe' | 'bandcamp' | 'artist' | 'shopify' | 'printful' | 'profile-financial' | 'unknown'
   headers: string[]
   matchedProfile?: CsvImportProfile
 }> {
@@ -152,6 +171,9 @@ async function detectCSVSource(
       }
       if (matched.id === SYSTEM_SHOPIFY_PROFILE_ID) {
         return { source: 'shopify', headers: rawHeaders, matchedProfile: matched }
+      }
+      if (matched.id === SYSTEM_PRINTFUL_PROFILE_ID) {
+        return { source: 'printful', headers: rawHeaders, matchedProfile: matched }
       }
       if (matched.id === SYSTEM_BANDCAMP_PROFILE_ID) {
         return { source: 'bandcamp', headers: rawHeaders, matchedProfile: matched }
@@ -213,16 +235,20 @@ function StatPill({ label, value }: { label: string; value: string }) {
   )
 }
 
-function SourceBadge({ source }: { source: 'believe' | 'bandcamp' }) {
+// ── Source badge config ───────────────────────────────────────────────────────
+
+const SOURCE_BADGE_CONFIG: Record<'believe' | 'bandcamp' | 'shopify' | 'printful', { label: string; className: string }> = {
+  believe:  { label: 'Believe',  className: 'bg-primary/15 text-primary' },
+  bandcamp: { label: 'Bandcamp', className: 'bg-cyan-400/15 text-cyan-400' },
+  shopify:  { label: 'Shopify',  className: 'bg-green-500/15 text-green-400' },
+  printful: { label: 'Printful', className: 'bg-purple-500/15 text-purple-400' },
+}
+
+function SourceBadge({ source }: { source: 'believe' | 'bandcamp' | 'shopify' | 'printful' }) {
+  const { label, className } = SOURCE_BADGE_CONFIG[source]
   return (
-    <span
-      className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-        source === 'believe'
-          ? 'bg-primary/15 text-primary'
-          : 'bg-cyan-400/15 text-cyan-400'
-      }`}
-    >
-      {source === 'believe' ? 'Believe' : 'Bandcamp'}
+    <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${className}`}>
+      {label}
     </span>
   )
 }
@@ -463,13 +489,13 @@ function UnknownCSVMappingDialog({ open, headers, fileName, onConfirm, onCancel 
 
 interface FileItemProps {
   file: UploadedFile
-  source: 'believe' | 'bandcamp'
+  source: 'believe' | 'bandcamp' | 'shopify' | 'printful'
   state: FileProcessingState | undefined
   index: number
   onRemove: () => void
-  onReplace: () => void
-  replaceRef: (el: HTMLInputElement | null) => void
-  onReplaceInput: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onReplace: (() => void) | null
+  replaceRef: ((el: HTMLInputElement | null) => void) | null
+  onReplaceInput: ((e: React.ChangeEvent<HTMLInputElement>) => void) | null
 }
 
 function FileItem({ file, source, state, index, onRemove, onReplace, replaceRef, onReplaceInput }: FileItemProps) {
@@ -485,13 +511,15 @@ function FileItem({ file, source, state, index, onRemove, onReplace, replaceRef,
       exit={{ opacity: 0, x: -24 }}
       transition={{ delay: index * 0.04 }}
     >
-      <input
-        type="file"
-        accept=".csv"
-        className="hidden"
-        ref={replaceRef}
-        onChange={onReplaceInput}
-      />
+      {replaceRef && (
+        <input
+          type="file"
+          accept=".csv"
+          className="hidden"
+          ref={replaceRef}
+          onChange={onReplaceInput ?? undefined}
+        />
+      )}
 
       <Card
         className={[
@@ -536,16 +564,18 @@ function FileItem({ file, source, state, index, onRemove, onReplace, replaceRef,
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onReplace}
-              disabled={isProcessingFile}
-              title="Replace file"
-              className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
-            >
-              <ArrowsClockwise size={15} />
-            </Button>
+            {onReplace && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onReplace}
+                disabled={isProcessingFile}
+                title="Replace file"
+                className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+              >
+                <ArrowsClockwise size={15} />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -563,11 +593,25 @@ function FileItem({ file, source, state, index, onRemove, onReplace, replaceRef,
   )
 }
 
+// ── File entry type (for combined file list) ─────────────────────────────────
+
+interface FileEntry {
+  file: UploadedFile
+  source: 'believe' | 'bandcamp' | 'shopify' | 'printful'
+  state: FileProcessingState | undefined
+  onRemove: () => void
+  onReplace: (() => void) | null
+  replaceRef: ((el: HTMLInputElement | null) => void) | null
+  onReplaceInput: ((e: React.ChangeEvent<HTMLInputElement>) => void) | null
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function UniversalFileUploadZone({
   believeManager,
   bandcampManager,
+  shopifyManager,
+  printfulManager,
   onAddAliases,
   onImportLabelArtistsCSV,
   csvProfiles = [],
@@ -613,10 +657,11 @@ export function UniversalFileUploadZone({
       toast.info(`"${file.name}" matched profile "${label}"`, { duration: 3000 })
       believeManager.addFiles([file])
     } else if (source === 'shopify') {
-      // The Shopify upload zone handles Shopify files; inform the user.
-      toast.info(`"${file.name}" looks like a Shopify export — please use the Shopify upload zone below.`, {
-        duration: 6000,
-      })
+      toast.info(`"${file.name}" detected as Shopify export`, { duration: 3000 })
+      shopifyManager.addFiles([file])
+    } else if (source === 'printful') {
+      toast.info(`"${file.name}" detected as Printful export`, { duration: 3000 })
+      printfulManager.addFiles([file])
     } else if (source === 'artist') {
       if (!onImportLabelArtistsCSV) {
         toast.error(`"${file.name}" looks like an artist roster CSV but no handler is configured.`)
@@ -663,7 +708,7 @@ export function UniversalFileUploadZone({
       setPendingHeaders(headers)
       setPendingHasProfiles(csvProfiles.filter(p => p.type === 'financial').length > 0)
     }
-  }, [believeManager, bandcampManager, onImportLabelArtistsCSV, csvProfiles])
+  }, [believeManager, bandcampManager, shopifyManager, printfulManager, onImportLabelArtistsCSV, csvProfiles])
 
   const processFiles = useCallback(async (rawFiles: File[]) => {
     const csvFiles = rawFiles.filter(f => f.name.toLowerCase().endsWith('.csv'))
@@ -762,13 +807,44 @@ export function UniversalFileUploadZone({
     setPendingHeaders([])
   }, [])
 
-  // ── Combined file list (believe + bandcamp) ────────────────────────────────
+  // ── Combined file list (all sources) ─────────────────────────────────────
 
-  const believeFileList = believeManager.files.map(f => ({ file: f, source: 'believe' as const, manager: believeManager }))
-  const bandcampFileList = bandcampManager.files.map(f => ({ file: f, source: 'bandcamp' as const, manager: bandcampManager }))
-  const allFiles = [...believeFileList, ...bandcampFileList].sort(
-    (a, b) => new Date(a.file.uploadedAt).getTime() - new Date(b.file.uploadedAt).getTime()
+  /** Builds FileEntry objects for a streaming-parser manager (believe/bandcamp). */
+  const makeStreamingEntries = useCallback(
+    (manager: FileManagerCallbacks, source: 'believe' | 'bandcamp'): FileEntry[] =>
+      manager.files.map(f => ({
+        file: f,
+        source,
+        state: manager.fileStates[f.id],
+        onRemove: () => manager.removeFile(f.id),
+        onReplace: () => replaceRefs.current.get(f.id)?.click(),
+        replaceRef: makeRefSetter(f.id),
+        onReplaceInput: (e: React.ChangeEvent<HTMLInputElement>) => handleReplaceInput(manager, f.id, e),
+      })),
+    [makeRefSetter, handleReplaceInput]
   )
+
+  /** Builds FileEntry objects for an e-commerce manager (shopify/printful). */
+  const makeEcommerceEntries = useCallback(
+    (manager: EcommerceManagerCallbacks, source: 'shopify' | 'printful'): FileEntry[] =>
+      manager.files.map(f => ({
+        file: f,
+        source,
+        state: undefined,
+        onRemove: () => manager.removeFile(f.id),
+        onReplace: null,
+        replaceRef: null,
+        onReplaceInput: null,
+      })),
+    []
+  )
+
+  const allFiles: FileEntry[] = [
+    ...makeStreamingEntries(believeManager, 'believe'),
+    ...makeStreamingEntries(bandcampManager, 'bandcamp'),
+    ...makeEcommerceEntries(shopifyManager, 'shopify'),
+    ...makeEcommerceEntries(printfulManager, 'printful'),
+  ].sort((a, b) => new Date(a.file.uploadedAt).getTime() - new Date(b.file.uploadedAt).getTime())
 
   return (
     <div className="space-y-3">
@@ -820,8 +896,11 @@ export function UniversalFileUploadZone({
 
           {!isAnyProcessing && (
             <div className="flex flex-wrap gap-2 justify-center">
-              <Badge variant="secondary" className="text-xs">Believe CSV</Badge>
-              <Badge variant="secondary" className="text-xs">Bandcamp CSV</Badge>
+              <Badge variant="secondary" className="text-xs">Believe</Badge>
+              <Badge variant="secondary" className="text-xs">Bandcamp</Badge>
+              <Badge variant="secondary" className="text-xs">Shopify</Badge>
+              <Badge variant="secondary" className="text-xs">Printful</Badge>
+              <Badge variant="secondary" className="text-xs">Artist Roster</Badge>
               <Badge variant="outline" className="text-xs">Multiple files</Badge>
             </div>
           )}
@@ -867,17 +946,17 @@ export function UniversalFileUploadZone({
             exit={{ opacity: 0, height: 0 }}
             className="space-y-2"
           >
-            {allFiles.map(({ file, source, manager }, index) => (
+            {allFiles.map(({ file, source, state, onRemove, onReplace, replaceRef, onReplaceInput }, index) => (
               <FileItem
                 key={file.id}
                 file={file}
                 source={source}
-                state={manager.fileStates[file.id]}
+                state={state}
                 index={index}
-                onRemove={() => manager.removeFile(file.id)}
-                onReplace={() => replaceRefs.current.get(file.id)?.click()}
-                replaceRef={makeRefSetter(file.id)}
-                onReplaceInput={e => handleReplaceInput(manager, file.id, e)}
+                onRemove={onRemove}
+                onReplace={onReplace}
+                replaceRef={replaceRef}
+                onReplaceInput={onReplaceInput}
               />
             ))}
           </motion.div>
