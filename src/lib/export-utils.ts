@@ -176,7 +176,7 @@ function buildPDF(
   artistInfo?: LabelArtist,
   logoDimensions?: { w: number; h: number }
 ): Blob {
-  const doc = new jsPDF()
+  const doc = new jsPDF({ compress: true })
   const margin = 20
 
   // Embed document metadata so PDF readers show a meaningful title.
@@ -719,7 +719,9 @@ export async function generateZipOfAllStatements(
   onProgress?: (done: number, total: number) => void,
   pdfSettings?: Partial<PdfExportSettings>,
   emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string },
-  labelArtists?: LabelArtist[]
+  labelArtists?: LabelArtist[],
+  appDefaults?: Partial<AppDefaults>,
+  emailConfig?: Partial<EmailConfig>
 ): Promise<Blob> {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
@@ -747,14 +749,77 @@ export async function generateZipOfAllStatements(
 
     const artistInfo = artistInfoMap.get(artistData.artist.toLowerCase())
 
+    let pdfBlob: Blob | undefined
     if (format === 'pdf' || format === 'both') {
-      const pdfBlob = await generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions, artistInfo)
+      pdfBlob = await generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions, artistInfo)
       zip.file(`${safeArtistName}_statement.pdf`, pdfBlob)
     }
 
     if (format === 'excel' || format === 'both') {
       const excelBlob = generateExcel(artistData, labelInfo, periodStart, periodEnd)
       zip.file(`${safeArtistName}_statement.xlsx`, excelBlob)
+    }
+
+    if (artistInfo?.email && labelInfo.emailTemplate && pdfBlob && appDefaults && emailConfig) {
+      const { resolveTemplate } = await import('@/lib/utils')
+      const period = periodStart && periodEnd ? `${periodStart} – ${periodEnd}` : (periodStart ?? periodEnd ?? '')
+      const amount = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(artistData.finalPayout)
+
+      const subject = resolveTemplate(
+        emailConfig.subjectTemplate ?? 'Statement of Sales – {period}',
+        artistData.artist,
+        period,
+        amount,
+        labelInfo,
+        appDefaults
+      )
+      const body = resolveTemplate(labelInfo.emailTemplate, artistData.artist, period, amount, labelInfo, appDefaults)
+
+      const fromName = emailConfig.fromName || labelInfo.name || 'Label'
+      const fromEmail = emailConfig.fromEmail || labelInfo.email || 'noreply@label.com'
+      const toEmail = artistInfo.email
+
+      // Convert PDF Blob to Base64 for EML attachment using FileReader
+      const pdfBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const result = reader.result as string
+          resolve(result.split(',')[1]) // extract base64 data after "data:application/pdf;base64,"
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(pdfBlob as Blob)
+      })
+
+      // EML standard format with boundary
+      const boundary = `----=_NextPart_${Date.now()}_${Math.random().toString(36).substring(2)}`
+
+      const emlContent = [
+        `From: "${fromName}" <${fromEmail}>`,
+        `To: "${artistData.artist}" <${toEmail}>`,
+        emailConfig.replyTo ? `Reply-To: ${emailConfig.replyTo}` : '',
+        `Subject: ${subject}`,
+        `Date: ${new Date().toUTCString()}`,
+        `MIME-Version: 1.0`,
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        ``,
+        `This is a multi-part message in MIME format.`,
+        `--${boundary}`,
+        `Content-Type: text/plain; charset=UTF-8`,
+        `Content-Transfer-Encoding: 8bit`,
+        ``,
+        body,
+        ``,
+        `--${boundary}`,
+        `Content-Type: application/pdf; name="${safeArtistName}_statement.pdf"`,
+        `Content-Disposition: attachment; filename="${safeArtistName}_statement.pdf"`,
+        `Content-Transfer-Encoding: base64`,
+        ``,
+        pdfBase64.match(/.{1,76}/g)?.join('\n') || pdfBase64,
+        ``,
+        `--${boundary}--`
+      ].filter(l => l !== undefined).join('\r\n')
+
+      zip.file(`${safeArtistName}_email.eml`, new Blob([emlContent], { type: 'message/rfc822' }))
     }
 
     onProgress?.(i + 1, total)

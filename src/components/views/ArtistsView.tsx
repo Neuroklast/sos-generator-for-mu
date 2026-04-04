@@ -30,6 +30,7 @@ interface ArtistsViewProps {
   onAddLabelArtist: (name: string) => void
   onRemoveLabelArtist: (id: string) => void
   onUpdateLabelArtist: (id: string, patch: Omit<LabelArtist, 'id'>) => void
+  onImportLabelArtistsCSV?: (artists: Omit<LabelArtist, 'id'>[]) => void
 
   // ── Split fees (Umsatz-Splits) ────────────────────────────────────────────
   splitFees: SplitFee[]
@@ -51,6 +52,7 @@ export function ArtistsView({
   onAddLabelArtist,
   onRemoveLabelArtist,
   onUpdateLabelArtist,
+  onImportLabelArtistsCSV,
   splitFees,
   onUpdateSplitFee,
   onBulkUpdateSplitFee,
@@ -75,6 +77,7 @@ export function ArtistsView({
             onAdd={onAddLabelArtist}
             onRemove={onRemoveLabelArtist}
             onUpdate={onUpdateLabelArtist}
+            onImportLabelArtistsCSV={onImportLabelArtistsCSV}
           />
         </Card>
       </TabsContent>

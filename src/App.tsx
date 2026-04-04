@@ -251,7 +251,8 @@ function App() {
     periodEnd ?? '',
     pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS,
     appDefaults ?? DEFAULT_APP_DEFAULTS,
-    stableLabelArtists
+    stableLabelArtists,
+    emailConfig ?? DEFAULT_EMAIL_CONFIG
   )
 
   const handleAddCompilationFilter = useCallback(
@@ -931,6 +932,7 @@ function App() {
                   onAddLabelArtist={handleAddLabelArtist}
                   onRemoveLabelArtist={handleRemoveLabelArtist}
                   onUpdateLabelArtist={handleUpdateLabelArtist}
+                  onImportLabelArtistsCSV={handleImportLabelArtistsCSV}
                   splitFees={stableSplitFees}
                   onUpdateSplitFee={handleUpdateSplitFee}
                   onBulkUpdateSplitFee={handleBulkUpdateSplitFee}

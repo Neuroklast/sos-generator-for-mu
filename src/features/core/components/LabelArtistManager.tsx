@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import Papa from 'papaparse'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -220,7 +221,8 @@ export function LabelArtistManager({
   onAdd,
   onRemove,
   onUpdate,
-}: LabelArtistManagerProps) {
+  onImportLabelArtistsCSV,
+}: LabelArtistManagerProps & { onImportLabelArtistsCSV?: (artists: Omit<LabelArtist, 'id'>[]) => void }) {
   const [newName, setNewName] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -324,6 +326,67 @@ export function LabelArtistManager({
           <Download size={13} weight="bold" />
           Export CSV
         </Button>
+        <div className="relative">
+          <Input
+            type="file"
+            accept=".csv"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            onChange={async e => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              try {
+                const text = await file.text()
+                Papa.parse<string[]>(text, {
+                  skipEmptyLines: true,
+                  complete: (results) => {
+                    const rows = results.data
+                    if (rows.length === 0) return
+
+                    const dataRows = rows[0]?.[0]?.toLowerCase().startsWith('name') ? rows.slice(1) : rows
+
+                    const parsed = dataRows.flatMap(cols => {
+                      const name = cols[0]?.trim()
+                      if (!name) return []
+                      return [{
+                        name,
+                        email: cols[1]?.trim() || undefined,
+                        vatNumber: cols[2]?.trim() || undefined,
+                        isEuNonGerman: cols[3]?.trim() === 'true',
+                        notes: cols[4]?.trim() || undefined,
+                        accountHolder: cols[5]?.trim() || undefined,
+                        iban: cols[6]?.trim() || undefined,
+                        bic: cols[7]?.trim() || undefined,
+                      }]
+                    })
+
+                    if (parsed.length > 0) {
+                      if (onImportLabelArtistsCSV) {
+                        onImportLabelArtistsCSV(parsed)
+                        toast.success(`${parsed.length} Artists aus CSV importiert.`)
+                      } else {
+                        toast.error('Bitte importiere die CSV über den Tab "Upload / Ingestion"')
+                      }
+                    }
+                  },
+                  error: (err) => {
+                    toast.error(`Fehler beim Lesen der CSV: ${err.message}`)
+                  }
+                })
+              } catch (e) {
+                toast.error('Fehler beim Lesen der CSV')
+              }
+              e.target.value = ''
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {}}
+          >
+            Import CSV
+          </Button>
+        </div>
       </div>
 
       {/* Artist list */}

@@ -689,6 +689,9 @@ export function UniversalFileUploadZone({
               vatNumber: cols[2]?.trim() || undefined,
               isEuNonGerman: cols[3]?.trim() === 'true',
               notes: cols[4]?.trim() || undefined,
+              accountHolder: cols[5]?.trim() || undefined,
+              iban: cols[6]?.trim() || undefined,
+              bic: cols[7]?.trim() || undefined,
             }]
           })
         }
