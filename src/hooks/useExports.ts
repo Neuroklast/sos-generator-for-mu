@@ -7,7 +7,7 @@ import {
   generateZipOfAllStatements,
 } from '@/lib/export-utils'
 import { createSafeFilename } from '@/lib/utils'
-import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults, LabelArtist } from '@/lib/types'
+import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults, LabelArtist, EmailConfig } from '@/lib/types'
 
 /**
  * Provides PDF, Excel and ZIP export actions with error handling.
@@ -20,7 +20,8 @@ export function useExports(
   periodEnd: string,
   pdfSettings?: Partial<PdfExportSettings>,
   appDefaults?: Partial<AppDefaults>,
-  labelArtists?: LabelArtist[]
+  labelArtists?: LabelArtist[],
+  emailConfig?: Partial<EmailConfig>
 ) {
   const emailOptions = useMemo(
     () =>
@@ -134,7 +135,9 @@ export function useExports(
         },
         pdfSettings,
         emailOptions,
-        labelArtists
+        labelArtists,
+        appDefaults,
+        emailConfig
       )
       downloadBlob(blob, 'artist_statements.zip')
       toast.success(`All ${total} statements downloaded`, { id: toastId })
@@ -177,7 +180,9 @@ export function useExports(
         },
         pdfSettings,
         emailOptions,
-        labelArtists
+        labelArtists,
+        appDefaults,
+        emailConfig
       )
       downloadBlob(blob, 'selected_artist_statements.zip')
       toast.success(`${total} selected statement${total !== 1 ? 's' : ''} downloaded`, { id: toastId })
