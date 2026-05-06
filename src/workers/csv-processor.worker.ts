@@ -32,6 +32,7 @@
  *    are self-fulfilled and have no Printful cost entry).
  */
 
+import { convertToEur } from '@/lib/currency'
 import { parseCSVContentStreaming } from '@/features/ingest/lib/streaming-csv-parser'
 import { parseShopifyRaw, reconcileMerchTransactions } from '@/features/ingest/lib/ecommerce-merger'
 import type { ShopifyRawOrder } from '@/features/ingest/lib/ecommerce-merger'
@@ -91,6 +92,10 @@ export interface WorkerResult {
   uniqueArtists: string[]
   periodStart: string
   periodEnd: string
+  /** EUR-normalised gross revenue across ALL uploaded records, before any
+   *  roster filter or ignored-entry filter is applied. Used to display a
+   *  "total revenue" figure that includes non-roster artists. */
+  totalGrossAllData: number
 }
 
 export type WorkerRequest =
@@ -169,6 +174,7 @@ function runProcess(config: WorkerProcessConfig): void {
           uniqueArtists: [],
           periodStart: '',
           periodEnd: '',
+          totalGrossAllData: 0,
         },
       })
       return
@@ -178,6 +184,20 @@ function runProcess(config: WorkerProcessConfig): void {
     const months = allTransactions.map(t => t.sales_month).filter(Boolean).sort()
     const periodStart = months[0] ?? ''
     const periodEnd = months[months.length - 1] ?? ''
+
+    // Compute total gross revenue across ALL records (before roster filter).
+    // Physical transactions are excluded when `excludePhysical` is active so
+    // both totals stay directly comparable.
+    const workingAllTransactions = config.excludePhysical
+      ? allTransactions.filter(t => !t.is_physical)
+      : allTransactions
+    const totalGrossAllData = workingAllTransactions.reduce((sum, t) => {
+      const revenueEur =
+        t.source === 'bandcamp' && t.currency !== 'EUR'
+          ? convertToEur(t.net_revenue, t.currency, config.exchangeRates)
+          : t.net_revenue
+      return sum + revenueEur
+    }, 0)
 
     // Core processing — financial math runs unchanged (no modifications to data-processor.ts)
     const { artistData, filteredCompilations } = processTransactionsWithCompilations(
@@ -222,7 +242,7 @@ function runProcess(config: WorkerProcessConfig): void {
     // function returns — they are NEVER sent to the main thread.
     post({
       type: 'result',
-      data: { processedData, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd },
+      data: { processedData, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData },
     })
   } catch (err) {
     post({

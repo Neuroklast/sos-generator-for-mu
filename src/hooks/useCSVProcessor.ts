@@ -51,6 +51,7 @@ const EMPTY_RESULT: WorkerResult = {
   uniqueArtists: [],
   periodStart: '',
   periodEnd: '',
+  totalGrossAllData: 0,
 }
 
 /**
