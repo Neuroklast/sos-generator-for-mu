@@ -10,6 +10,7 @@ import type {
   ArtistMapping,
   LabelArtist,
   SplitFee,
+  ReleaseSplitOverride,
 } from '@/lib/types'
 
 interface ArtistsViewProps {
@@ -37,6 +38,7 @@ interface ArtistsViewProps {
   onUpdateSplitFee: (artist: string, percentage: number) => void
   onBulkUpdateSplitFee: (artists: string[], percentage: number) => void
   onUpdateSplitFeeTypeOverride?: (artist: string, digitalPercentage: number | undefined, physicalPercentage: number | undefined) => void
+  onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
 }
 
 export function ArtistsView({
@@ -57,6 +59,7 @@ export function ArtistsView({
   onUpdateSplitFee,
   onBulkUpdateSplitFee,
   onUpdateSplitFeeTypeOverride,
+  onUpdateReleaseOverrides,
 }: ArtistsViewProps) {
   return (
     <Tabs defaultValue="stammdaten" className="space-y-6">
@@ -90,6 +93,7 @@ export function ArtistsView({
             onUpdateSplitFee={onUpdateSplitFee}
             onBulkUpdateSplitFee={onBulkUpdateSplitFee}
             onUpdateSplitFeeTypeOverride={onUpdateSplitFeeTypeOverride}
+            onUpdateReleaseOverrides={onUpdateReleaseOverrides}
           />
         </Card>
       </TabsContent>

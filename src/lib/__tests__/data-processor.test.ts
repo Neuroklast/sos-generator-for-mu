@@ -490,3 +490,104 @@ describe('case-insensitive release grouping', () => {
     expect(result[0].releaseBreakdown[0].revenue).toBeCloseTo(20)
   })
 })
+
+// ── Per-release split overrides ────────────────────────────────────────────────
+
+describe('per-release split overrides', () => {
+  it('applies per-release override rate for a matching release title substring', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', release_title: 'Different (Lim. Digipac CD)', net_revenue: 100, is_physical: true }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 70,
+      releaseOverrides: [{ releaseTitle: 'Different', percentage: 50 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // release matches the override → 50% split applied instead of 70%
+    expect(result[0].finalPayout).toBeCloseTo(50)
+  })
+
+  it('falls back to type-level split for releases that do not match any override', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', release_title: 'Normal Album', net_revenue: 100, is_physical: false }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 80,
+      releaseOverrides: [{ releaseTitle: 'Different', percentage: 50 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // No match → falls back to base split 80%
+    expect(result[0].finalPayout).toBeCloseTo(80)
+  })
+
+  it('applies different rates per release group in the same artist bucket', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC001', release_title: 'EP One', net_revenue: 100, is_physical: false }),
+      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC002', release_title: 'EP Two', net_revenue: 100, is_physical: false }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 80,
+      releaseOverrides: [{ releaseTitle: 'EP One', percentage: 60 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // EP One: 100 × 60% = 60; EP Two: 100 × 80% = 80; total = 140
+    expect(result[0].finalPayout).toBeCloseTo(140)
+  })
+
+  it('is mathematically identical to non-override path when releaseOverrides is empty', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 50, is_physical: true }),
+    ]
+    const splitFeesWithEmpty: SplitFee[] = [{ artist: 'Omnimar', percentage: 70, releaseOverrides: [] }]
+    const splitFeesWithout: SplitFee[] = [{ artist: 'Omnimar', percentage: 70 }]
+
+    const withEmpty = processTransactions(txs, { ...emptyConfig, splitFees: splitFeesWithEmpty })
+    const without = processTransactions(txs, { ...emptyConfig, splitFees: splitFeesWithout })
+    expect(withEmpty[0].finalPayout).toBeCloseTo(without[0].finalPayout)
+  })
+
+  it('performs case-insensitive substring match on release title', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', release_title: 'DIFFERENT (LIM. DIGIPAC CD)', net_revenue: 100, is_physical: true }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 70,
+      releaseOverrides: [{ releaseTitle: 'different', percentage: 40 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // case-insensitive match → 40% applied
+    expect(result[0].finalPayout).toBeCloseTo(40)
+  })
+
+  it('manual revenue is always passed through regardless of release overrides', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', release_title: 'Special Edition', net_revenue: 100, is_physical: false }),
+    ]
+    const manualRevenues: ManualRevenue[] = [{ id: '1', artist: 'Omnimar', description: 'Sync', amount: 200 }]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 100,
+      releaseOverrides: [{ releaseTitle: 'Special Edition', percentage: 50 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees, manualRevenues })
+    // Streaming: 100 × 50% = 50; Manual pass-through: 200; total = 250
+    expect(result[0].finalPayout).toBeCloseTo(250)
+  })
+
+  it('splitPercentage on the output still reflects the base percentage, not the override', () => {
+    const txs = [makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false })]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 80,
+      releaseOverrides: [{ releaseTitle: 'Test Release', percentage: 50 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // splitPercentage is the base for display, not the override
+    expect(result[0].splitPercentage).toBe(80)
+  })
+})

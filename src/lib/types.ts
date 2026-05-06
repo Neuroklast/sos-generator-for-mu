@@ -123,6 +123,19 @@ export interface ArtistMapping {
   mappingScore?: number
 }
 
+/**
+ * A per-release split percentage override for a specific artist.
+ * Matched case-insensitively as a substring of the release title.
+ * When matched, this percentage overrides the artist's base, digital,
+ * or physical split percentage for that release's transactions.
+ */
+export interface ReleaseSplitOverride {
+  /** Substring of the release title (case-insensitive match). */
+  releaseTitle: string
+  /** Split percentage (0–100) for matching transactions. */
+  percentage: number
+}
+
 export interface SplitFee {
   artist: string
   /** Default split percentage (0–100) applied to all revenue types. */
@@ -139,6 +152,14 @@ export interface SplitFee {
    * When omitted, `percentage` is used for physical revenue instead.
    */
   physicalPercentage?: number
+  /**
+   * Optional per-release split overrides. Each entry targets transactions
+   * whose release title contains `releaseTitle` (case-insensitive substring).
+   * When a match is found, `percentage` overrides the type-level split.
+   * Evaluated after digital/physical type overrides — release overrides
+   * take the highest precedence.
+   */
+  releaseOverrides?: ReleaseSplitOverride[]
 }
 
 export interface ManualRevenue {

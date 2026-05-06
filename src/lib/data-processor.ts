@@ -12,6 +12,7 @@ import type {
   FilteredCompilation,
   LabelArtist,
   IgnoredEntry,
+  ReleaseSplitOverride,
 } from './types'
 import { convertToEur } from './currency'
 import type { ExchangeRates } from './currency'
@@ -126,6 +127,21 @@ export function resolveMainArtist(
 /** Constrains a split percentage to the valid 0–100 range. */
 function clampSplitPercentage(value: number): number {
   return Math.min(100, Math.max(0, value))
+}
+
+/**
+ * Returns the first `ReleaseSplitOverride` whose `releaseTitle` is a
+ * case-insensitive substring of the given `normalizedTitle`.
+ * Returns `undefined` when no match is found.
+ *
+ * @param overrides - Array of per-release override entries to search.
+ * @param normalizedTitle - Already-lowercased release title of the transaction group.
+ */
+function findReleaseOverride(
+  overrides: ReleaseSplitOverride[],
+  normalizedTitle: string
+): ReleaseSplitOverride | undefined {
+  return overrides.find(o => normalizedTitle.includes(o.releaseTitle.toLowerCase()))
 }
 
 /**
@@ -453,10 +469,71 @@ export function processTransactionsWithCompilations(
     // Expenses and distribution fee are deducted from the streaming/physical base
     // before the split percentage is applied. Manual revenues (sync deals, etc.)
     // pass through in full.
-    const finalPayout =
-      digitalRecoupable * (digitalSplitPct / 100) +
-      physicalRecoupable * (physicalSplitPct / 100) +
-      manualRevenue
+    let finalPayout: number
+
+    const releaseOverrides = splitFee?.releaseOverrides
+    if (releaseOverrides != null && releaseOverrides.length > 0) {
+      // Per-release override path: compute payout per release group so that
+      // individual release overrides can take effect for specific titles.
+      // Group EUR-normalised transactions by normalised release title key.
+      const releaseGroups = new Map<string, SalesTransaction[]>()
+      for (const t of eurTransactions) {
+        const key = (t.upc_ean || t.catalog_number || t.release_title || 'Unknown').toLowerCase()
+        const group = releaseGroups.get(key)
+        if (group) {
+          group.push(t)
+        } else {
+          releaseGroups.set(key, [t])
+        }
+      }
+
+      let perReleasePayout = 0
+      for (const releaseTxs of releaseGroups.values()) {
+        let releaseDigital = 0
+        let releasePhysical = 0
+        for (const t of releaseTxs) {
+          if (t.is_physical) {
+            releasePhysical += t.net_revenue
+          } else {
+            releaseDigital += t.net_revenue
+          }
+        }
+
+        // Apply distribution fee per-type to this release's revenue.
+        const releaseDigitalAfterFee = releaseDigital - releaseDigital * digitalFeeRate
+        const releasePhysicalAfterFee = releasePhysical - releasePhysical * physicalFeeRate
+
+        // Scale down by the same expense factor computed at the aggregate level.
+        // Linear scaling preserves the invariant:
+        //   sum(per-release recoupable) == digitalRecoupable + physicalRecoupable
+        const releaseDigitalRecoupable = releaseDigitalAfterFee * expenseScale
+        const releasePhysicalRecoupable = releasePhysicalAfterFee * expenseScale
+
+        // Look up a release override whose releaseTitle is a case-insensitive
+        // substring of this release's title (use the first transaction's title).
+        const releaseTitleForLookup = (releaseTxs[0]?.release_title ?? '').toLowerCase()
+        const matchedOverride = findReleaseOverride(releaseOverrides, releaseTitleForLookup)
+
+        const effectiveDigitalPct = matchedOverride != null
+          ? clampSplitPercentage(matchedOverride.percentage)
+          : digitalSplitPct
+        const effectivePhysicalPct = matchedOverride != null
+          ? clampSplitPercentage(matchedOverride.percentage)
+          : physicalSplitPct
+
+        perReleasePayout +=
+          Math.max(0, releaseDigitalRecoupable) * (effectiveDigitalPct / 100) +
+          Math.max(0, releasePhysicalRecoupable) * (effectivePhysicalPct / 100)
+      }
+
+      finalPayout = perReleasePayout + manualRevenue
+    } else {
+      // Standard path (no release overrides): identical to the original formula.
+      finalPayout =
+        digitalRecoupable * (digitalSplitPct / 100) +
+        physicalRecoupable * (physicalSplitPct / 100) +
+        manualRevenue
+    }
 
     artistData.push({
       artist,
