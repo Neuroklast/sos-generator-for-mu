@@ -219,30 +219,12 @@ function runProcess(config: WorkerProcessConfig): void {
 
     const uniqueArtists = artistData.map(d => d.artist).sort()
 
-    // Build the safe (no-raw-transactions) payload to send to the main thread.
-    // believeRevenue / bandcampRevenue are already EUR-normalised in ProcessedArtistData
-    // (computed via eurTransactions in the data-processor); just copy them here.
-    const processedData: SafeProcessedArtistData[] = artistData.map(d => {
-      return {
-        artist: d.artist,
-        believeRevenue: d.believeRevenue,
-        bandcampRevenue: d.bandcampRevenue,
-        darkmerchRevenue: d.darkmerchRevenue,
-        totalDigitalRevenue: d.totalDigitalRevenue,
-        totalPhysicalRevenue: d.totalPhysicalRevenue,
-        manualRevenue: d.manualRevenue,
-        grossRevenue: d.grossRevenue,
-        splitPercentage: d.splitPercentage,
-        finalPayout: d.finalPayout,
-        totalQuantity: d.totalQuantity,
-        totalExpenses: d.totalExpenses,
-        distributionFeeDeducted: d.distributionFeeDeducted,
-        platformBreakdown: d.platformBreakdown,
-        countryBreakdown: d.countryBreakdown,
-        monthlyBreakdown: d.monthlyBreakdown,
-        releaseBreakdown: d.releaseBreakdown,
-      }
-    })
+    // Strip raw transactions (which must never reach the main thread) by
+    // destructuring them out and spreading the remaining safe fields.
+    // TypeScript structural compatibility ensures SafeProcessedArtistData
+    // receives every field from ProcessedArtistData except `transactions`.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const processedData: SafeProcessedArtistData[] = artistData.map(({ transactions: _t, ...safe }) => safe)
 
     // Raw transaction arrays and the full ProcessedArtistData (with .transactions)
     // are now only in local scope and will be garbage-collected once this

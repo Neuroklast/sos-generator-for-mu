@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SplitFee, ReleaseSplitOverride } from '@/lib/types'
 
@@ -17,6 +18,8 @@ interface SplitFeeManagerProps {
     physicalPercentage: number | undefined
   ) => void
   onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
+  /** Map of artist name → sorted release titles for the per-release override dropdown. */
+  releaseTitlesByArtist?: Record<string, string[]>
 }
 
 // ── Shared validation ─────────────────────────────────────────────────────────
@@ -116,17 +119,18 @@ function PercentInput({
 
 /**
  * Displays and manages per-release split percentage overrides for a single artist.
- * Each row shows the release title (read-only), a percentage input, and a remove button.
- * Below the list, an add-form lets users append new overrides.
- * All click events stop propagation to avoid triggering the card's onSelect.
+ * When `availableReleases` is provided the add-form uses a `Select` dropdown
+ * instead of a free-text input, preventing typos and showing only actual releases.
  */
 function ReleaseOverrideList({
   artist,
   overrides,
+  availableReleases,
   onUpdate,
 }: {
   artist: string
   overrides: ReleaseSplitOverride[]
+  availableReleases?: string[]
   onUpdate: (artist: string, overrides: ReleaseSplitOverride[]) => void
 }) {
   const [newTitle, setNewTitle] = useState('')
@@ -176,13 +180,17 @@ function ReleaseOverrideList({
         setPctError('')
       }
       if (!valid || !pctResult.ok || pctResult.value == null) return
-      const newOverride: ReleaseSplitOverride = { releaseTitle: trimmedTitle, percentage: pctResult.value }
-      onUpdate(artist, [...overrides, newOverride])
+      onUpdate(artist, [...overrides, { releaseTitle: trimmedTitle, percentage: pctResult.value }])
       setNewTitle('')
       setNewPct('')
     },
     [artist, overrides, onUpdate, newTitle, newPct]
   )
+
+  // Releases already covered by an override — excluded from the dropdown.
+  const usedTitles = new Set(overrides.map(o => o.releaseTitle.toLowerCase()))
+  const selectableReleases = availableReleases?.filter(r => !usedTitles.has(r.toLowerCase()))
+  const useDropdown = selectableReleases != null
 
   return (
     <div className="mt-3 pt-3 border-t border-white/10 space-y-3" onClick={e => e.stopPropagation()}>
@@ -216,16 +224,43 @@ function ReleaseOverrideList({
       {/* Add form */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex-1 flex flex-col gap-1">
-            <Input
-              type="text"
-              placeholder="Release title substring…"
-              value={newTitle}
-              onChange={e => { setNewTitle(e.target.value); setTitleError('') }}
-              className={`text-xs ${titleError ? 'border-destructive' : ''}`}
-            />
-            {titleError && <p className="text-xs text-destructive">{titleError}</p>}
-          </div>
+          {useDropdown ? (
+            <div className="flex-1 flex flex-col gap-1">
+              <Select
+                value={newTitle}
+                onValueChange={val => { setNewTitle(val); setTitleError('') }}
+              >
+                <SelectTrigger className={`text-xs ${titleError ? 'border-destructive' : ''}`}>
+                  <SelectValue placeholder="Select a release…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectableReleases.length > 0
+                    ? selectableReleases.map(title => (
+                        <SelectItem key={title} value={title} className="text-xs">
+                          {title}
+                        </SelectItem>
+                      ))
+                    : (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          All releases already have overrides
+                        </div>
+                      )}
+                </SelectContent>
+              </Select>
+              {titleError && <p className="text-xs text-destructive">{titleError}</p>}
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col gap-1">
+              <Input
+                type="text"
+                placeholder="Release title substring…"
+                value={newTitle}
+                onChange={e => { setNewTitle(e.target.value); setTitleError('') }}
+                className={`text-xs ${titleError ? 'border-destructive' : ''}`}
+              />
+              {titleError && <p className="text-xs text-destructive">{titleError}</p>}
+            </div>
+          )}
           <div className="flex flex-col gap-1 items-end">
             <div className="flex items-center gap-1">
               <Input
@@ -247,7 +282,9 @@ function ReleaseOverrideList({
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground/60">
-          Substring match · case-insensitive · overrides type-level split
+          {useDropdown
+            ? 'Exact release · overrides type-level split'
+            : 'Substring match · case-insensitive · overrides type-level split'}
         </p>
       </div>
     </div>
@@ -263,6 +300,7 @@ function SplitFeeRow({
   onUpdate,
   onUpdateTypeOverride,
   onUpdateReleaseOverrides,
+  availableReleases,
 }: {
   split: SplitFee
   selected: boolean
@@ -270,6 +308,7 @@ function SplitFeeRow({
   onUpdate: (artist: string, percentage: number) => void
   onUpdateTypeOverride?: (artist: string, digital: number | undefined, physical: number | undefined) => void
   onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
+  availableReleases?: string[]
 }) {
   const [draft, setDraft] = useState(String(split.percentage))
   const [error, setError] = useState('')
@@ -397,6 +436,7 @@ function SplitFeeRow({
         <ReleaseOverrideList
           artist={split.artist}
           overrides={split.releaseOverrides ?? []}
+          availableReleases={availableReleases}
           onUpdate={onUpdateReleaseOverrides}
         />
       )}
@@ -406,7 +446,7 @@ function SplitFeeRow({
 
 // ── SplitFeeManager ───────────────────────────────────────────────────────────
 
-export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride, onUpdateReleaseOverrides }: SplitFeeManagerProps) {
+export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride, onUpdateReleaseOverrides, releaseTitlesByArtist }: SplitFeeManagerProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [bulkDraft, setBulkDraft] = useState('')
   const [bulkError, setBulkError] = useState('')
@@ -550,6 +590,7 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
               onUpdate={onUpdateSplitFee}
               onUpdateTypeOverride={onUpdateSplitFeeTypeOverride}
               onUpdateReleaseOverrides={onUpdateReleaseOverrides}
+              availableReleases={releaseTitlesByArtist?.[split.artist]}
             />
           ))}
         </div>

@@ -59,6 +59,60 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
               Wird für neue Künstler verwendet, wenn keine individuelle Split-Rate gesetzt ist.
             </p>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="default-split-digital">Digital-Split (%) – optional</Label>
+              <Input
+                id="default-split-digital"
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={defaults.defaultSplitPercentageDigital ?? ''}
+                onChange={e => {
+                  const raw = e.target.value
+                  if (raw === '') {
+                    patch({ defaultSplitPercentageDigital: undefined })
+                  } else {
+                    const val = parseFloat(raw)
+                    if (!Number.isNaN(val)) patch({ defaultSplitPercentageDigital: clampPct(val) })
+                  }
+                }}
+                placeholder="Leer = globale Rate"
+                className="max-w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Überschreibt die globale Split-Rate für Streaming-Einnahmen. Leer lassen, um die globale Rate zu verwenden.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="default-split-physical">Physisch/Merch-Split (%) – optional</Label>
+              <Input
+                id="default-split-physical"
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={defaults.defaultSplitPercentagePhysical ?? ''}
+                onChange={e => {
+                  const raw = e.target.value
+                  if (raw === '') {
+                    patch({ defaultSplitPercentagePhysical: undefined })
+                  } else {
+                    const val = parseFloat(raw)
+                    if (!Number.isNaN(val)) patch({ defaultSplitPercentagePhysical: clampPct(val) })
+                  }
+                }}
+                placeholder="Leer = globale Rate"
+                className="max-w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Überschreibt die globale Split-Rate für physische / Merch-Einnahmen. Leer lassen, um die globale Rate zu verwenden.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* ── Label-Vertriebsprovision ─────────────── */}

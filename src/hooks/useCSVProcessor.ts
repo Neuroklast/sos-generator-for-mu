@@ -41,6 +41,12 @@ interface CSVProcessorConfig {
   distributionFeeDigital?: number
   /** Optional override distribution fee (0–100) for physical/merch revenue only. */
   distributionFeePhysical?: number
+  /** Default artist split percentage (0–100) when no per-artist rule exists. */
+  defaultSplitPercentage?: number
+  /** Default digital split percentage (0–100); falls back to defaultSplitPercentage. */
+  defaultSplitPercentageDigital?: number
+  /** Default physical/merch split percentage (0–100); falls back to defaultSplitPercentage. */
+  defaultSplitPercentagePhysical?: number
 }
 
 const EMPTY_RESULT: WorkerResult = {
@@ -159,6 +165,9 @@ export function useCSVProcessor(
     String(config.distributionFeePercentage),
     String(config.distributionFeeDigital ?? ''),
     String(config.distributionFeePhysical ?? ''),
+    String(config.defaultSplitPercentage ?? ''),
+    String(config.defaultSplitPercentageDigital ?? ''),
+    String(config.defaultSplitPercentagePhysical ?? ''),
   ].join('|')
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -176,7 +185,10 @@ export function useCSVProcessor(
     distributionFeePercentage: config.distributionFeePercentage,
     distributionFeeDigital: config.distributionFeeDigital,
     distributionFeePhysical: config.distributionFeePhysical,
-  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical])
+    defaultSplitPercentage: config.defaultSplitPercentage,
+    defaultSplitPercentageDigital: config.defaultSplitPercentageDigital,
+    defaultSplitPercentagePhysical: config.defaultSplitPercentagePhysical,
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical, config.defaultSplitPercentage, config.defaultSplitPercentageDigital, config.defaultSplitPercentagePhysical])
 
   const sendProcess = useCallback(() => {
     const cfg = latestConfigRef.current ?? buildConfig()
