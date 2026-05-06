@@ -160,6 +160,11 @@ function ReleaseOverrideList({
       if (!trimmedTitle) {
         setTitleError('Release title is required')
         valid = false
+      } else if (
+        overrides.some(o => o.releaseTitle.toLowerCase() === trimmedTitle.toLowerCase())
+      ) {
+        setTitleError('An override for this title already exists')
+        valid = false
       } else {
         setTitleError('')
       }

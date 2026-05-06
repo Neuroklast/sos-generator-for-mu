@@ -475,10 +475,13 @@ export function processTransactionsWithCompilations(
     if (releaseOverrides != null && releaseOverrides.length > 0) {
       // Per-release override path: compute payout per release group so that
       // individual release overrides can take effect for specific titles.
-      // Group EUR-normalised transactions by normalised release title key.
+      // Group by normalised release_title so that the override lookup key and
+      // the grouping key are always the same field — this prevents mismatches
+      // that would occur if grouping used upc_ean/catalog_number while the
+      // override lookup used release_title.
       const releaseGroups = new Map<string, SalesTransaction[]>()
       for (const t of eurTransactions) {
-        const key = (t.upc_ean || t.catalog_number || t.release_title || 'Unknown').toLowerCase()
+        const key = (t.release_title || 'Unknown').toLowerCase()
         const group = releaseGroups.get(key)
         if (group) {
           group.push(t)
@@ -488,7 +491,7 @@ export function processTransactionsWithCompilations(
       }
 
       let perReleasePayout = 0
-      for (const releaseTxs of releaseGroups.values()) {
+      for (const [releaseKey, releaseTxs] of releaseGroups.entries()) {
         let releaseDigital = 0
         let releasePhysical = 0
         for (const t of releaseTxs) {
@@ -506,13 +509,17 @@ export function processTransactionsWithCompilations(
         // Scale down by the same expense factor computed at the aggregate level.
         // Linear scaling preserves the invariant:
         //   sum(per-release recoupable) == digitalRecoupable + physicalRecoupable
+        // This equality holds as long as all transactions are included in the groups
+        // and the same fee rates and expenseScale are applied consistently.
+        // Note: Math.max(0, …) guards below can cause a marginal deviation when
+        // an individual release has a negative recoupable (e.g. fee > revenue for
+        // that release), but the overall payout will still be non-negative.
         const releaseDigitalRecoupable = releaseDigitalAfterFee * expenseScale
         const releasePhysicalRecoupable = releasePhysicalAfterFee * expenseScale
 
-        // Look up a release override whose releaseTitle is a case-insensitive
-        // substring of this release's title (use the first transaction's title).
-        const releaseTitleForLookup = (releaseTxs[0]?.release_title ?? '').toLowerCase()
-        const matchedOverride = findReleaseOverride(releaseOverrides, releaseTitleForLookup)
+        // Look up the first release override whose releaseTitle is a case-insensitive
+        // substring of this release's normalised title key.
+        const matchedOverride = findReleaseOverride(releaseOverrides, releaseKey)
 
         const effectiveDigitalPct = matchedOverride != null
           ? clampSplitPercentage(matchedOverride.percentage)

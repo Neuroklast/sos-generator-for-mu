@@ -590,4 +590,21 @@ describe('per-release split overrides', () => {
     // splitPercentage is the base for display, not the override
     expect(result[0].splitPercentage).toBe(80)
   })
+
+  it('uses the first matching override when multiple overrides could match the same release title', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', release_title: 'EP One Special Edition', net_revenue: 100, is_physical: false }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 80,
+      releaseOverrides: [
+        { releaseTitle: 'EP One', percentage: 60 },
+        { releaseTitle: 'EP', percentage: 40 },
+      ],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // 'EP One' is the first match → 60% applied, not 40%
+    expect(result[0].finalPayout).toBeCloseTo(60)
+  })
 })
