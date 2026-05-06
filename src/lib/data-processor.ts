@@ -511,11 +511,11 @@ export function processTransactionsWithCompilations(
         //   sum(per-release recoupable) == digitalRecoupable + physicalRecoupable
         // This equality holds as long as all transactions are included in the groups
         // and the same fee rates and expenseScale are applied consistently.
-        // Note: Math.max(0, …) guards below can cause a marginal deviation when
-        // an individual release has a negative recoupable (e.g. fee > revenue for
-        // that release), but the overall payout will still be non-negative.
-        const releaseDigitalRecoupable = releaseDigitalAfterFee * expenseScale
-        const releasePhysicalRecoupable = releasePhysicalAfterFee * expenseScale
+        // Math.max(0, …) guards are applied early to prevent negative intermediates
+        // from propagating into the split multiplication (a distribution fee > 100%
+        // on a specific release would otherwise yield a negative recoupable).
+        const releaseDigitalRecoupable = Math.max(0, releaseDigitalAfterFee * expenseScale)
+        const releasePhysicalRecoupable = Math.max(0, releasePhysicalAfterFee * expenseScale)
 
         // Look up the first release override whose releaseTitle is a case-insensitive
         // substring of this release's normalised title key.
@@ -529,8 +529,8 @@ export function processTransactionsWithCompilations(
           : physicalSplitPct
 
         perReleasePayout +=
-          Math.max(0, releaseDigitalRecoupable) * (effectiveDigitalPct / 100) +
-          Math.max(0, releasePhysicalRecoupable) * (effectivePhysicalPct / 100)
+          releaseDigitalRecoupable * (effectiveDigitalPct / 100) +
+          releasePhysicalRecoupable * (effectivePhysicalPct / 100)
       }
 
       finalPayout = perReleasePayout + manualRevenue
