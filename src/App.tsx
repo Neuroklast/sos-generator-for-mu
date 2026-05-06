@@ -36,6 +36,7 @@ import type {
   AppDefaults,
   PdfExportSettings,
   EmailConfig,
+  ReleaseSplitOverride,
 } from '@/lib/types'
 import { toast } from 'sonner'
 import { APP_NAME, APP_LOGO, APP_CREDITS } from '@/config/softwareBranding'
@@ -346,6 +347,22 @@ function App() {
         )
       })
       pushUndo({ description: `Edit type split for ${artist}`, undo: () => setSplitFees(snapshot) })
+    },
+    [splitFees, setSplitFees, pushUndo]
+  )
+  const handleUpdateSplitFeeReleaseOverrides = useCallback(
+    (artist: string, overrides: ReleaseSplitOverride[]) => {
+      const snapshot = splitFees ?? []
+      setSplitFees(current => {
+        const fees = current ?? []
+        return fees.map(sf =>
+          sf.artist === artist ? { ...sf, releaseOverrides: overrides } : sf
+        )
+      })
+      pushUndo({
+        description: `Edit release overrides for ${artist}`,
+        undo: () => setSplitFees(snapshot),
+      })
     },
     [splitFees, setSplitFees, pushUndo]
   )
@@ -937,6 +954,7 @@ function App() {
                   onUpdateSplitFee={handleUpdateSplitFee}
                   onBulkUpdateSplitFee={handleBulkUpdateSplitFee}
                   onUpdateSplitFeeTypeOverride={handleUpdateSplitFeeTypeOverride}
+                  onUpdateReleaseOverrides={handleUpdateSplitFeeReleaseOverrides}
                 />
               )}
 

@@ -1,11 +1,11 @@
-import { Percent } from '@phosphor-icons/react'
+import { Percent, X } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { SplitFee } from '@/lib/types'
+import type { SplitFee, ReleaseSplitOverride } from '@/lib/types'
 
 interface SplitFeeManagerProps {
   splitFees: SplitFee[]
@@ -16,6 +16,7 @@ interface SplitFeeManagerProps {
     digitalPercentage: number | undefined,
     physicalPercentage: number | undefined
   ) => void
+  onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
 }
 
 // ── Shared validation ─────────────────────────────────────────────────────────
@@ -111,6 +112,148 @@ function PercentInput({
   )
 }
 
+// ── ReleaseOverrideList ───────────────────────────────────────────────────────
+
+/**
+ * Displays and manages per-release split percentage overrides for a single artist.
+ * Each row shows the release title (read-only), a percentage input, and a remove button.
+ * Below the list, an add-form lets users append new overrides.
+ * All click events stop propagation to avoid triggering the card's onSelect.
+ */
+function ReleaseOverrideList({
+  artist,
+  overrides,
+  onUpdate,
+}: {
+  artist: string
+  overrides: ReleaseSplitOverride[]
+  onUpdate: (artist: string, overrides: ReleaseSplitOverride[]) => void
+}) {
+  const [newTitle, setNewTitle] = useState('')
+  const [newPct, setNewPct] = useState('')
+  const [titleError, setTitleError] = useState('')
+  const [pctError, setPctError] = useState('')
+
+  const handleRemove = useCallback(
+    (index: number, e: React.MouseEvent) => {
+      e.stopPropagation()
+      const updated = overrides.filter((_, i) => i !== index)
+      onUpdate(artist, updated)
+    },
+    [artist, overrides, onUpdate]
+  )
+
+  const handleChangePercent = useCallback(
+    (index: number, value: number | undefined) => {
+      if (value == null) return
+      const updated = overrides.map((o, i) => i === index ? { ...o, percentage: value } : o)
+      onUpdate(artist, updated)
+    },
+    [artist, overrides, onUpdate]
+  )
+
+  const handleAdd = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      let valid = true
+      const trimmedTitle = newTitle.trim()
+      if (!trimmedTitle) {
+        setTitleError('Release title is required')
+        valid = false
+      } else if (
+        overrides.some(o => o.releaseTitle.toLowerCase() === trimmedTitle.toLowerCase())
+      ) {
+        setTitleError('An override for this title already exists')
+        valid = false
+      } else {
+        setTitleError('')
+      }
+      const pctResult = parsePercentInput(newPct, true)
+      if (!pctResult.ok) {
+        setPctError(pctResult.error)
+        valid = false
+      } else {
+        setPctError('')
+      }
+      if (!valid || !pctResult.ok || pctResult.value == null) return
+      const newOverride: ReleaseSplitOverride = { releaseTitle: trimmedTitle, percentage: pctResult.value }
+      onUpdate(artist, [...overrides, newOverride])
+      setNewTitle('')
+      setNewPct('')
+    },
+    [artist, overrides, onUpdate, newTitle, newPct]
+  )
+
+  return (
+    <div className="mt-3 pt-3 border-t border-white/10 space-y-3" onClick={e => e.stopPropagation()}>
+      <Label className="text-xs text-muted-foreground block">Per-release overrides</Label>
+
+      {overrides.length > 0 && (
+        <div className="space-y-2">
+          {overrides.map((o, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="flex-1 text-xs truncate font-mono text-foreground/80" title={o.releaseTitle}>
+                {o.releaseTitle}
+              </span>
+              <PercentInput
+                id={`release-override-${artist}-${i}`}
+                value={o.percentage}
+                onChange={val => handleChangePercent(i, val)}
+              />
+              <button
+                type="button"
+                onClick={e => handleRemove(i, e)}
+                aria-label={`Remove override for ${o.releaseTitle}`}
+                className="text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add form */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex flex-col gap-1">
+            <Input
+              type="text"
+              placeholder="Release title substring…"
+              value={newTitle}
+              onChange={e => { setNewTitle(e.target.value); setTitleError('') }}
+              className={`text-xs ${titleError ? 'border-destructive' : ''}`}
+            />
+            {titleError && <p className="text-xs text-destructive">{titleError}</p>}
+          </div>
+          <div className="flex flex-col gap-1 items-end">
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                placeholder="e.g. 70"
+                value={newPct}
+                onChange={e => { setNewPct(e.target.value); setPctError('') }}
+                className={`w-20 text-right font-mono text-xs ${pctError ? 'border-destructive' : ''}`}
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+            {pctError && <p className="text-xs text-destructive">{pctError}</p>}
+          </div>
+          <Button size="sm" variant="outline" onClick={handleAdd} className="text-xs shrink-0">
+            Add
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground/60">
+          Substring match · case-insensitive · overrides type-level split
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ── SplitFeeRow ───────────────────────────────────────────────────────────────
 
 function SplitFeeRow({
@@ -119,17 +262,22 @@ function SplitFeeRow({
   onSelect,
   onUpdate,
   onUpdateTypeOverride,
+  onUpdateReleaseOverrides,
 }: {
   split: SplitFee
   selected: boolean
   onSelect: (e: React.MouseEvent) => void
   onUpdate: (artist: string, percentage: number) => void
   onUpdateTypeOverride?: (artist: string, digital: number | undefined, physical: number | undefined) => void
+  onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
 }) {
   const [draft, setDraft] = useState(String(split.percentage))
   const [error, setError] = useState('')
   const [showOverrides, setShowOverrides] = useState(
     split.digitalPercentage != null || split.physicalPercentage != null
+  )
+  const [showReleaseOverrides, setShowReleaseOverrides] = useState(
+    split.releaseOverrides != null && split.releaseOverrides.length > 0
   )
 
   // Sync base draft with external changes (undo / reset).
@@ -197,6 +345,17 @@ function SplitFeeRow({
               {showOverrides ? 'Hide type overrides' : 'Set per-type override…'}
             </button>
           )}
+
+          {/* Toggle for per-release overrides */}
+          {onUpdateReleaseOverrides && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setShowReleaseOverrides(v => !v) }}
+              className="text-xs text-primary/70 hover:text-primary underline underline-offset-2 mt-1"
+            >
+              {showReleaseOverrides ? 'Hide release overrides' : 'Set per-release override…'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -232,13 +391,22 @@ function SplitFeeRow({
           </div>
         </div>
       )}
+
+      {/* Per-release override list */}
+      {showReleaseOverrides && onUpdateReleaseOverrides && (
+        <ReleaseOverrideList
+          artist={split.artist}
+          overrides={split.releaseOverrides ?? []}
+          onUpdate={onUpdateReleaseOverrides}
+        />
+      )}
     </Card>
   )
 }
 
 // ── SplitFeeManager ───────────────────────────────────────────────────────────
 
-export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride }: SplitFeeManagerProps) {
+export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride, onUpdateReleaseOverrides }: SplitFeeManagerProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [bulkDraft, setBulkDraft] = useState('')
   const [bulkError, setBulkError] = useState('')
@@ -381,6 +549,7 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
               onSelect={e => handleRowSelect(split.artist, index, e)}
               onUpdate={onUpdateSplitFee}
               onUpdateTypeOverride={onUpdateSplitFeeTypeOverride}
+              onUpdateReleaseOverrides={onUpdateReleaseOverrides}
             />
           ))}
         </div>
