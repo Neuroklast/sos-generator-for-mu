@@ -82,6 +82,23 @@ export interface DataProcessorConfig {
    * physical revenue. Falls back to `distributionFeePercentage` when omitted.
    */
   distributionFeePhysical?: number
+  /**
+   * Default artist split percentage (0–100) applied when no per-artist SplitFee
+   * rule exists. Defaults to 100 (full pass-through) when omitted.
+   */
+  defaultSplitPercentage?: number
+  /**
+   * Optional default split percentage (0–100) for digital revenue only.
+   * Overrides `defaultSplitPercentage` for digital when no per-artist digital
+   * override exists. Falls back to `defaultSplitPercentage` when omitted.
+   */
+  defaultSplitPercentageDigital?: number
+  /**
+   * Optional default split percentage (0–100) for physical/merch revenue only.
+   * Overrides `defaultSplitPercentage` for physical when no per-artist physical
+   * override exists. Falls back to `defaultSplitPercentage` when omitted.
+   */
+  defaultSplitPercentagePhysical?: number
 }
 
 export interface ProcessorResult {
@@ -170,24 +187,28 @@ function resolveDistributionFeeRate(override: number | undefined, fallback: numb
 /**
  * Resolves the effective artist split percentage for a given revenue type.
  *
- * Fallback chain:
- *   1. Type-specific override on the `SplitFee` entry (e.g. `digitalPercentage`)
- *   2. Base `percentage` on the `SplitFee` entry
- *   3. 100 % — full pass-through when no split rule exists at all
- *
- * 100 % is used as the ultimate fallback because a missing split rule means the
- * label has not yet configured a deduction for that artist, so we should never
- * silently zero out their payout.
+ * Fallback chain (highest → lowest priority):
+ *   1. Per-artist type-specific override  (e.g. `splitFee.digitalPercentage`)
+ *   2. Per-artist base percentage         (`splitFee.percentage`)
+ *   3. Label-wide type-specific default   (e.g. `defaultDigital`)
+ *   4. Label-wide base default            (`defaultBase`)
  *
  * @param splitFee - The artist's split-fee entry from the config, or `undefined` when no rule is configured.
  * @param typeOverride - Revenue type determining which optional override field to read.
+ * @param defaultBase - Label-wide default split percentage (0–100); used when no per-artist rule exists.
+ * @param defaultTypeOverride - Label-wide type-specific default (0–100); overrides `defaultBase` for this type.
  */
 function resolveSplitPercentage(
   splitFee: { percentage: number; digitalPercentage?: number; physicalPercentage?: number } | undefined,
-  typeOverride: 'digital' | 'physical'
+  typeOverride: 'digital' | 'physical',
+  defaultBase: number = 100,
+  defaultTypeOverride?: number
 ): number {
-  const override = typeOverride === 'digital' ? splitFee?.digitalPercentage : splitFee?.physicalPercentage
-  return clampSplitPercentage(override ?? splitFee?.percentage ?? 100)
+  const perArtistTypeOverride = typeOverride === 'digital'
+    ? splitFee?.digitalPercentage
+    : splitFee?.physicalPercentage
+  const effectiveDefault = defaultTypeOverride ?? defaultBase
+  return clampSplitPercentage(perArtistTypeOverride ?? splitFee?.percentage ?? effectiveDefault)
 }
 
 function aggregateBy<K extends string>(
