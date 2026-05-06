@@ -20,6 +20,10 @@ import type { ExchangeRates } from './currency'
 export interface ProcessedArtistData {
   artist: string
   transactions: SalesTransaction[]
+  /** EUR-normalised revenue from Believe-sourced rows. */
+  believeRevenue: number
+  /** EUR-normalised revenue from Bandcamp-sourced rows. */
+  bandcampRevenue: number
   totalDigitalRevenue: number
   totalPhysicalRevenue: number
   manualRevenue: number
@@ -414,6 +418,15 @@ export function processTransactionsWithCompilations(
       }
     }
 
+    // Per-source EUR revenue — computed from EUR-normalised transactions so the
+    // values are consistent with grossRevenue (both use the same EUR amounts).
+    const believeRevenue = eurTransactions
+      .filter(t => t.source === 'believe')
+      .reduce((s, t) => s + t.net_revenue, 0)
+    const bandcampRevenue = eurTransactions
+      .filter(t => t.source === 'bandcamp')
+      .reduce((s, t) => s + t.net_revenue, 0)
+
     const manualRevenue = config.manualRevenues
       .filter(mr => mr.artist.toLowerCase() === lowerKey)
       .reduce((sum, mr) => sum + mr.amount, 0)
@@ -545,6 +558,8 @@ export function processTransactionsWithCompilations(
     artistData.push({
       artist,
       transactions: artistTransactions,
+      believeRevenue,
+      bandcampRevenue,
       totalDigitalRevenue: digitalRevenue,
       totalPhysicalRevenue: physicalRevenue,
       manualRevenue,

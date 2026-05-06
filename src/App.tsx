@@ -166,6 +166,15 @@ function App() {
     ),
     onFileRemoved: markRemoved,
   })
+  const darkmerchManager = useFileManager('darkmerch', {
+    onFileAdded: useCallback(
+      (file: UploadedFile, rowsParsed: number, rowsSkipped: number, uniqueArtists: number) => {
+        addEntry({ filename: file.name, source: 'darkmerch', sizeBytes: file.size, rowsParsed, rowsSkipped, uniqueArtists })
+      },
+      [addEntry]
+    ),
+    onFileRemoved: markRemoved,
+  })
 
   // Bug 1 fix: memoize stable empty-array fallbacks so `?? []` never creates a
   // new reference on every render (which would trigger infinite re-computations
@@ -209,7 +218,8 @@ function App() {
       distributionFeePhysical: appDefaults?.distributionFeePhysical,
     },
     shopifyManager.files,
-    printfulManager.files
+    printfulManager.files,
+    darkmerchManager.files
   )
 
   // Auto-apply detected period when new files are loaded and period is empty.
@@ -253,7 +263,8 @@ function App() {
     pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS,
     appDefaults ?? DEFAULT_APP_DEFAULTS,
     stableLabelArtists,
-    emailConfig ?? DEFAULT_EMAIL_CONFIG
+    emailConfig ?? DEFAULT_EMAIL_CONFIG,
+    stableCompilationFilters
   )
 
   const handleAddCompilationFilter = useCallback(
@@ -480,13 +491,14 @@ function App() {
     bandcampManager.clearAll()
     shopifyManager.clearAll()
     printfulManager.clearAll()
+    darkmerchManager.clearAll()
     setManualRevenues([])
     setExpenses([])
     setPeriodStart('')
     setPeriodEnd('')
     setClearConfirmOpen(false)
     toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
-  }, [believeManager, bandcampManager, shopifyManager, printfulManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
+  }, [believeManager, bandcampManager, shopifyManager, printfulManager, darkmerchManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
 
   const handleWorkspaceImport = useCallback(
     (backup: WorkspaceBackup) => {
@@ -591,8 +603,8 @@ function App() {
     [revenues]
   )
   const totalFiles = useMemo(
-    () => believeManager.files.length + bandcampManager.files.length + shopifyManager.files.length + printfulManager.files.length,
-    [believeManager.files.length, bandcampManager.files.length, shopifyManager.files.length, printfulManager.files.length]
+    () => believeManager.files.length + bandcampManager.files.length + shopifyManager.files.length + printfulManager.files.length + darkmerchManager.files.length,
+    [believeManager.files.length, bandcampManager.files.length, shopifyManager.files.length, printfulManager.files.length, darkmerchManager.files.length]
   )
 
   // UX 1: auto-navigate to the analytics view the first time files are ready
@@ -912,6 +924,7 @@ function App() {
                   bandcampManager={bandcampManager}
                   shopifyManager={shopifyManager}
                   printfulManager={printfulManager}
+                  darkmerchManager={darkmerchManager}
                   exchangeRatesLoading={exchangeRatesLoading}
                   handleAddAlias={handleAddAlias}
                   isProcessing={isProcessing}

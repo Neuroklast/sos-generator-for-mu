@@ -1,4 +1,4 @@
-import { Plus, Trash, GitBranch, Pencil, GitMerge, Sparkle } from '@phosphor-icons/react'
+import { Plus, Trash, GitBranch, Pencil, GitMerge, Sparkle, CaretUpDown, Check } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,9 +7,16 @@ import { Badge } from '@/components/ui/badge'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover'
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from '@/components/ui/command'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '@/lib/utils'
 import type { ArtistMapping } from '@/lib/types'
 
 interface ArtistMappingManagerProps {
@@ -19,6 +26,93 @@ interface ArtistMappingManagerProps {
   onUpdateMapping?: (id: string, update: Omit<ArtistMapping, 'id'>) => void
   artists?: string[]
   autoMappings?: ArtistMapping[]
+}
+
+/**
+ * Searchable combobox that allows both free-text entry and selecting from
+ * the list of known artist names.
+ */
+function ArtistCombobox({
+  value,
+  onChange,
+  options,
+  placeholder,
+  id,
+}: {
+  value: string
+  onChange: (val: string) => void
+  options: string[]
+  placeholder?: string
+  id?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [inputValue, setInputValue] = useState(value)
+
+  // Sync local display value when the controlled `value` prop changes externally
+  // (e.g., when the parent resets the form after a successful add/edit).
+  useEffect(() => {
+    setInputValue(value)
+  }, [value])
+
+  const handleInputChange = (val: string) => {
+    setInputValue(val)
+    onChange(val)
+  }
+
+  const handleSelect = (selected: string) => {
+    setInputValue(selected)
+    onChange(selected)
+    setOpen(false)
+  }
+
+  const filtered = options.filter(o =>
+    o.toLowerCase().includes(inputValue.toLowerCase())
+  )
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div className="relative">
+          <Input
+            id={id}
+            value={inputValue}
+            onChange={e => handleInputChange(e.target.value)}
+            placeholder={placeholder}
+            className="pr-8"
+            onFocus={() => setOpen(true)}
+          />
+          <CaretUpDown
+            size={14}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+          />
+        </div>
+      </PopoverTrigger>
+      {open && filtered.length > 0 && (
+        <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start" onOpenAutoFocus={e => e.preventDefault()}>
+          <Command>
+            <CommandList>
+              <CommandEmpty>No matching artists</CommandEmpty>
+              <CommandGroup>
+                {filtered.map(artist => (
+                  <CommandItem
+                    key={artist}
+                    value={artist}
+                    onSelect={() => handleSelect(artist)}
+                  >
+                    <Check
+                      size={14}
+                      className={cn('mr-2', value === artist ? 'opacity-100' : 'opacity-0')}
+                    />
+                    {artist}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      )}
+    </Popover>
+  )
 }
 
 export function ArtistMappingManager({
@@ -234,14 +328,26 @@ export function ArtistMappingManager({
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="featuring-name">Featuring Name</Label>
-                  <Input id="featuring-name" value={featuringName} onChange={e => setFeaturingName(e.target.value)} placeholder="e.g., Artist A feat. Artist B" />
+                  <ArtistCombobox
+                    id="featuring-name"
+                    value={featuringName}
+                    onChange={setFeaturingName}
+                    options={artists}
+                    placeholder="e.g., Artist A feat. Artist B"
+                  />
                 </div>
                 <div className="flex items-center justify-center">
                   <GitBranch size={24} className="text-muted-foreground" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="primary-artist">Primary Artist</Label>
-                  <Input id="primary-artist" value={primaryArtist} onChange={e => setPrimaryArtist(e.target.value)} placeholder="e.g., Artist A" onKeyDown={e => e.key === 'Enter' && handleAdd()} />
+                  <ArtistCombobox
+                    id="primary-artist"
+                    value={primaryArtist}
+                    onChange={setPrimaryArtist}
+                    options={artists}
+                    placeholder="e.g., Artist A"
+                  />
                 </div>
               </div>
               <DialogFooter>
@@ -263,14 +369,24 @@ export function ArtistMappingManager({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Featuring Name</Label>
-              <Input value={editFeat} onChange={e => setEditFeat(e.target.value)} />
+              <ArtistCombobox
+                value={editFeat}
+                onChange={setEditFeat}
+                options={artists}
+                placeholder="e.g., Artist A feat. Artist B"
+              />
             </div>
             <div className="flex items-center justify-center">
               <GitBranch size={24} className="text-muted-foreground" />
             </div>
             <div className="space-y-2">
               <Label>Primary Artist</Label>
-              <Input value={editPrimary} onChange={e => setEditPrimary(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleEdit()} />
+              <ArtistCombobox
+                value={editPrimary}
+                onChange={setEditPrimary}
+                options={artists}
+                placeholder="e.g., Artist A"
+              />
             </div>
           </div>
           <DialogFooter>

@@ -74,7 +74,8 @@ export function useCSVProcessor(
   bandcampFiles: UploadedFile[],
   config: CSVProcessorConfig,
   shopifyFiles: UploadedFile[] = [],
-  printfulFiles: UploadedFile[] = []
+  printfulFiles: UploadedFile[] = [],
+  darkmerchFiles: UploadedFile[] = []
 ) {
   const workerRef = useRef<Worker | null>(null)
   /** IDs of files that have been successfully sent to the worker for parsing. */
@@ -125,6 +126,7 @@ export function useCSVProcessor(
   const bandcampKey = bandcampFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
   const shopifyKey = shopifyFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
   const printfulKey = printfulFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
+  const darkmerchKey = darkmerchFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
 
   const configKey = [
     config.compilationFilters.map(f => f.id).join(','),
@@ -224,7 +226,7 @@ export function useCSVProcessor(
     const worker = workerRef.current
     if (!worker) return
 
-    const allFiles = [...believeFiles, ...bandcampFiles, ...shopifyFiles, ...printfulFiles]
+    const allFiles = [...believeFiles, ...bandcampFiles, ...shopifyFiles, ...printfulFiles, ...darkmerchFiles]
     const currentFileMap = new Map(
       allFiles.filter(f => f.data).map(f => [f.id, f])
     )
@@ -280,7 +282,7 @@ export function useCSVProcessor(
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [believeKey, bandcampKey, shopifyKey, printfulKey, aliasKey])
+  }, [believeKey, bandcampKey, shopifyKey, printfulKey, darkmerchKey, aliasKey])
 
   // ── Effect: re-process when config changes (no re-parse needed) ───────────────
 

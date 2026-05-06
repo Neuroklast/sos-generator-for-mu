@@ -98,6 +98,13 @@ export function PdfExportSettingsPanel({ settings, onUpdate }: PdfExportSettings
               checked={settings.includeEmailCoverLetter}
               onCheckedChange={v => patch({ includeEmailCoverLetter: v })}
             />
+            <ToggleRow
+              id="pdf-hide-compilations"
+              label="Compilations im Statement ausblenden"
+              description="Kompilationsreleases werden in der Release-Aufschlüsselung des PDFs nicht angezeigt."
+              checked={settings.hideCompilationsInStatement ?? true}
+              onCheckedChange={v => patch({ hideCompilationsInStatement: v })}
+            />
           </div>
         </div>
 

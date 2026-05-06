@@ -28,6 +28,7 @@ interface IngestViewProps {
   bandcampManager: FileManagerCallbacks
   shopifyManager: EcommerceManagerCallbacks
   printfulManager: EcommerceManagerCallbacks
+  darkmerchManager: EcommerceManagerCallbacks
   exchangeRatesLoading: boolean
   handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void
   isProcessing: boolean
@@ -57,6 +58,7 @@ export function IngestView({
   bandcampManager,
   shopifyManager,
   printfulManager,
+  darkmerchManager,
   exchangeRatesLoading,
   handleAddAlias,
   isProcessing,
@@ -109,6 +111,7 @@ export function IngestView({
             bandcampManager={bandcampManager}
             shopifyManager={shopifyManager}
             printfulManager={printfulManager}
+            darkmerchManager={darkmerchManager}
             onAddAliases={aliases => aliases.forEach(handleAddAlias)}
             onImportLabelArtistsCSV={onImportLabelArtistsCSV}
             csvProfiles={csvImportProfiles}
@@ -126,7 +129,7 @@ export function IngestView({
               {
                 label: 'Total Rows',
                 value: (
-                  [...believeManager.files, ...bandcampManager.files, ...shopifyManager.files, ...printfulManager.files]
+                  [...believeManager.files, ...bandcampManager.files, ...shopifyManager.files, ...printfulManager.files, ...darkmerchManager.files]
                     .reduce((s, f) => s + ((f as UploadedFile).rowsParsed ?? 0), 0)
                 ).toLocaleString(),
               },

@@ -22,6 +22,7 @@ export const DEFAULT_PDF_EXPORT_SETTINGS: PdfExportSettings = {
   includeCountryBreakdown: false,
   includeMonthlyBreakdown: false,
   includeEmailCoverLetter: false,
+  hideCompilationsInStatement: true,
 }
 
 export const DEFAULT_EMAIL_CONFIG: EmailConfig = {

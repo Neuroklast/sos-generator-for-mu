@@ -7,7 +7,7 @@ import {
   generateZipOfAllStatements,
 } from '@/lib/export-utils'
 import { createSafeFilename } from '@/lib/utils'
-import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults, LabelArtist, EmailConfig } from '@/lib/types'
+import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults, LabelArtist, EmailConfig, CompilationFilter } from '@/lib/types'
 
 /**
  * Provides PDF, Excel and ZIP export actions with error handling.
@@ -21,7 +21,8 @@ export function useExports(
   pdfSettings?: Partial<PdfExportSettings>,
   appDefaults?: Partial<AppDefaults>,
   labelArtists?: LabelArtist[],
-  emailConfig?: Partial<EmailConfig>
+  emailConfig?: Partial<EmailConfig>,
+  compilationFilters: CompilationFilter[] = []
 ) {
   const emailOptions = useMemo(
     () =>
@@ -68,7 +69,8 @@ export function useExports(
           invoiceNumber,
           pdfSettings,
           emailOptions,
-          artistInfo
+          artistInfo,
+          compilationFilters
         )
         downloadBlob(blob, `${createSafeFilename(artist)}_statement.pdf`)
         toast.success(`PDF for "${artist}" downloaded`)
@@ -78,7 +80,7 @@ export function useExports(
         console.error('PDF export error:', err)
       }
     },
-    [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, artistInfoMap]
+    [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, artistInfoMap, compilationFilters]
   )
 
   const handleDownloadExcel = useCallback(
@@ -137,7 +139,8 @@ export function useExports(
         emailOptions,
         labelArtists,
         appDefaults,
-        emailConfig
+        emailConfig,
+        compilationFilters
       )
       downloadBlob(blob, 'artist_statements.zip')
       toast.success(`All ${total} statements downloaded`, { id: toastId })
@@ -146,7 +149,7 @@ export function useExports(
       toast.error('ZIP export failed', { id: toastId, description: message })
       console.error('ZIP export error:', err)
     }
-  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists])
+  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists, compilationFilters])
 
   /**
    * Queued batch export for a specific subset of artists — same async queue
@@ -182,7 +185,8 @@ export function useExports(
         emailOptions,
         labelArtists,
         appDefaults,
-        emailConfig
+        emailConfig,
+        compilationFilters
       )
       downloadBlob(blob, 'selected_artist_statements.zip')
       toast.success(`${total} selected statement${total !== 1 ? 's' : ''} downloaded`, { id: toastId })
@@ -191,7 +195,7 @@ export function useExports(
       toast.error('ZIP export failed', { id: toastId, description: message })
       console.error('ZIP export error:', err)
     }
-  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists])
+  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists, compilationFilters])
 
   return { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected }
 }

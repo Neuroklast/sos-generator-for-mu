@@ -84,7 +84,7 @@ export interface UploadedFile {
   id: string
   name: string
   size: number
-  type: 'believe' | 'bandcamp' | 'shopify' | 'printful'
+  type: 'believe' | 'bandcamp' | 'shopify' | 'printful' | 'darkmerch'
   /** Raw CSV string — kept in memory only, NOT persisted to IndexedDB. */
   data?: string
   /** ISO 8601 timestamp string (YYYY-MM-DDTHH:mm:ss.sssZ) */
@@ -267,6 +267,12 @@ export interface PdfExportSettings {
   includeMonthlyBreakdown: boolean
   /** Prepend the e-mail cover letter (rendered from emailTemplate) as the first page. */
   includeEmailCoverLetter: boolean
+  /**
+   * When true (default), compilation releases are excluded from the release
+   * breakdown table in exported PDF statements. Compilation releases are
+   * identified by matching any active CompilationFilter identifier.
+   */
+  hideCompilationsInStatement: boolean
 }
 
 /**
@@ -359,7 +365,7 @@ export interface HistoryEntry {
   /** ISO 8601 timestamp */
   timestamp: string
   filename: string
-  source: 'believe' | 'bandcamp' | 'shopify' | 'printful'
+  source: 'believe' | 'bandcamp' | 'shopify' | 'printful' | 'darkmerch'
   sizeBytes: number
   rowsParsed: number
   rowsSkipped: number
@@ -447,7 +453,7 @@ export interface FilterState {
   searchQuery: string
   selectedPlatforms: string[]
   selectedCountries: string[]
-  selectedSources: ('believe' | 'bandcamp' | 'manual' | 'shopify')[]
+  selectedSources: ('believe' | 'bandcamp' | 'manual' | 'shopify' | 'darkmerch')[]
   minRevenue: number
   maxRevenue: number
   dateFrom: string
