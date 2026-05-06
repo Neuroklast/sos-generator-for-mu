@@ -13,6 +13,7 @@ const DEFAULT_PDF_SETTINGS: PdfExportSettings = {
   includeMonthlyBreakdown: false,
   includeEmailCoverLetter: false,
   hideCompilationsInStatement: true,
+  includePieChart: false,
 }
 
 export function formatCurrency(value: number): string {
@@ -290,17 +291,6 @@ function buildPDF(
   doc.line(margin, yPos, 190, yPos)
   yPos += 10
 
-  // ── Legal keyword: "Gutschrift" ────────────────────────────────────────────
-  // Required by German VAT law (§ 14 Abs. 2 UStG) for the issuing party
-  // (label) to claim input-tax deduction on artist payouts.
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'italic')
-  doc.setTextColor(80, 80, 80)
-  doc.text('Credit note pursuant to German VAT law (§ 14 para. 2 UStG)', margin, yPos)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(0, 0, 0)
-  yPos += 8
-
   doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
   doc.text('Statement of Sales', margin, yPos)
@@ -310,35 +300,8 @@ function buildPDF(
   doc.text(`Artist: ${artistData.artist}`, margin, yPos)
   yPos += 6
 
-  // ── Artist VAT / Reverse Charge info ───────────────────────────────────────
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  const artistVatId = artistInfo?.vatNumber
-  const artistIsEuNonGerman = artistInfo?.isEuNonGerman ?? false
-
-  if (artistVatId) {
-    doc.text(`VAT ID (Recipient): ${artistVatId}`, margin, yPos)
-    yPos += 5
-  }
-
-  if (artistIsEuNonGerman) {
-    doc.setTextColor(80, 80, 80)
-    doc.text(
-      'Tax liability of the service recipient (Reverse Charge, Art. 196 VAT Directive)',
-      margin,
-      yPos
-    )
-    doc.setTextColor(0, 0, 0)
-    yPos += 5
-  }
-
   doc.setFontSize(10)
-
-  // ── Per-artist VAT rate: prefer artistInfo.vatRate, fall back to labelInfo.vatRate
-  const effectiveVatRate = artistInfo?.vatRate ?? labelInfo.vatRate ?? 0
-  const vatRate = artistIsEuNonGerman ? 0 : effectiveVatRate
-  const vatAmount = vatRate > 0 ? artistData.finalPayout * (vatRate / 100) : 0
-  const grossPayout = artistData.finalPayout + vatAmount
 
   // ── Page footer helper ────────────────────────────────────────────────────
   // Two-row footer layout to prevent element overlap:
@@ -404,25 +367,36 @@ function buildPDF(
   }
 
   // ── Financial waterfall summary ───────────────────────────────────────────
-  // Visualises the revenue flow: Gross → –Fee → –Expenses → = Split-Basis
-  // → × Split% → = Net Payout (Artist Share) → [+VAT] → = Gross Payout.
-  //
-  // DARKMERCH revenue is shown on its own row for transparency; the remaining
-  // physical (Shopify/Printful) revenue is shown separately when non-zero.
-  const shopifyPrintfulRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
+  // Visualises the revenue flow:
+  //   Digital Revenue (streams + downloads)
+  //   Physical Releases (CDs, Vinyl, etc.)
+  //   Merchandise
+  //   Manual Revenue entries (each individually)
+  //   = Gross Revenue → –Fee → –Expenses → × Split% → = Net Payout
+  const physicalReleasesRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
   const waterfallRows: string[][] = [
-    ['Digital Revenue', formatCurrency(artistData.totalDigitalRevenue)],
+    ['Digital Revenue (Streams + Downloads)', formatCurrency(artistData.totalDigitalRevenue)],
   ]
 
-  if (shopifyPrintfulRevenue !== 0) {
-    waterfallRows.push(['Physical Revenue (Shopify / Printful)', formatCurrency(shopifyPrintfulRevenue)])
+  if (physicalReleasesRevenue !== 0) {
+    waterfallRows.push(['Physical Releases', formatCurrency(physicalReleasesRevenue)])
   }
   if (artistData.darkmerchRevenue !== 0) {
-    waterfallRows.push(['DARKMERCH Revenue', formatCurrency(artistData.darkmerchRevenue)])
+    waterfallRows.push(['Merchandise', formatCurrency(artistData.darkmerchRevenue)])
+  }
+
+  // Show each manual revenue entry individually with its description
+  if (artistData.manualRevenueEntries.length > 0) {
+    for (const entry of artistData.manualRevenueEntries) {
+      const label = entry.description ? `Manual: ${entry.description}` : 'Manual Revenue'
+      waterfallRows.push([label, formatCurrency(entry.amount)])
+    }
+  } else if (artistData.manualRevenue !== 0) {
+    // Fallback for legacy data without individual entries
+    waterfallRows.push(['Manual Revenue', formatCurrency(artistData.manualRevenue)])
   }
 
   waterfallRows.push(
-    ['Manual Revenue', formatCurrency(artistData.manualRevenue)],
     ['= Gross Revenue', formatCurrency(artistData.grossRevenue)],
   )
 
@@ -443,13 +417,6 @@ function buildPDF(
     [`× Split ${artistData.splitPercentage}%`, ''],
     ['= Net Payout (Artist Share)', formatCurrency(artistData.finalPayout)],
   )
-
-  if (vatRate > 0) {
-    waterfallRows.push(
-      [`+ VAT ${vatRate}%`, formatCurrency(vatAmount)],
-      ['= Gross Payout', formatCurrency(grossPayout)],
-    )
-  }
 
   autoTable(doc, {
     startY: yPos,
@@ -483,8 +450,8 @@ function buildPDF(
 
   // ── Release breakdown ─────────────────────────────────────────────────────
   if (settings.includeReleaseBreakdown && artistData.releaseBreakdown.length > 0) {
-    // Pre-compute lowercased compilation identifiers for O(1) matching.
-    const compilationIdentifiersLower = settings.hideCompilationsInStatement && compilationFilters.length > 0
+    // Compilations are always excluded from the statement.
+    const compilationIdentifiersLower = compilationFilters.length > 0
       ? compilationFilters.map(cf => cf.identifier.toLowerCase())
       : []
     const releaseBreakdown = compilationIdentifiersLower.length > 0
@@ -494,51 +461,79 @@ function buildPDF(
         })
       : artistData.releaseBreakdown
     if (releaseBreakdown.length > 0) {
-    renderSectionHeading('Revenue by Release')
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Release Title', 'Revenue', 'Qty', 'Type']],
+      renderSectionHeading('Revenue by Release')
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Release Title', 'Revenue', 'Qty', 'Type']],
         body: releaseBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(rel => [
-        rel.releaseTitle || '-',
-        formatCurrency(rel.revenue),
-        String(rel.quantity),
-        rel.isPhysical ? 'Physical' : 'Digital',
-      ]),
-      theme: 'striped',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [245, 245, 250] },
-      columnStyles: {
-        1: { halign: 'right' },
-        2: { halign: 'right' },
-      },
-      margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
-    })
-    yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+          rel.releaseTitle || '-',
+          formatCurrency(rel.revenue),
+          String(rel.quantity),
+          rel.isPhysical ? 'Physical' : 'Digital',
+        ]),
+        theme: 'striped',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 245, 250] },
+        columnStyles: {
+          1: { halign: 'right' },
+          2: { halign: 'right' },
+        },
+        margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
+      })
+      yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
     }
   }
 
-  // ── Platform breakdown ────────────────────────────────────────────────────
+  // ── Platform breakdown ─────────────────────────────────────────────────────
+  // Shows Downloads and Streams as separate columns when the data distinguishes
+  // them. Falls back to a single Qty column when type info is not available.
   if (settings.includePlatformBreakdown && artistData.platformBreakdown.length > 0) {
+    const hasTypeInfo = artistData.platformBreakdown.some(
+      p => p.downloadQuantity !== undefined || p.streamQuantity !== undefined
+    )
     renderSectionHeading('Revenue by Platform')
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Platform', 'Revenue', 'Qty']],
-      body: artistData.platformBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(p => [
-        p.platform || 'Unknown',
-        formatCurrency(p.revenue),
-        String(p.quantity),
-      ]),
-      theme: 'striped',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [245, 245, 250] },
-      columnStyles: {
-        1: { halign: 'right' },
-        2: { halign: 'right' },
-      },
-      margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
-    })
+    if (hasTypeInfo) {
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Platform', 'Revenue', 'Downloads', 'Streams']],
+        body: artistData.platformBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(p => [
+          p.platform || 'Unknown',
+          formatCurrency(p.revenue),
+          String(p.downloadQuantity ?? 0),
+          String(p.streamQuantity ?? 0),
+        ]),
+        theme: 'striped',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 245, 250] },
+        columnStyles: {
+          1: { halign: 'right' },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+        },
+        margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
+      })
+    } else {
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Platform', 'Revenue', 'Qty']],
+        body: artistData.platformBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(p => [
+          p.platform || 'Unknown',
+          formatCurrency(p.revenue),
+          String(p.quantity),
+        ]),
+        theme: 'striped',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [40, 40, 60], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 245, 250] },
+        columnStyles: {
+          1: { halign: 'right' },
+          2: { halign: 'right' },
+        },
+        margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
+      })
+    }
     yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
 
@@ -583,6 +578,86 @@ function buildPDF(
       columnStyles: { 1: { halign: 'right' } },
       margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
     })
+  }
+
+  // ── Pie chart: revenue category breakdown ─────────────────────────────────
+  // Drawn using an HTML canvas (available in the browser context) and embedded
+  // in the PDF as a PNG image.  Shows each revenue category's share of the
+  // total gross revenue so the artist can see the mix at a glance.
+  if (settings.includePieChart) {
+    const physRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
+    const segments = [
+      { label: 'Streams', value: artistData.totalStreamRevenue, color: '#4f86c6' },
+      { label: 'Downloads', value: artistData.totalDownloadRevenue, color: '#6bbf87' },
+      // Unknown digital = totalDigital - known downloads - known streams
+      { label: 'Digital (other)', value: Math.max(0, artistData.totalDigitalRevenue - artistData.totalDownloadRevenue - artistData.totalStreamRevenue), color: '#a78bfa' },
+      { label: 'Physical Releases', value: physRevenue, color: '#f59e42' },
+      { label: 'Merchandise', value: artistData.darkmerchRevenue, color: '#e07070' },
+      { label: 'Manual Revenue', value: artistData.manualRevenue, color: '#9ca3af' },
+    ].filter(s => s.value > 0)
+
+    const total = segments.reduce((s, seg) => s + seg.value, 0)
+
+    if (segments.length > 0 && total > 0) {
+      try {
+        const canvas = document.createElement('canvas')
+        const CANVAS_SIZE = 600
+        canvas.width = CANVAS_SIZE
+        canvas.height = CANVAS_SIZE
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          const cx = CANVAS_SIZE / 2
+          const cy = CANVAS_SIZE * 0.44
+          const radius = CANVAS_SIZE * 0.36
+
+          let startAngle = -Math.PI / 2
+          for (const seg of segments) {
+            const slice = (seg.value / total) * 2 * Math.PI
+            ctx.beginPath()
+            ctx.moveTo(cx, cy)
+            ctx.arc(cx, cy, radius, startAngle, startAngle + slice)
+            ctx.closePath()
+            ctx.fillStyle = seg.color
+            ctx.fill()
+            ctx.strokeStyle = '#ffffff'
+            ctx.lineWidth = 2
+            ctx.stroke()
+            startAngle += slice
+          }
+
+          // Legend
+          const legendStartY = cy + radius + 24
+          const legendLineH = 28
+          ctx.font = 'bold 20px sans-serif'
+          segments.forEach((seg, i) => {
+            const lx = 20
+            const ly = legendStartY + i * legendLineH
+            ctx.fillStyle = seg.color
+            ctx.fillRect(lx, ly - 14, 20, 18)
+            ctx.fillStyle = '#333333'
+            const pct = ((seg.value / total) * 100).toFixed(1)
+            ctx.fillText(`${seg.label}: ${pct}%`, lx + 28, ly)
+          })
+
+          const imgData = canvas.toDataURL('image/png')
+          // Compute page space: place on current page or new page if needed
+          const pageHeight = doc.internal.pageSize.getHeight()
+          const chartH = 90
+          if (yPos + chartH > pageHeight - FOOTER_RESERVED_MM) {
+            doc.addPage()
+            yPos = margin
+          }
+          renderSectionHeading('Revenue Breakdown')
+          const chartW = 85
+          const pageWidth = doc.internal.pageSize.getWidth()
+          const chartX = (pageWidth - chartW) / 2
+          doc.addImage(imgData, 'PNG', chartX, yPos, chartW, chartH)
+          yPos += chartH + 8
+        }
+      } catch {
+        // Pie chart rendering failed silently — do not abort PDF generation
+      }
+    }
   }
 
   // ── Post-processing: draw footer on every page ────────────────────────────

@@ -99,11 +99,11 @@ export function PdfExportSettingsPanel({ settings, onUpdate }: PdfExportSettings
               onCheckedChange={v => patch({ includeEmailCoverLetter: v })}
             />
             <ToggleRow
-              id="pdf-hide-compilations"
-              label="Compilations im Statement ausblenden"
-              description="Kompilationsreleases werden in der Release-Aufschlüsselung des PDFs nicht angezeigt."
-              checked={settings.hideCompilationsInStatement ?? true}
-              onCheckedChange={v => patch({ hideCompilationsInStatement: v })}
+              id="pdf-pie-chart"
+              label="Umsatz-Kuchendiagramm"
+              description="Fügt ein Kuchendiagramm ein, das den Anteil jeder Umsatzkategorie am Bruttoerlös zeigt."
+              checked={settings.includePieChart ?? false}
+              onCheckedChange={v => patch({ includePieChart: v })}
             />
           </div>
         </div>
