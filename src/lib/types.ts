@@ -224,6 +224,20 @@ export interface LabelInfo {
 export interface AppDefaults {
   /** Default artist split rate in percent (0–100). Applied when no per-artist rule exists. */
   defaultSplitPercentage: number
+  /**
+   * Optional override default split percentage (0–100) applied exclusively to digital
+   * (streaming) revenue. When set, overrides `defaultSplitPercentage` for digital revenue
+   * on artists that have no per-artist digital split override. When omitted,
+   * `defaultSplitPercentage` is used for digital revenue.
+   */
+  defaultSplitPercentageDigital?: number
+  /**
+   * Optional override default split percentage (0–100) applied exclusively to physical
+   * and merch revenue. When set, overrides `defaultSplitPercentage` for physical revenue
+   * on artists that have no per-artist physical split override. When omitted,
+   * `defaultSplitPercentage` is used for physical revenue.
+   */
+  defaultSplitPercentagePhysical?: number
   /** Number of days after statement delivery within which an invoice must be received. */
   invoiceDeadlineDays: number
   /** E-mail address to which artists must send their invoice. */
@@ -342,6 +356,8 @@ export interface ArtistRevenue {
   artist: string
   believeRevenue: number
   bandcampRevenue: number
+  /** EUR revenue from Darkmerch-sourced rows. */
+  darkmerchRevenue: number
   manualRevenue: number
   totalRevenue: number
   splitPercentage: number
@@ -488,6 +504,8 @@ export interface SafeProcessedArtistData {
   believeRevenue: number
   /** Revenue from Bandcamp-sourced rows (pre-computed in worker). */
   bandcampRevenue: number
+  /** Revenue from Darkmerch-sourced rows (pre-computed in worker). */
+  darkmerchRevenue: number
   totalDigitalRevenue: number
   totalPhysicalRevenue: number
   manualRevenue: number

@@ -39,6 +39,8 @@ interface ArtistsViewProps {
   onBulkUpdateSplitFee: (artists: string[], percentage: number) => void
   onUpdateSplitFeeTypeOverride?: (artist: string, digitalPercentage: number | undefined, physicalPercentage: number | undefined) => void
   onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
+  /** Map of artist name → sorted release titles, used for the per-release split override dropdown. */
+  releaseTitlesByArtist?: Record<string, string[]>
 }
 
 export function ArtistsView({
@@ -60,6 +62,7 @@ export function ArtistsView({
   onBulkUpdateSplitFee,
   onUpdateSplitFeeTypeOverride,
   onUpdateReleaseOverrides,
+  releaseTitlesByArtist,
 }: ArtistsViewProps) {
   return (
     <Tabs defaultValue="stammdaten" className="space-y-6">
@@ -94,6 +97,7 @@ export function ArtistsView({
             onBulkUpdateSplitFee={onBulkUpdateSplitFee}
             onUpdateSplitFeeTypeOverride={onUpdateSplitFeeTypeOverride}
             onUpdateReleaseOverrides={onUpdateReleaseOverrides}
+            releaseTitlesByArtist={releaseTitlesByArtist}
           />
         </Card>
       </TabsContent>

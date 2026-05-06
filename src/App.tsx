@@ -217,6 +217,9 @@ function App() {
       distributionFeePercentage: appDefaults?.distributionFeePercentage ?? 0,
       distributionFeeDigital: appDefaults?.distributionFeeDigital,
       distributionFeePhysical: appDefaults?.distributionFeePhysical,
+      defaultSplitPercentage: appDefaults?.defaultSplitPercentage ?? 100,
+      defaultSplitPercentageDigital: appDefaults?.defaultSplitPercentageDigital,
+      defaultSplitPercentagePhysical: appDefaults?.defaultSplitPercentagePhysical,
     },
     shopifyManager.files,
     printfulManager.files,
@@ -254,7 +257,19 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detectedPeriodStart, detectedPeriodEnd, periodStartLoaded, periodEndLoaded])
 
-  useSplitFeeSync(uniqueArtists, stableSplitFees, setSplitFees)
+  useSplitFeeSync(uniqueArtists, stableSplitFees, setSplitFees, appDefaults?.defaultSplitPercentage ?? 100)
+
+  // Build a map of artist → sorted release titles from processed data.
+  // Used by the per-release split override UI to offer a dropdown instead of free-text.
+  const releaseTitlesByArtist = useMemo<Record<string, string[]>>(() =>
+    Object.fromEntries(
+      processedData.map(d => [
+        d.artist,
+        d.releaseBreakdown.map(r => r.releaseTitle).sort(),
+      ])
+    ),
+    [processedData]
+  )
 
   const { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected } = useExports(
     processedData,
@@ -970,6 +985,7 @@ function App() {
                   onBulkUpdateSplitFee={handleBulkUpdateSplitFee}
                   onUpdateSplitFeeTypeOverride={handleUpdateSplitFeeTypeOverride}
                   onUpdateReleaseOverrides={handleUpdateSplitFeeReleaseOverrides}
+                  releaseTitlesByArtist={releaseTitlesByArtist}
                 />
               )}
 

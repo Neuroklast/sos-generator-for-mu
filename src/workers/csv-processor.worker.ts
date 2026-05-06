@@ -32,6 +32,7 @@
  *    are self-fulfilled and have no Printful cost entry).
  */
 
+import { convertToEur } from '@/lib/currency'
 import { parseCSVContentStreaming } from '@/features/ingest/lib/streaming-csv-parser'
 import { parseShopifyRaw, reconcileMerchTransactions } from '@/features/ingest/lib/ecommerce-merger'
 import type { ShopifyRawOrder } from '@/features/ingest/lib/ecommerce-merger'
@@ -81,6 +82,12 @@ export interface WorkerProcessConfig {
   distributionFeeDigital?: number
   /** Optional override distribution fee (0–100) for physical/merch revenue only. */
   distributionFeePhysical?: number
+  /** Default artist split percentage (0–100) when no per-artist SplitFee rule exists. */
+  defaultSplitPercentage?: number
+  /** Default digital split percentage (0–100); falls back to defaultSplitPercentage. */
+  defaultSplitPercentageDigital?: number
+  /** Default physical/merch split percentage (0–100); falls back to defaultSplitPercentage. */
+  defaultSplitPercentagePhysical?: number
 }
 
 export interface WorkerResult {
@@ -91,6 +98,10 @@ export interface WorkerResult {
   uniqueArtists: string[]
   periodStart: string
   periodEnd: string
+  /** EUR-normalised gross revenue across ALL uploaded records, before any
+   *  roster filter or ignored-entry filter is applied. Used to display a
+   *  "total revenue" figure that includes non-roster artists. */
+  totalGrossAllData: number
 }
 
 export type WorkerRequest =
@@ -169,6 +180,7 @@ function runProcess(config: WorkerProcessConfig): void {
           uniqueArtists: [],
           periodStart: '',
           periodEnd: '',
+          totalGrossAllData: 0,
         },
       })
       return
@@ -178,6 +190,20 @@ function runProcess(config: WorkerProcessConfig): void {
     const months = allTransactions.map(t => t.sales_month).filter(Boolean).sort()
     const periodStart = months[0] ?? ''
     const periodEnd = months[months.length - 1] ?? ''
+
+    // Compute total gross revenue across ALL records (before roster filter).
+    // Physical transactions are excluded when `excludePhysical` is active so
+    // both totals stay directly comparable.
+    const workingAllTransactions = config.excludePhysical
+      ? allTransactions.filter(t => !t.is_physical)
+      : allTransactions
+    const totalGrossAllData = workingAllTransactions.reduce((sum, t) => {
+      const revenueEur =
+        t.source === 'bandcamp' && t.currency !== 'EUR'
+          ? convertToEur(t.net_revenue, t.currency, config.exchangeRates)
+          : t.net_revenue
+      return sum + revenueEur
+    }, 0)
 
     // Core processing — financial math runs unchanged (no modifications to data-processor.ts)
     const { artistData, filteredCompilations } = processTransactionsWithCompilations(
@@ -193,36 +219,19 @@ function runProcess(config: WorkerProcessConfig): void {
 
     const uniqueArtists = artistData.map(d => d.artist).sort()
 
-    // Build the safe (no-raw-transactions) payload to send to the main thread.
-    // believeRevenue / bandcampRevenue are already EUR-normalised in ProcessedArtistData
-    // (computed via eurTransactions in the data-processor); just copy them here.
-    const processedData: SafeProcessedArtistData[] = artistData.map(d => {
-      return {
-        artist: d.artist,
-        believeRevenue: d.believeRevenue,
-        bandcampRevenue: d.bandcampRevenue,
-        totalDigitalRevenue: d.totalDigitalRevenue,
-        totalPhysicalRevenue: d.totalPhysicalRevenue,
-        manualRevenue: d.manualRevenue,
-        grossRevenue: d.grossRevenue,
-        splitPercentage: d.splitPercentage,
-        finalPayout: d.finalPayout,
-        totalQuantity: d.totalQuantity,
-        totalExpenses: d.totalExpenses,
-        distributionFeeDeducted: d.distributionFeeDeducted,
-        platformBreakdown: d.platformBreakdown,
-        countryBreakdown: d.countryBreakdown,
-        monthlyBreakdown: d.monthlyBreakdown,
-        releaseBreakdown: d.releaseBreakdown,
-      }
-    })
+    // Strip raw transactions (which must never reach the main thread) by
+    // destructuring them out and spreading the remaining safe fields.
+    // TypeScript structural compatibility ensures SafeProcessedArtistData
+    // receives every field from ProcessedArtistData except `transactions`.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const processedData: SafeProcessedArtistData[] = artistData.map(({ transactions: _transactions, ...safe }) => safe)
 
     // Raw transaction arrays and the full ProcessedArtistData (with .transactions)
     // are now only in local scope and will be garbage-collected once this
     // function returns — they are NEVER sent to the main thread.
     post({
       type: 'result',
-      data: { processedData, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd },
+      data: { processedData, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData },
     })
   } catch (err) {
     post({
