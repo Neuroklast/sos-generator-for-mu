@@ -241,9 +241,9 @@ function ReleaseOverrideList({
                         </SelectItem>
                       ))
                     : (
-                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                        <SelectItem value="__no_releases__" disabled className="text-xs text-muted-foreground">
                           All releases already have overrides
-                        </div>
+                        </SelectItem>
                       )}
                 </SelectContent>
               </Select>

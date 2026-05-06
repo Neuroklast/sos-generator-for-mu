@@ -224,7 +224,7 @@ function runProcess(config: WorkerProcessConfig): void {
     // TypeScript structural compatibility ensures SafeProcessedArtistData
     // receives every field from ProcessedArtistData except `transactions`.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const processedData: SafeProcessedArtistData[] = artistData.map(({ transactions: _t, ...safe }) => safe)
+    const processedData: SafeProcessedArtistData[] = artistData.map(({ transactions: _transactions, ...safe }) => safe)
 
     // Raw transaction arrays and the full ProcessedArtistData (with .transactions)
     // are now only in local scope and will be garbage-collected once this

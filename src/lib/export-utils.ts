@@ -409,13 +409,13 @@ function buildPDF(
   //
   // DARKMERCH revenue is shown on its own row for transparency; the remaining
   // physical (Shopify/Printful) revenue is shown separately when non-zero.
-  const nonDarkmerchPhysical = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
+  const shopifyPrintfulRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
   const waterfallRows: string[][] = [
     ['Digital Revenue', formatCurrency(artistData.totalDigitalRevenue)],
   ]
 
-  if (nonDarkmerchPhysical !== 0) {
-    waterfallRows.push(['Physical Revenue (Shopify / Printful)', formatCurrency(nonDarkmerchPhysical)])
+  if (shopifyPrintfulRevenue !== 0) {
+    waterfallRows.push(['Physical Revenue (Shopify / Printful)', formatCurrency(shopifyPrintfulRevenue)])
   }
   if (artistData.darkmerchRevenue !== 0) {
     waterfallRows.push(['DARKMERCH Revenue', formatCurrency(artistData.darkmerchRevenue)])
