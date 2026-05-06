@@ -126,6 +126,7 @@ export function useCSVProcessor(
   const bandcampKey = bandcampFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
   const shopifyKey = shopifyFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
   const printfulKey = printfulFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
+  const darkmerchKey = darkmerchFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
 
   const configKey = [
     config.compilationFilters.map(f => f.id).join(','),
@@ -281,7 +282,7 @@ export function useCSVProcessor(
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [believeKey, bandcampKey, shopifyKey, printfulKey, aliasKey])
+  }, [believeKey, bandcampKey, shopifyKey, printfulKey, darkmerchKey, aliasKey])
 
   // ── Effect: re-process when config changes (no re-parse needed) ───────────────
 

@@ -194,16 +194,13 @@ function runProcess(config: WorkerProcessConfig): void {
     const uniqueArtists = artistData.map(d => d.artist).sort()
 
     // Build the safe (no-raw-transactions) payload to send to the main thread.
-    // We compute believeRevenue / bandcampRevenue here before discarding rows.
+    // believeRevenue / bandcampRevenue are already EUR-normalised in ProcessedArtistData
+    // (computed via eurTransactions in the data-processor); just copy them here.
     const processedData: SafeProcessedArtistData[] = artistData.map(d => {
       return {
         artist: d.artist,
-        believeRevenue: d.transactions
-          .filter(t => t.source === 'believe')
-          .reduce((s, t) => s + t.net_revenue, 0),
-        bandcampRevenue: d.transactions
-          .filter(t => t.source === 'bandcamp')
-          .reduce((s, t) => s + t.net_revenue, 0),
+        believeRevenue: d.believeRevenue,
+        bandcampRevenue: d.bandcampRevenue,
         totalDigitalRevenue: d.totalDigitalRevenue,
         totalPhysicalRevenue: d.totalPhysicalRevenue,
         manualRevenue: d.manualRevenue,
