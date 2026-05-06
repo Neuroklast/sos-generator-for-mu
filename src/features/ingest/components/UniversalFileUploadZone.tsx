@@ -651,6 +651,13 @@ export function UniversalFileUploadZone({
   // ── File routing ──────────────────────────────────────────────────────────
 
   const routeFile = useCallback(async (file: File) => {
+    // XLSX files are always routed to Darkmerch — no header inspection needed.
+    if (file.name.toLowerCase().endsWith('.xlsx')) {
+      toast.info(`"${file.name}" detected as Darkmerch XLSX`, { duration: 3000 })
+      darkmerchManager.addFiles([file])
+      return
+    }
+
     const { source, headers, matchedProfile } = await detectCSVSource(file, csvProfiles)
 
     if (source === 'believe') {
@@ -733,7 +740,7 @@ export function UniversalFileUploadZone({
     const rejected = rawFiles.length - acceptedFiles.length
 
     if (rejected > 0) {
-      const msg = `${rejected} file${rejected !== 1 ? 's' : ''} rejected — only CSV and XLSX (Darkmerch) files are accepted.`
+      const msg = `${rejected} file${rejected !== 1 ? 's' : ''} rejected — only CSV and XLSX files are accepted.`
       setTypeError(msg)
       toast.error('Invalid file type', { description: msg })
       setTimeout(() => setTypeError(null), 6000)
@@ -748,15 +755,9 @@ export function UniversalFileUploadZone({
     }
 
     for (const file of acceptedFiles) {
-      // XLSX files are always routed to Darkmerch (no header inspection needed)
-      if (file.name.toLowerCase().endsWith('.xlsx')) {
-        toast.info(`"${file.name}" detected as Darkmerch XLSX`, { duration: 3000 })
-        darkmerchManager.addFiles([file])
-      } else {
-        await routeFile(file)
-      }
+      await routeFile(file)
     }
-  }, [routeFile, darkmerchManager])
+  }, [routeFile])
 
   // ── Drag & drop ────────────────────────────────────────────────────────────
 
