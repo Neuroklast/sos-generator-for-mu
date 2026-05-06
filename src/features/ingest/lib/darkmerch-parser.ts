@@ -10,6 +10,10 @@
  *   - The header row is consumed and column positions are detected by name.
  *   - Rows where NET REVENUE is empty or zero are skipped.
  *   - Each valid row produces one SalesTransaction with is_physical = true.
+ *
+ * XLSX support:
+ *   - Use `parseDarkmerchXLSX` to parse an `.xlsx` file (ArrayBuffer).
+ *     It converts the first sheet to CSV and delegates to `parseDarkmerchCSV`.
  */
 
 import type { SalesTransaction } from './csv-parser'
@@ -93,4 +97,60 @@ export function parseDarkmerchCSV(content: string): DarkmerchParseResult {
   }
 
   return { transactions, errors }
+}
+
+/**
+ * Parses a Darkmerch orders XLSX file and returns a list of SalesTransactions.
+ *
+ * Reads the first sheet of the workbook, converts it to CSV via SheetJS, and
+ * delegates to {@link parseDarkmerchCSV} for row-level parsing.
+ *
+ * **Why dynamic import?** SheetJS (`xlsx`) is a large dependency (~1 MB). Using
+ * a dynamic import ensures the module is only loaded when an XLSX file is actually
+ * uploaded, keeping the initial bundle lean for users who only upload CSV files.
+ *
+ * **Edge cases:**
+ * - Empty workbook (no sheets) → returns a structured error, no exception thrown.
+ * - Corrupted or unsupported XLSX format → caught internally and returned as a
+ *   structured error so callers do not need additional try-catch.
+ *
+ * @param buffer - Raw XLSX file content as an ArrayBuffer.
+ * @returns Parsed transactions and any row-level or structural parse errors.
+ */
+export async function parseDarkmerchXLSX(buffer: ArrayBuffer): Promise<DarkmerchParseResult> {
+  let XLSX: typeof import('xlsx')
+  try {
+    XLSX = await import('xlsx')
+  } catch {
+    return {
+      transactions: [],
+      errors: [{ row: 0, reason: 'Failed to load XLSX library', data: '' }],
+    }
+  }
+
+  try {
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    const firstSheetName = workbook.SheetNames[0]
+    if (!firstSheetName) {
+      return {
+        transactions: [],
+        errors: [{ row: 0, reason: 'XLSX workbook has no sheets', data: '' }],
+      }
+    }
+    const sheet = workbook.Sheets[firstSheetName]
+    if (!sheet) {
+      return {
+        transactions: [],
+        errors: [{ row: 0, reason: 'Could not read first sheet from XLSX', data: '' }],
+      }
+    }
+    const csv = XLSX.utils.sheet_to_csv(sheet)
+    return parseDarkmerchCSV(csv)
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'Unknown error reading XLSX file'
+    return {
+      transactions: [],
+      errors: [{ row: 0, reason: `Failed to read XLSX file: ${reason}`, data: '' }],
+    }
+  }
 }
