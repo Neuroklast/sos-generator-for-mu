@@ -386,14 +386,9 @@ function buildPDF(
   }
 
   // Show each manual revenue entry individually with its description
-  if (artistData.manualRevenueEntries.length > 0) {
-    for (const entry of artistData.manualRevenueEntries) {
-      const label = entry.description ? `Manual: ${entry.description}` : 'Manual Revenue'
-      waterfallRows.push([label, formatCurrency(entry.amount)])
-    }
-  } else if (artistData.manualRevenue !== 0) {
-    // Fallback for legacy data without individual entries
-    waterfallRows.push(['Manual Revenue', formatCurrency(artistData.manualRevenue)])
+  for (const entry of artistData.manualRevenueEntries) {
+    const label = entry.description ? `Manual: ${entry.description}` : 'Manual Revenue'
+    waterfallRows.push([label, formatCurrency(entry.amount)])
   }
 
   waterfallRows.push(
@@ -585,12 +580,27 @@ function buildPDF(
   // in the PDF as a PNG image.  Shows each revenue category's share of the
   // total gross revenue so the artist can see the mix at a glance.
   if (settings.includePieChart) {
+    /** Canvas pixel dimensions — high enough for crisp rendering on Retina screens. */
+    const PIE_CANVAS_SIZE = 600
+    /** Vertical centre of the pie as a fraction of canvas height. */
+    const PIE_CENTER_Y_RATIO = 0.44
+    /** Pie radius as a fraction of canvas size. */
+    const PIE_RADIUS_RATIO = 0.36
+    /** Gap in px between pie bottom and legend start. */
+    const PIE_LEGEND_GAP_PX = 24
+    /** Vertical spacing in px between legend rows. */
+    const PIE_LEGEND_ROW_HEIGHT_PX = 28
+
     const physRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
+    // Digital (other) = all digital revenue not classified as a download or stream
+    const digitalOtherRevenue = Math.max(
+      0,
+      artistData.totalDigitalRevenue - artistData.totalDownloadRevenue - artistData.totalStreamRevenue
+    )
     const segments = [
       { label: 'Streams', value: artistData.totalStreamRevenue, color: '#4f86c6' },
       { label: 'Downloads', value: artistData.totalDownloadRevenue, color: '#6bbf87' },
-      // Unknown digital = totalDigital - known downloads - known streams
-      { label: 'Digital (other)', value: Math.max(0, artistData.totalDigitalRevenue - artistData.totalDownloadRevenue - artistData.totalStreamRevenue), color: '#a78bfa' },
+      { label: 'Digital (other)', value: digitalOtherRevenue, color: '#a78bfa' },
       { label: 'Physical Releases', value: physRevenue, color: '#f59e42' },
       { label: 'Merchandise', value: artistData.darkmerchRevenue, color: '#e07070' },
       { label: 'Manual Revenue', value: artistData.manualRevenue, color: '#9ca3af' },
@@ -601,14 +611,13 @@ function buildPDF(
     if (segments.length > 0 && total > 0) {
       try {
         const canvas = document.createElement('canvas')
-        const CANVAS_SIZE = 600
-        canvas.width = CANVAS_SIZE
-        canvas.height = CANVAS_SIZE
+        canvas.width = PIE_CANVAS_SIZE
+        canvas.height = PIE_CANVAS_SIZE
         const ctx = canvas.getContext('2d')
         if (ctx) {
-          const cx = CANVAS_SIZE / 2
-          const cy = CANVAS_SIZE * 0.44
-          const radius = CANVAS_SIZE * 0.36
+          const cx = PIE_CANVAS_SIZE / 2
+          const cy = PIE_CANVAS_SIZE * PIE_CENTER_Y_RATIO
+          const radius = PIE_CANVAS_SIZE * PIE_RADIUS_RATIO
 
           let startAngle = -Math.PI / 2
           for (const seg of segments) {
@@ -626,12 +635,11 @@ function buildPDF(
           }
 
           // Legend
-          const legendStartY = cy + radius + 24
-          const legendLineH = 28
+          const legendStartY = cy + radius + PIE_LEGEND_GAP_PX
           ctx.font = 'bold 20px sans-serif'
           segments.forEach((seg, i) => {
             const lx = 20
-            const ly = legendStartY + i * legendLineH
+            const ly = legendStartY + i * PIE_LEGEND_ROW_HEIGHT_PX
             ctx.fillStyle = seg.color
             ctx.fillRect(lx, ly - 14, 20, 18)
             ctx.fillStyle = '#333333'
@@ -640,22 +648,24 @@ function buildPDF(
           })
 
           const imgData = canvas.toDataURL('image/png')
-          // Compute page space: place on current page or new page if needed
-          const pageHeight = doc.internal.pageSize.getHeight()
+          /** Rendered chart height in PDF mm */
           const chartH = 90
+          /** Rendered chart width in PDF mm */
+          const chartW = 85
+          const pageHeight = doc.internal.pageSize.getHeight()
           if (yPos + chartH > pageHeight - FOOTER_RESERVED_MM) {
             doc.addPage()
             yPos = margin
           }
           renderSectionHeading('Revenue Breakdown')
-          const chartW = 85
           const pageWidth = doc.internal.pageSize.getWidth()
           const chartX = (pageWidth - chartW) / 2
           doc.addImage(imgData, 'PNG', chartX, yPos, chartW, chartH)
           yPos += chartH + 8
         }
-      } catch {
-        // Pie chart rendering failed silently — do not abort PDF generation
+      } catch (err) {
+        // Pie chart rendering failed — log but do not abort PDF generation
+        console.warn('Failed to render pie chart in PDF:', err)
       }
     }
   }

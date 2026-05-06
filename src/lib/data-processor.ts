@@ -233,13 +233,13 @@ function buildPlatformBreakdown(transactions: SalesTransaction[]): PlatformReven
   for (const t of transactions) {
     const key = t.platform || 'Unknown'
     const existing = map.get(key) ?? { revenue: 0, quantity: 0, downloads: 0, streams: 0, hasTypeInfo: false }
-    const hasInfo = !t.is_physical && t.is_download !== undefined
+    const hasTypeInfo = !t.is_physical && t.is_download !== undefined
     map.set(key, {
       revenue: existing.revenue + t.net_revenue,
       quantity: existing.quantity + t.quantity,
       downloads: existing.downloads + (!t.is_physical && t.is_download === true ? t.quantity : 0),
       streams: existing.streams + (!t.is_physical && t.is_download === false ? t.quantity : 0),
-      hasTypeInfo: existing.hasTypeInfo || hasInfo,
+      hasTypeInfo: existing.hasTypeInfo || hasTypeInfo,
     })
   }
   return Array.from(map.entries())
