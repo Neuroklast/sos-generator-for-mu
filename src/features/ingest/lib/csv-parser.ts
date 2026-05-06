@@ -33,6 +33,13 @@ export interface SalesTransaction {
   net_revenue: number
   currency: string
   is_physical: boolean
+  /**
+   * True when the digital transaction represents a download (as opposed to a
+   * stream). `undefined` when the source CSV does not provide release-type
+   * information (e.g. Bandcamp aggregated rows).
+   * Only meaningful when `is_physical` is `false`.
+   */
+  is_download?: boolean
 }
 
 export interface ParsedCSVData {

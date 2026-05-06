@@ -216,6 +216,14 @@ function processChunk(
         ? releaseType === 'package' || /physical|cd|vinyl|cassette|tape/i.test(releaseType)
         : /physical|cd|vinyl|cassette|tape/i.test(releaseType)
 
+      // ── Download vs stream detection ───────────────────────────────────────
+      // When the release_type column is available, classify non-physical
+      // transactions as downloads or streams. Undefined means no info.
+      let isDownload: boolean | undefined
+      if (!isPhysical && releaseType) {
+        isDownload = /download/i.test(releaseType)
+      }
+
       // Skip rows with no artist and no revenue (Bandcamp transfer rows)
       if (!originalArtist && netRevenue === 0) continue
 
@@ -245,6 +253,7 @@ function processChunk(
         net_revenue: netRevenue,
         currency,
         is_physical: isPhysical,
+        ...(isDownload !== undefined ? { is_download: isDownload } : {}),
       })
     } catch (err) {
       errors.push({

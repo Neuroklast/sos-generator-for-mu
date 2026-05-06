@@ -285,8 +285,15 @@ export interface PdfExportSettings {
    * When true (default), compilation releases are excluded from the release
    * breakdown table in exported PDF statements. Compilation releases are
    * identified by matching any active CompilationFilter identifier.
+   * @deprecated Compilations are always hidden; this field is kept for
+   * backward-compatibility with persisted workspace snapshots but is not used.
    */
   hideCompilationsInStatement: boolean
+  /**
+   * When true, a pie chart is appended to the statement showing each revenue
+   * category's share of the total gross revenue.
+   */
+  includePieChart?: boolean
 }
 
 /**
@@ -318,6 +325,10 @@ export interface PlatformRevenue {
   platform: string
   revenue: number
   quantity: number
+  /** Number of units that were digital downloads (undefined when not distinguishable). */
+  downloadQuantity?: number
+  /** Number of units that were streams (undefined when not distinguishable). */
+  streamQuantity?: number
 }
 
 /** Revenue aggregated by territory/country. */
@@ -508,7 +519,13 @@ export interface SafeProcessedArtistData {
   darkmerchRevenue: number
   totalDigitalRevenue: number
   totalPhysicalRevenue: number
+  /** Total digital downloads revenue (subset of totalDigitalRevenue). */
+  totalDownloadRevenue: number
+  /** Total streaming revenue (subset of totalDigitalRevenue). */
+  totalStreamRevenue: number
   manualRevenue: number
+  /** Individual manual revenue entries with description and amount. */
+  manualRevenueEntries: Array<{ description: string; amount: number }>
   grossRevenue: number
   splitPercentage: number
   finalPayout: number

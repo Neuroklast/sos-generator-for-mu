@@ -28,7 +28,13 @@ export interface ProcessedArtistData {
   darkmerchRevenue: number
   totalDigitalRevenue: number
   totalPhysicalRevenue: number
+  /** Revenue from digital download transactions (subset of totalDigitalRevenue). */
+  totalDownloadRevenue: number
+  /** Revenue from streaming transactions (subset of totalDigitalRevenue). */
+  totalStreamRevenue: number
   manualRevenue: number
+  /** Individual manual revenue entries with description and amount. */
+  manualRevenueEntries: Array<{ description: string; amount: number }>
   grossRevenue: number
   splitPercentage: number
   finalPayout: number
@@ -223,11 +229,26 @@ function aggregateBy<K extends string>(
 }
 
 function buildPlatformBreakdown(transactions: SalesTransaction[]): PlatformRevenue[] {
-  const agg = aggregateBy(
-    transactions.map(t => ({ key: t.platform || 'Unknown', revenue: t.net_revenue, quantity: t.quantity }))
-  )
-  return Array.from(agg.entries())
-    .map(([platform, { revenue, quantity }]) => ({ platform, revenue, quantity }))
+  const map = new Map<string, { revenue: number; quantity: number; downloads: number; streams: number; hasTypeInfo: boolean }>()
+  for (const t of transactions) {
+    const key = t.platform || 'Unknown'
+    const existing = map.get(key) ?? { revenue: 0, quantity: 0, downloads: 0, streams: 0, hasTypeInfo: false }
+    const hasTypeInfo = !t.is_physical && t.is_download !== undefined
+    map.set(key, {
+      revenue: existing.revenue + t.net_revenue,
+      quantity: existing.quantity + t.quantity,
+      downloads: existing.downloads + (!t.is_physical && t.is_download === true ? t.quantity : 0),
+      streams: existing.streams + (!t.is_physical && t.is_download === false ? t.quantity : 0),
+      hasTypeInfo: existing.hasTypeInfo || hasTypeInfo,
+    })
+  }
+  return Array.from(map.entries())
+    .map(([platform, { revenue, quantity, downloads, streams, hasTypeInfo }]) => ({
+      platform,
+      revenue,
+      quantity,
+      ...(hasTypeInfo ? { downloadQuantity: downloads, streamQuantity: streams } : {}),
+    }))
     .sort((a, b) => b.revenue - a.revenue)
 }
 
@@ -441,6 +462,14 @@ export function processTransactionsWithCompilations(
       }
     }
 
+    // Download vs stream revenue split (digital only)
+    const totalDownloadRevenue = eurTransactions
+      .filter(t => !t.is_physical && t.is_download === true)
+      .reduce((s, t) => s + t.net_revenue, 0)
+    const totalStreamRevenue = eurTransactions
+      .filter(t => !t.is_physical && t.is_download === false)
+      .reduce((s, t) => s + t.net_revenue, 0)
+
     // Per-source EUR revenue — computed from EUR-normalised transactions so the
     // values are consistent with grossRevenue (both use the same EUR amounts).
     const believeRevenue = eurTransactions
@@ -453,9 +482,9 @@ export function processTransactionsWithCompilations(
       .filter(t => t.source === 'darkmerch')
       .reduce((s, t) => s + t.net_revenue, 0)
 
-    const manualRevenue = config.manualRevenues
-      .filter(mr => mr.artist.toLowerCase() === lowerKey)
-      .reduce((sum, mr) => sum + mr.amount, 0)
+    const artistManualRevenues = config.manualRevenues.filter(mr => mr.artist.toLowerCase() === lowerKey)
+    const manualRevenue = artistManualRevenues.reduce((sum, mr) => sum + mr.amount, 0)
+    const manualRevenueEntries = artistManualRevenues.map(mr => ({ description: mr.description, amount: mr.amount }))
 
     // Recoupable expenses: deducted from streaming/physical revenue before split.
     const totalExpenses = (config.expenses ?? [])
@@ -591,7 +620,10 @@ export function processTransactionsWithCompilations(
       darkmerchRevenue,
       totalDigitalRevenue: digitalRevenue,
       totalPhysicalRevenue: physicalRevenue,
+      totalDownloadRevenue,
+      totalStreamRevenue,
       manualRevenue,
+      manualRevenueEntries,
       grossRevenue,
       splitPercentage,
       finalPayout,
