@@ -10,6 +10,10 @@
  *   - The header row is consumed and column positions are detected by name.
  *   - Rows where NET REVENUE is empty or zero are skipped.
  *   - Each valid row produces one SalesTransaction with is_physical = true.
+ *
+ * XLSX support:
+ *   - Use `parseDarkmerchXLSX` to parse an `.xlsx` file (ArrayBuffer).
+ *     It converts the first sheet to CSV and delegates to `parseDarkmerchCSV`.
  */
 
 import type { SalesTransaction } from './csv-parser'
@@ -93,4 +97,35 @@ export function parseDarkmerchCSV(content: string): DarkmerchParseResult {
   }
 
   return { transactions, errors }
+}
+
+/**
+ * Parses a Darkmerch orders XLSX file and returns a list of SalesTransactions.
+ *
+ * Reads the first sheet of the workbook, converts it to CSV, and delegates
+ * to {@link parseDarkmerchCSV} for row-level parsing. SheetJS (`xlsx` package)
+ * must be available as a dependency.
+ *
+ * @param buffer - Raw XLSX file content as an ArrayBuffer.
+ * @returns Parsed transactions and any row-level parse errors.
+ */
+export async function parseDarkmerchXLSX(buffer: ArrayBuffer): Promise<DarkmerchParseResult> {
+  const XLSX = await import('xlsx')
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const firstSheetName = workbook.SheetNames[0]
+  if (!firstSheetName) {
+    return {
+      transactions: [],
+      errors: [{ row: 0, reason: 'XLSX workbook has no sheets', data: '' }],
+    }
+  }
+  const sheet = workbook.Sheets[firstSheetName]
+  if (!sheet) {
+    return {
+      transactions: [],
+      errors: [{ row: 0, reason: 'Could not read first sheet from XLSX', data: '' }],
+    }
+  }
+  const csv = XLSX.utils.sheet_to_csv(sheet)
+  return parseDarkmerchCSV(csv)
 }

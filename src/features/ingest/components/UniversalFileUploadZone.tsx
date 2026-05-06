@@ -55,6 +55,7 @@ import {
   SYSTEM_SHOPIFY_PROFILE_ID,
   SYSTEM_PRINTFUL_PROFILE_ID,
   SYSTEM_BANDCAMP_PROFILE_ID,
+  SYSTEM_BANDCAMP_DDS_PROFILE_ID,
 } from '@/features/ingest/lib/default-profiles'
 import type { CsvImportProfile } from '@/features/ingest/types'
 
@@ -177,7 +178,7 @@ async function detectCSVSource(
       if (matched.id === SYSTEM_PRINTFUL_PROFILE_ID) {
         return { source: 'printful', headers: rawHeaders, matchedProfile: matched }
       }
-      if (matched.id === SYSTEM_BANDCAMP_PROFILE_ID) {
+      if (matched.id === SYSTEM_BANDCAMP_PROFILE_ID || matched.id === SYSTEM_BANDCAMP_DDS_PROFILE_ID) {
         return { source: 'bandcamp', headers: rawHeaders, matchedProfile: matched }
       }
       // Any other financial profile routes to the generic believe parser
@@ -725,28 +726,37 @@ export function UniversalFileUploadZone({
   }, [believeManager, bandcampManager, shopifyManager, printfulManager, darkmerchManager, onImportLabelArtistsCSV, csvProfiles])
 
   const processFiles = useCallback(async (rawFiles: File[]) => {
-    const csvFiles = rawFiles.filter(f => f.name.toLowerCase().endsWith('.csv'))
-    const rejected = rawFiles.length - csvFiles.length
+    const acceptedFiles = rawFiles.filter(f => {
+      const lower = f.name.toLowerCase()
+      return lower.endsWith('.csv') || lower.endsWith('.xlsx')
+    })
+    const rejected = rawFiles.length - acceptedFiles.length
 
     if (rejected > 0) {
-      const msg = `${rejected} file${rejected !== 1 ? 's' : ''} rejected — only CSV files are accepted.`
+      const msg = `${rejected} file${rejected !== 1 ? 's' : ''} rejected — only CSV and XLSX (Darkmerch) files are accepted.`
       setTypeError(msg)
       toast.error('Invalid file type', { description: msg })
       setTimeout(() => setTypeError(null), 6000)
     }
 
     const LARGE_THRESHOLD = 50 * 1024 * 1024
-    const large = csvFiles.find(f => f.size > LARGE_THRESHOLD)
+    const large = acceptedFiles.find(f => f.size > LARGE_THRESHOLD)
     if (large) {
       const msg = `"${large.name}" is ${formatFileSize(large.size)}. Large files may take a minute.`
       setSizeWarning(msg)
       setTimeout(() => setSizeWarning(null), 8000)
     }
 
-    for (const file of csvFiles) {
-      await routeFile(file)
+    for (const file of acceptedFiles) {
+      // XLSX files are always routed to Darkmerch (no header inspection needed)
+      if (file.name.toLowerCase().endsWith('.xlsx')) {
+        toast.info(`"${file.name}" detected as Darkmerch XLSX`, { duration: 3000 })
+        darkmerchManager.addFiles([file])
+      } else {
+        await routeFile(file)
+      }
     }
-  }, [routeFile])
+  }, [routeFile, darkmerchManager])
 
   // ── Drag & drop ────────────────────────────────────────────────────────────
 
@@ -877,7 +887,7 @@ export function UniversalFileUploadZone({
       >
         <input
           type="file"
-          accept=".csv"
+          accept=".csv,.xlsx"
           multiple
           onChange={handleFileInput}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"

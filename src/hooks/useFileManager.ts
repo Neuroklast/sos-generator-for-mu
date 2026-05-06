@@ -94,8 +94,13 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
         rowsSkipped = result.errors.length
         uniqueArtists = 0
       } else if (type === 'darkmerch') {
-        const { parseDarkmerchCSV } = await import('@/features/ingest/lib/darkmerch-parser')
-        const result = parseDarkmerchCSV(data)
+        const { parseDarkmerchCSV, parseDarkmerchXLSX } = await import('@/features/ingest/lib/darkmerch-parser')
+        let result: Awaited<ReturnType<typeof parseDarkmerchCSV>>
+        if (rawFile.name.toLowerCase().endsWith('.xlsx')) {
+          result = await parseDarkmerchXLSX(buffer)
+        } else {
+          result = parseDarkmerchCSV(data)
+        }
         rowsParsed = result.transactions.length
         rowsSkipped = result.errors.length
         uniqueArtists = new Set(result.transactions.map(t => t.original_artist).filter(Boolean)).size

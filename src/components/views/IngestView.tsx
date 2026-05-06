@@ -1,8 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, CalendarDays, Sparkles } from 'lucide-react'
+import { Loader2, CalendarDays, Sparkles, RefreshCw } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { UniversalFileUploadZone, type FileManagerCallbacks, type EcommerceManagerCallbacks } from '@/features/ingest/components/UniversalFileUploadZone'
 import { ManualRevenueManager } from '@/features/rules/components/ManualRevenueManager'
 import { ExpenseManager } from '@/features/rules/components/ExpenseManager'
@@ -30,6 +31,7 @@ interface IngestViewProps {
   printfulManager: EcommerceManagerCallbacks
   darkmerchManager: EcommerceManagerCallbacks
   exchangeRatesLoading: boolean
+  refreshExchangeRates?: () => void
   handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void
   isProcessing: boolean
   revenues: { totalRevenue: number }[]
@@ -60,6 +62,7 @@ export function IngestView({
   printfulManager,
   darkmerchManager,
   exchangeRatesLoading,
+  refreshExchangeRates,
   handleAddAlias,
   isProcessing,
   revenues,
@@ -96,6 +99,21 @@ export function IngestView({
         <div className="flex items-center gap-2.5 mb-4">
           <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">1</span>
           <h2 className="text-base font-semibold">Upload CSV Files</h2>
+          {refreshExchangeRates && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                refreshExchangeRates()
+                toast.info('Wechselkurse werden aktualisiert…')
+              }}
+              disabled={exchangeRatesLoading}
+              title="Wechselkurse aktualisieren"
+              className="ml-auto h-8 w-8 p-0"
+            >
+              <RefreshCw size={15} className={exchangeRatesLoading ? 'animate-spin' : ''} />
+            </Button>
+          )}
         </div>
 
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl relative">
@@ -104,6 +122,19 @@ export function IngestView({
               <Loader2 size={28} className="text-primary animate-spin" />
               <p className="text-sm font-medium text-muted-foreground">Lade aktuelle Wechselkurse (EZB)…</p>
               <p className="text-xs text-muted-foreground/60">Datei-Upload ist verfügbar, sobald die Kurse geladen sind.</p>
+              {refreshExchangeRates && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    refreshExchangeRates()
+                    toast.info('Wechselkurse werden aktualisiert…')
+                  }}
+                  className="mt-1 text-xs"
+                >
+                  Kurse erneut laden
+                </Button>
+              )}
             </div>
           )}
           <UniversalFileUploadZone

@@ -14,6 +14,7 @@ import type { CsvImportProfile, FinancialFieldKey } from '@/features/ingest/type
 // ── Stable IDs for system profiles ───────────────────────────────────────────
 
 export const SYSTEM_BANDCAMP_PROFILE_ID = 'system-bandcamp'
+export const SYSTEM_BANDCAMP_DDS_PROFILE_ID = 'system-bandcamp-dds'
 export const SYSTEM_BELIEVE_PROFILE_ID = 'system-believe'
 export const SYSTEM_SHOPIFY_PROFILE_ID = 'system-shopify'
 export const SYSTEM_PRINTFUL_PROFILE_ID = 'system-printful'
@@ -46,6 +47,25 @@ export const FINANCIAL_KEY_TO_INTERNAL: Readonly<Record<FinancialFieldKey, strin
 }
 
 // ── System default profiles ───────────────────────────────────────────────────
+
+const BANDCAMP_DDS_PAYOUTS: CsvImportProfile = {
+  id: SYSTEM_BANDCAMP_DDS_PROFILE_ID,
+  name: 'Bandcamp DDS / Darktunes Payouts',
+  type: 'financial',
+  delimiter: ',',
+  autoDetectHeaders: ['payout date', 'paid to you', 'bandcamp id', 'item date', 'item type'],
+  columnMapping: {
+    salesMonth:   'item date',
+    releaseTitle: 'description',
+    trackTitle:   'description',
+    netRevenue:   'paid to you',
+    releaseType:  'item type',
+    upcEan:       'upc',
+    isrc:         'isrc',
+    country:      'buyer country',
+  },
+  isSystemDefault: true,
+}
 
 const BANDCAMP_STANDARD: CsvImportProfile = {
   id: SYSTEM_BANDCAMP_PROFILE_ID,
@@ -141,9 +161,10 @@ const LABEL_ARTISTS_MASTER_DATA: CsvImportProfile = {
   isSystemDefault: true,
 }
 
-/** All five system default profiles in priority order for auto-detection. */
+/** All system default profiles in priority order for auto-detection. */
 export const DEFAULT_CSV_PROFILES: CsvImportProfile[] = [
   BELIEVE_DIGITAL,
+  BANDCAMP_DDS_PAYOUTS,
   BANDCAMP_STANDARD,
   SHOPIFY_ORDERS,
   PRINTFUL_COSTS,

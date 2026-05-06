@@ -110,6 +110,23 @@ export function useCSVProcessor(
       })
   }, [])
 
+  // ── Manual refresh of exchange rates ─────────────────────────────────────────
+
+  const refreshExchangeRates = useCallback(async () => {
+    setExchangeRatesLoading(true)
+    try {
+      const rates = await fetchExchangeRates()
+      setExchangeRates(rates)
+    } catch (err) {
+      console.warn('[useCSVProcessor] Exchange rate refresh failed:', err)
+      toast.warning('Wechselkurse konnten nicht aktualisiert werden', {
+        description: 'Es werden die zuletzt geladenen Kurse verwendet.',
+      })
+    } finally {
+      setExchangeRatesLoading(false)
+    }
+  }, [])
+
   // ── Build stable derivative keys ─────────────────────────────────────────────
 
   const customAliases = useMemo(() => {
@@ -326,6 +343,7 @@ export function useCSVProcessor(
   return {
     isProcessing,
     exchangeRatesLoading,
+    refreshExchangeRates,
     uniqueArtists: workerResult.uniqueArtists,
     processedData: workerResult.processedData as SafeProcessedArtistData[],
     artistTrees: workerResult.artistTrees as ArtistTreeNode[],

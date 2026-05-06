@@ -22,6 +22,7 @@ import type { CsvImportProfile, FinancialFieldKey } from '@/features/ingest/type
 import {
   FINANCIAL_KEY_TO_INTERNAL,
   SYSTEM_BANDCAMP_PROFILE_ID,
+  SYSTEM_BANDCAMP_DDS_PROFILE_ID,
   SYSTEM_SHOPIFY_PROFILE_ID,
   SYSTEM_PRINTFUL_PROFILE_ID,
 } from './default-profiles'
@@ -361,11 +362,14 @@ export async function parseFile(
         }
       }
 
-      // Bandcamp profile: must be routed as 'bandcamp' (not 'believe') to preserve
+      // Bandcamp and Bandcamp DDS profiles: must be routed as 'bandcamp' (not 'believe') to preserve
       // the EUR balance correction logic in streaming-csv-parser that handles
-      // Bandcamp's unique per-sale net-amount calculation.
+      // Bandcamp's unique per-sale net-amount calculation. DDS payout-fee rows
+      // are filtered by the streaming parser when source = 'bandcamp'.
       const parserSource: 'believe' | 'bandcamp' =
-        matched.id === SYSTEM_BANDCAMP_PROFILE_ID ? 'bandcamp' : 'believe'
+        matched.id === SYSTEM_BANDCAMP_PROFILE_ID || matched.id === SYSTEM_BANDCAMP_DDS_PROFILE_ID
+          ? 'bandcamp'
+          : 'believe'
 
       const columnMapping = buildStreamingColumnMapping(matched)
       const streamingResult: StreamingParseResult = await parseCSVContentStreaming(

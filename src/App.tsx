@@ -197,6 +197,7 @@ function App() {
     revenues,
     isProcessing,
     exchangeRatesLoading,
+    refreshExchangeRates,
     detectedPeriodStart,
     detectedPeriodEnd,
     autoMappings,
@@ -926,6 +927,7 @@ function App() {
                   printfulManager={printfulManager}
                   darkmerchManager={darkmerchManager}
                   exchangeRatesLoading={exchangeRatesLoading}
+                  refreshExchangeRates={refreshExchangeRates}
                   handleAddAlias={handleAddAlias}
                   isProcessing={isProcessing}
                   revenues={revenues}
