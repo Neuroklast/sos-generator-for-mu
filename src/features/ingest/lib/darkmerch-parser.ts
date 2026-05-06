@@ -76,7 +76,7 @@ export function parseDarkmerchCSV(content: string): DarkmerchParseResult {
       id: crypto.randomUUID(),
       source: 'darkmerch',
       sales_month: 'Unknown',
-      platform: 'Darkmerch',
+      platform: 'DARKMERCH',
       country: '',
       main_artist: bandValue,
       original_artist: bandValue,

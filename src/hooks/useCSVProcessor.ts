@@ -321,6 +321,7 @@ export function useCSVProcessor(
         artist: data.artist,
         believeRevenue: data.believeRevenue,
         bandcampRevenue: data.bandcampRevenue,
+        darkmerchRevenue: data.darkmerchRevenue,
         manualRevenue: data.manualRevenue,
         totalRevenue: data.grossRevenue,
         splitPercentage: data.splitPercentage,

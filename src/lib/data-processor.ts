@@ -24,6 +24,8 @@ export interface ProcessedArtistData {
   believeRevenue: number
   /** EUR-normalised revenue from Bandcamp-sourced rows. */
   bandcampRevenue: number
+  /** EUR-normalised revenue from Darkmerch-sourced rows. */
+  darkmerchRevenue: number
   totalDigitalRevenue: number
   totalPhysicalRevenue: number
   manualRevenue: number
@@ -426,6 +428,9 @@ export function processTransactionsWithCompilations(
     const bandcampRevenue = eurTransactions
       .filter(t => t.source === 'bandcamp')
       .reduce((s, t) => s + t.net_revenue, 0)
+    const darkmerchRevenue = eurTransactions
+      .filter(t => t.source === 'darkmerch')
+      .reduce((s, t) => s + t.net_revenue, 0)
 
     const manualRevenue = config.manualRevenues
       .filter(mr => mr.artist.toLowerCase() === lowerKey)
@@ -560,6 +565,7 @@ export function processTransactionsWithCompilations(
       transactions: artistTransactions,
       believeRevenue,
       bandcampRevenue,
+      darkmerchRevenue,
       totalDigitalRevenue: digitalRevenue,
       totalPhysicalRevenue: physicalRevenue,
       manualRevenue,

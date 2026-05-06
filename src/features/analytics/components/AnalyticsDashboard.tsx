@@ -177,11 +177,13 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
   const revenueSourceData = useMemo(() => {
     const believe = filteredRevenues.reduce((sum, r) => sum + r.believeRevenue, 0)
     const bandcamp = filteredRevenues.reduce((sum, r) => sum + r.bandcampRevenue, 0)
+    const darkmerch = filteredRevenues.reduce((sum, r) => sum + r.darkmerchRevenue, 0)
     const manual = filteredRevenues.reduce((sum, r) => sum + r.manualRevenue, 0)
 
     return [
       { name: 'Believe', value: parseFloat(believe.toFixed(2)) },
       { name: 'Bandcamp', value: parseFloat(bandcamp.toFixed(2)) },
+      { name: 'DARKMERCH', value: parseFloat(darkmerch.toFixed(2)) },
       { name: 'Manual', value: parseFloat(manual.toFixed(2)) },
     ].filter(item => item.value > 0)
   }, [filteredRevenues])

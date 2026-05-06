@@ -221,6 +221,7 @@ function runProcess(config: WorkerProcessConfig): void {
         artist: d.artist,
         believeRevenue: d.believeRevenue,
         bandcampRevenue: d.bandcampRevenue,
+        darkmerchRevenue: d.darkmerchRevenue,
         totalDigitalRevenue: d.totalDigitalRevenue,
         totalPhysicalRevenue: d.totalPhysicalRevenue,
         manualRevenue: d.manualRevenue,

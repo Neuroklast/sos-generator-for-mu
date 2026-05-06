@@ -342,6 +342,8 @@ export interface ArtistRevenue {
   artist: string
   believeRevenue: number
   bandcampRevenue: number
+  /** EUR revenue from Darkmerch-sourced rows. */
+  darkmerchRevenue: number
   manualRevenue: number
   totalRevenue: number
   splitPercentage: number
@@ -488,6 +490,8 @@ export interface SafeProcessedArtistData {
   believeRevenue: number
   /** Revenue from Bandcamp-sourced rows (pre-computed in worker). */
   bandcampRevenue: number
+  /** Revenue from Darkmerch-sourced rows (pre-computed in worker). */
+  darkmerchRevenue: number
   totalDigitalRevenue: number
   totalPhysicalRevenue: number
   manualRevenue: number

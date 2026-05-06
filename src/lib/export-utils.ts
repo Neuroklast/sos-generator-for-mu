@@ -406,12 +406,36 @@ function buildPDF(
   // ── Financial waterfall summary ───────────────────────────────────────────
   // Visualises the revenue flow: Gross → –Fee → –Expenses → = Split-Basis
   // → × Split% → = Net Payout (Artist Share) → [+VAT] → = Gross Payout.
+  //
+  // DARKMERCH revenue is physically separate from Shopify/Printful merch but
+  // is included in totalPhysicalRevenue for all fee/split calculations.
+  // We display it on its own row for transparency; the non-darkmerch physical
+  // remainder is shown as "Physical Revenue (Shopify / Printful)".
+  const nonDarkmerchPhysical = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
   const waterfallRows: string[][] = [
     ['Digital Revenue', formatCurrency(artistData.totalDigitalRevenue)],
-    ['Physical Revenue', formatCurrency(artistData.totalPhysicalRevenue)],
+  ]
+
+  // Only show the Shopify/Printful physical row when there is non-darkmerch physical revenue.
+  if (nonDarkmerchPhysical !== 0) {
+    waterfallRows.push(['Physical Revenue (Shopify / Printful)', formatCurrency(nonDarkmerchPhysical)])
+  }
+
+  // Show DARKMERCH as its own line whenever present.
+  if (artistData.darkmerchRevenue !== 0) {
+    waterfallRows.push(['DARKMERCH Revenue', formatCurrency(artistData.darkmerchRevenue)])
+  }
+
+  // When both physical rows are absent (pure digital + manual artist), fall
+  // back to a combined "Physical Revenue" row to keep the waterfall readable.
+  if (nonDarkmerchPhysical === 0 && artistData.darkmerchRevenue === 0 && artistData.totalPhysicalRevenue !== 0) {
+    waterfallRows.push(['Physical Revenue', formatCurrency(artistData.totalPhysicalRevenue)])
+  }
+
+  waterfallRows.push(
     ['Manual Revenue', formatCurrency(artistData.manualRevenue)],
     ['= Gross Revenue', formatCurrency(artistData.grossRevenue)],
-  ]
+  )
 
   if (artistData.distributionFeeDeducted > 0) {
     waterfallRows.push(['– Label Distribution Fee', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
