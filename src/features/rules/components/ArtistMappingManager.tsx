@@ -14,7 +14,7 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from '@/components/ui/command'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { ArtistMapping } from '@/lib/types'
@@ -47,6 +47,12 @@ function ArtistCombobox({
 }) {
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
+
+  // Sync local display value when the controlled `value` prop changes externally
+  // (e.g., when the parent resets the form after a successful add/edit).
+  useEffect(() => {
+    setInputValue(value)
+  }, [value])
 
   const handleInputChange = (val: string) => {
     setInputValue(val)

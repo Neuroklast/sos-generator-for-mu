@@ -470,12 +470,15 @@ function buildPDF(
 
   // ── Release breakdown ─────────────────────────────────────────────────────
   if (settings.includeReleaseBreakdown && artistData.releaseBreakdown.length > 0) {
-    const releaseBreakdown = settings.hideCompilationsInStatement && compilationFilters.length > 0
-      ? artistData.releaseBreakdown.filter(rel =>
-          !compilationFilters.some(cf =>
-            rel.releaseTitle.toLowerCase().includes(cf.identifier.toLowerCase())
-          )
-        )
+    // Pre-compute lowercased compilation identifiers for O(1) matching.
+    const compilationIdentifiersLower = settings.hideCompilationsInStatement && compilationFilters.length > 0
+      ? compilationFilters.map(cf => cf.identifier.toLowerCase())
+      : []
+    const releaseBreakdown = compilationIdentifiersLower.length > 0
+      ? artistData.releaseBreakdown.filter(rel => {
+          const titleLower = rel.releaseTitle.toLowerCase()
+          return !compilationIdentifiersLower.some(id => titleLower.includes(id))
+        })
       : artistData.releaseBreakdown
     if (releaseBreakdown.length > 0) {
     renderSectionHeading('Revenue by Release')

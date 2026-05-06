@@ -76,11 +76,15 @@ export function parseDarkmerchCSV(content: string): DarkmerchParseResult {
       country: '',
       main_artist: bandValue,
       original_artist: bandValue,
+      // release_title stores the reporting period (DATE column) so the
+      // revenue is grouped per-period in the release breakdown table.
       release_title: dateValue,
       track_title: '',
       upc_ean: '',
       isrc: '',
       catalog_number: '',
+      // Darkmerch CSVs report aggregated revenue per order — assume qty 1
+      // unless the source format provides per-item granularity.
       quantity: 1,
       net_revenue: netRevenue,
       currency: 'EUR',

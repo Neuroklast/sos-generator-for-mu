@@ -231,7 +231,7 @@ export function LabelArtistManager({
   const displayArtists = useMemo(() => {
     if (!sortAlpha) return artists
     return [...artists].sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })
     )
   }, [artists, sortAlpha])
 
