@@ -497,13 +497,15 @@ export function processTransactionsWithCompilations(
 
     const grossRevenue = digitalRevenue + physicalRevenue + manualRevenue
 
+    const defaultBase = config.defaultSplitPercentage ?? 100
     const splitFee = config.splitFees.find(sf => sf.artist.toLowerCase() === lowerKey)
-    const splitPercentage = clampSplitPercentage(splitFee?.percentage ?? 100)
+    const splitPercentage = clampSplitPercentage(splitFee?.percentage ?? defaultBase)
 
     // Per-type split overrides: when set on the SplitFee entry they override the
-    // base percentage for that specific revenue type.
-    const digitalSplitPct = resolveSplitPercentage(splitFee, 'digital')
-    const physicalSplitPct = resolveSplitPercentage(splitFee, 'physical')
+    // base percentage for that specific revenue type. When no per-artist entry
+    // exists the label-wide type defaults are applied.
+    const digitalSplitPct = resolveSplitPercentage(splitFee, 'digital', defaultBase, config.defaultSplitPercentageDigital)
+    const physicalSplitPct = resolveSplitPercentage(splitFee, 'physical', defaultBase, config.defaultSplitPercentagePhysical)
 
     // Expenses and distribution fee are deducted from the streaming/physical base
     // before the split percentage is applied. Manual revenues (sync deals, etc.)

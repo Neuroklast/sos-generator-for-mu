@@ -82,6 +82,12 @@ export interface WorkerProcessConfig {
   distributionFeeDigital?: number
   /** Optional override distribution fee (0–100) for physical/merch revenue only. */
   distributionFeePhysical?: number
+  /** Default artist split percentage (0–100) when no per-artist SplitFee rule exists. */
+  defaultSplitPercentage?: number
+  /** Default digital split percentage (0–100); falls back to defaultSplitPercentage. */
+  defaultSplitPercentageDigital?: number
+  /** Default physical/merch split percentage (0–100); falls back to defaultSplitPercentage. */
+  defaultSplitPercentagePhysical?: number
 }
 
 export interface WorkerResult {
