@@ -89,6 +89,8 @@ interface UniversalFileUploadZoneProps {
   shopifyManager: EcommerceManagerCallbacks
   /** Manager for Printful orders export CSVs. */
   printfulManager: EcommerceManagerCallbacks
+  /** Manager for Darkmerch orders export CSVs. */
+  darkmerchManager: EcommerceManagerCallbacks
   /** Called when an unknown CSV is confirmed with user-defined column aliases. */
   onAddAliases: (aliases: { fieldName: string; synonym: string }[]) => void
   /**
@@ -141,7 +143,7 @@ async function detectCSVSource(
   file: File,
   profiles: CsvImportProfile[]
 ): Promise<{
-  source: 'believe' | 'bandcamp' | 'artist' | 'shopify' | 'printful' | 'profile-financial' | 'unknown'
+  source: 'believe' | 'bandcamp' | 'artist' | 'shopify' | 'printful' | 'darkmerch' | 'profile-financial' | 'unknown'
   headers: string[]
   matchedProfile?: CsvImportProfile
 }> {
@@ -190,6 +192,10 @@ async function detectCSVSource(
   if (normalizedHeaders.some(h => h === 'sales month') && normalizedHeaders.some(h => h === 'isrc')) {
     return { source: 'believe', headers: normalizedHeaders }
   }
+  // Darkmerch CSV: has BAND and NET REVENUE columns
+  if (normalizedHeaders.some(h => h === 'band') && normalizedHeaders.some(h => h === 'net revenue')) {
+    return { source: 'darkmerch', headers: rawHeaders }
+  }
   // Artist roster CSV: first column is "name" and at least one known artist field is present.
   const ARTIST_CSV_COMPANION_FIELDS = new Set(['email', 'vatnumber', 'iseunongerman', 'notes'])
   if (normalizedHeaders[0] === 'name' && normalizedHeaders.some(h => ARTIST_CSV_COMPANION_FIELDS.has(h))) {
@@ -237,14 +243,15 @@ function StatPill({ label, value }: { label: string; value: string }) {
 
 // ── Source badge config ───────────────────────────────────────────────────────
 
-const SOURCE_BADGE_CONFIG: Record<'believe' | 'bandcamp' | 'shopify' | 'printful', { label: string; className: string }> = {
-  believe:  { label: 'Believe',  className: 'bg-primary/15 text-primary' },
-  bandcamp: { label: 'Bandcamp', className: 'bg-cyan-400/15 text-cyan-400' },
-  shopify:  { label: 'Shopify',  className: 'bg-green-500/15 text-green-400' },
-  printful: { label: 'Printful', className: 'bg-purple-500/15 text-purple-400' },
+const SOURCE_BADGE_CONFIG: Record<'believe' | 'bandcamp' | 'shopify' | 'printful' | 'darkmerch', { label: string; className: string }> = {
+  believe:   { label: 'Believe',   className: 'bg-primary/15 text-primary' },
+  bandcamp:  { label: 'Bandcamp',  className: 'bg-cyan-400/15 text-cyan-400' },
+  shopify:   { label: 'Shopify',   className: 'bg-green-500/15 text-green-400' },
+  printful:  { label: 'Printful',  className: 'bg-purple-500/15 text-purple-400' },
+  darkmerch: { label: 'Darkmerch', className: 'bg-orange-500/15 text-orange-400' },
 }
 
-function SourceBadge({ source }: { source: 'believe' | 'bandcamp' | 'shopify' | 'printful' }) {
+function SourceBadge({ source }: { source: 'believe' | 'bandcamp' | 'shopify' | 'printful' | 'darkmerch' }) {
   const { label, className } = SOURCE_BADGE_CONFIG[source]
   return (
     <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${className}`}>
@@ -489,7 +496,7 @@ function UnknownCSVMappingDialog({ open, headers, fileName, onConfirm, onCancel 
 
 interface FileItemProps {
   file: UploadedFile
-  source: 'believe' | 'bandcamp' | 'shopify' | 'printful'
+  source: 'believe' | 'bandcamp' | 'shopify' | 'printful' | 'darkmerch'
   state: FileProcessingState | undefined
   index: number
   onRemove: () => void
@@ -597,7 +604,7 @@ function FileItem({ file, source, state, index, onRemove, onReplace, replaceRef,
 
 interface FileEntry {
   file: UploadedFile
-  source: 'believe' | 'bandcamp' | 'shopify' | 'printful'
+  source: 'believe' | 'bandcamp' | 'shopify' | 'printful' | 'darkmerch'
   state: FileProcessingState | undefined
   onRemove: () => void
   onReplace: (() => void) | null
@@ -612,6 +619,7 @@ export function UniversalFileUploadZone({
   bandcampManager,
   shopifyManager,
   printfulManager,
+  darkmerchManager,
   onAddAliases,
   onImportLabelArtistsCSV,
   csvProfiles = [],
@@ -662,6 +670,9 @@ export function UniversalFileUploadZone({
     } else if (source === 'printful') {
       toast.info(`"${file.name}" detected as Printful export`, { duration: 3000 })
       printfulManager.addFiles([file])
+    } else if (source === 'darkmerch') {
+      toast.info(`"${file.name}" detected as Darkmerch export`, { duration: 3000 })
+      darkmerchManager.addFiles([file])
     } else if (source === 'artist') {
       if (!onImportLabelArtistsCSV) {
         toast.error(`"${file.name}" looks like an artist roster CSV but no handler is configured.`)
@@ -711,7 +722,7 @@ export function UniversalFileUploadZone({
       setPendingHeaders(headers)
       setPendingHasProfiles(csvProfiles.filter(p => p.type === 'financial').length > 0)
     }
-  }, [believeManager, bandcampManager, shopifyManager, printfulManager, onImportLabelArtistsCSV, csvProfiles])
+  }, [believeManager, bandcampManager, shopifyManager, printfulManager, darkmerchManager, onImportLabelArtistsCSV, csvProfiles])
 
   const processFiles = useCallback(async (rawFiles: File[]) => {
     const csvFiles = rawFiles.filter(f => f.name.toLowerCase().endsWith('.csv'))
@@ -827,9 +838,9 @@ export function UniversalFileUploadZone({
     [makeRefSetter, handleReplaceInput]
   )
 
-  /** Builds FileEntry objects for an e-commerce manager (shopify/printful). */
+  /** Builds FileEntry objects for an e-commerce manager (shopify/printful/darkmerch). */
   const makeEcommerceEntries = useCallback(
-    (manager: EcommerceManagerCallbacks, source: 'shopify' | 'printful'): FileEntry[] =>
+    (manager: EcommerceManagerCallbacks, source: 'shopify' | 'printful' | 'darkmerch'): FileEntry[] =>
       manager.files.map(f => ({
         file: f,
         source,
@@ -847,6 +858,7 @@ export function UniversalFileUploadZone({
     ...makeStreamingEntries(bandcampManager, 'bandcamp'),
     ...makeEcommerceEntries(shopifyManager, 'shopify'),
     ...makeEcommerceEntries(printfulManager, 'printful'),
+    ...makeEcommerceEntries(darkmerchManager, 'darkmerch'),
   ].sort((a, b) => new Date(a.file.uploadedAt).getTime() - new Date(b.file.uploadedAt).getTime())
 
   return (
@@ -903,6 +915,7 @@ export function UniversalFileUploadZone({
               <Badge variant="secondary" className="text-xs">Bandcamp</Badge>
               <Badge variant="secondary" className="text-xs">Shopify</Badge>
               <Badge variant="secondary" className="text-xs">Printful</Badge>
+              <Badge variant="secondary" className="text-xs">Darkmerch</Badge>
               <Badge variant="secondary" className="text-xs">Artist Roster</Badge>
               <Badge variant="outline" className="text-xs">Multiple files</Badge>
             </div>

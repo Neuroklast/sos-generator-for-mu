@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil, Bank } from '@phosphor-icons/react'
+import { useState, useCallback, useMemo } from 'react'
+import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil, Bank, SortAscending } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { LabelArtist } from '@/lib/types'
 import { isValidIBAN, maskIBAN, sanitiseIBAN } from '@/lib/iban-validator'
+import { useKV } from '@/hooks/useLocalKV'
 
 /** Parses a VAT rate string into an integer percentage, or undefined if empty. */
 function parseVatRate(value: string): number | undefined {
@@ -225,6 +226,14 @@ export function LabelArtistManager({
 }: LabelArtistManagerProps & { onImportLabelArtistsCSV?: (artists: Omit<LabelArtist, 'id'>[]) => void }) {
   const [newName, setNewName] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [sortAlpha, setSortAlpha] = useKV<boolean>('labelArtistsSortAlpha', false)
+
+  const displayArtists = useMemo(() => {
+    if (!sortAlpha) return artists
+    return [...artists].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    )
+  }, [artists, sortAlpha])
 
   const handleAdd = useCallback(() => {
     const name = newName.trim()
@@ -292,6 +301,25 @@ export function LabelArtistManager({
             Artists signed to your label. Click a row to edit email, VAT number, and notes.
           </p>
         </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant={sortAlpha ? 'default' : 'outline'}
+                onClick={() => setSortAlpha(v => !(v ?? false))}
+                className="gap-1.5 shrink-0"
+                aria-pressed={sortAlpha ?? false}
+              >
+                <SortAscending size={14} weight="bold" />
+                A→Z
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {sortAlpha ? 'Sorted alphabetically — click to restore original order' : 'Sort artists A→Z'}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {/* Add artist */}
@@ -399,7 +427,7 @@ export function LabelArtistManager({
       ) : (
         <ul className="space-y-1.5">
           <AnimatePresence initial={false}>
-            {artists.map(artist => (
+            {displayArtists.map(artist => (
               <motion.li
                 key={artist.id}
                 initial={{ opacity: 0, height: 0 }}

@@ -1,7 +1,7 @@
 import { jsPDF, GState } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, LabelArtist } from '@/lib/types'
+import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, LabelArtist, CompilationFilter, AppDefaults, EmailConfig } from '@/lib/types'
 import { resolveTemplate } from '@/lib/utils'
 import { APP_CREDITS, APP_LOGO, APP_NAME } from '@/config/softwareBranding'
 
@@ -12,6 +12,7 @@ const DEFAULT_PDF_SETTINGS: PdfExportSettings = {
   includeCountryBreakdown: false,
   includeMonthlyBreakdown: false,
   includeEmailCoverLetter: false,
+  hideCompilationsInStatement: true,
 }
 
 export function formatCurrency(value: number): string {
@@ -140,7 +141,8 @@ export async function generatePDF(
     deadlineDate: string
     donationOrg: string
   },
-  artistInfo?: LabelArtist
+  artistInfo?: LabelArtist,
+  compilationFilters: CompilationFilter[] = []
 ): Promise<Blob> {
   // Pre-load label logo dimensions so buildPDF can preserve the aspect ratio.
   let logoDimensions: { w: number; h: number } | undefined
@@ -157,7 +159,7 @@ export async function generatePDF(
 
   try {
     const settings = { ...DEFAULT_PDF_SETTINGS, ...pdfSettings }
-    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, settings, emailOptions, artistInfo, logoDimensions)
+    return buildPDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, settings, emailOptions, artistInfo, logoDimensions, compilationFilters)
   } catch (err) {
     throw new Error(
       `PDF generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
@@ -174,7 +176,8 @@ function buildPDF(
   settings: PdfExportSettings = DEFAULT_PDF_SETTINGS,
   emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string },
   artistInfo?: LabelArtist,
-  logoDimensions?: { w: number; h: number }
+  logoDimensions?: { w: number; h: number },
+  compilationFilters: CompilationFilter[] = []
 ): Blob {
   const doc = new jsPDF({ compress: true })
   const margin = 20
@@ -467,11 +470,19 @@ function buildPDF(
 
   // ── Release breakdown ─────────────────────────────────────────────────────
   if (settings.includeReleaseBreakdown && artistData.releaseBreakdown.length > 0) {
+    const releaseBreakdown = settings.hideCompilationsInStatement && compilationFilters.length > 0
+      ? artistData.releaseBreakdown.filter(rel =>
+          !compilationFilters.some(cf =>
+            rel.releaseTitle.toLowerCase().includes(cf.identifier.toLowerCase())
+          )
+        )
+      : artistData.releaseBreakdown
+    if (releaseBreakdown.length > 0) {
     renderSectionHeading('Revenue by Release')
     autoTable(doc, {
       startY: yPos,
       head: [['Release Title', 'Revenue', 'Qty', 'Type']],
-      body: artistData.releaseBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(rel => [
+        body: releaseBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(rel => [
         rel.releaseTitle || '-',
         formatCurrency(rel.revenue),
         String(rel.quantity),
@@ -488,6 +499,7 @@ function buildPDF(
       margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
     })
     yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+    }
   }
 
   // ── Platform breakdown ────────────────────────────────────────────────────
@@ -721,7 +733,8 @@ export async function generateZipOfAllStatements(
   emailOptions?: { financeEmail: string; deadlineDate: string; donationOrg: string },
   labelArtists?: LabelArtist[],
   appDefaults?: Partial<AppDefaults>,
-  emailConfig?: Partial<EmailConfig>
+  emailConfig?: Partial<EmailConfig>,
+  compilationFilters: CompilationFilter[] = []
 ): Promise<Blob> {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
@@ -751,7 +764,7 @@ export async function generateZipOfAllStatements(
 
     let pdfBlob: Blob | undefined
     if (format === 'pdf' || format === 'both') {
-      pdfBlob = await generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions, artistInfo)
+      pdfBlob = await generatePDF(artistData, labelInfo, periodStart, periodEnd, invoiceNumber, pdfSettings, emailOptions, artistInfo, compilationFilters)
       zip.file(`${safeArtistName}_statement.pdf`, pdfBlob)
     }
 

@@ -74,7 +74,8 @@ export function useCSVProcessor(
   bandcampFiles: UploadedFile[],
   config: CSVProcessorConfig,
   shopifyFiles: UploadedFile[] = [],
-  printfulFiles: UploadedFile[] = []
+  printfulFiles: UploadedFile[] = [],
+  darkmerchFiles: UploadedFile[] = []
 ) {
   const workerRef = useRef<Worker | null>(null)
   /** IDs of files that have been successfully sent to the worker for parsing. */
@@ -224,7 +225,7 @@ export function useCSVProcessor(
     const worker = workerRef.current
     if (!worker) return
 
-    const allFiles = [...believeFiles, ...bandcampFiles, ...shopifyFiles, ...printfulFiles]
+    const allFiles = [...believeFiles, ...bandcampFiles, ...shopifyFiles, ...printfulFiles, ...darkmerchFiles]
     const currentFileMap = new Map(
       allFiles.filter(f => f.data).map(f => [f.id, f])
     )
