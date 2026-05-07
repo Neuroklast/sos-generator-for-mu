@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { UploadCloud, TrendingUp, Users, Zap, CalendarDays } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StatCard } from '@/features/core/components/StatCard'
@@ -56,11 +57,13 @@ export function DashboardView({
   handleDownloadExcel,
   STEP_ITEMS,
 }: DashboardViewProps) {
+  const { t } = useTranslation()
+
   return (
     <div className="space-y-8 md:space-y-10">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
         <StatCard
-          label="Net Revenue"
+          label={t('dashboard.netRevenue')}
           value={`€${totalNetRevenue.toFixed(2)}`}
           sub={`${revenues.length} artist${revenues.length !== 1 ? 's' : ''}`}
           icon={TrendingUp}
@@ -68,7 +71,7 @@ export function DashboardView({
           delay={0}
         />
         <StatCard
-          label="Active Artists"
+          label={t('dashboard.activeArtists')}
           value={String(uniqueArtists.length)}
           sub={`${splitFees.length} split rules`}
           icon={Users}
@@ -76,7 +79,7 @@ export function DashboardView({
           delay={0.06}
         />
         <StatCard
-          label="Top Platform"
+          label={t('dashboard.topPlatform')}
           value={topPlatform}
           sub="by gross revenue"
           icon={Zap}
@@ -84,7 +87,7 @@ export function DashboardView({
           delay={0.12}
         />
         <StatCard
-          label="Files Loaded"
+          label={t('dashboard.filesLoaded')}
           value={String(totalFiles)}
           sub={`${believeManager.files.length} Believe · ${bandcampManager.files.length} Bandcamp`}
           icon={UploadCloud}
@@ -143,8 +146,8 @@ export function DashboardView({
             <UploadCloud size={36} className="text-primary/70" />
           </div>
           <div className="text-center space-y-1.5">
-            <p className="font-semibold text-foreground">No data loaded yet</p>
-            <p className="text-sm text-muted-foreground">Upload your Believe or Bandcamp CSV files to get started</p>
+            <p className="font-semibold text-foreground">{t('dashboard.noFilesUploaded')}</p>
+            <p className="text-sm text-muted-foreground">{t('dashboard.getStartedByUploading')}</p>
           </div>
           <Button
             size="sm"
@@ -153,7 +156,7 @@ export function DashboardView({
             onClick={() => navigate('ingest')}
           >
             <UploadCloud size={14} className="mr-1.5" />
-            Go to Ingestion
+            {t('dashboard.uploadFiles')}
           </Button>
         </motion.div>
       )}
