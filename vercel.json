@@ -23,7 +23,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!_spark/).*)",
+      "source": "/((?!_spark/|api/).*)",
       "destination": "/index.html"
     }
   ]

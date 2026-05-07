@@ -1,3 +1,21 @@
+/**
+ * Normalises a raw date string to the canonical `YYYY-MM` format used
+ * throughout the data model.
+ *
+ * Supported input formats:
+ * - Bandcamp: `"9/30/25 5:39pm"` → `"2025-09"` (M/D/YY[time])
+ * - Believe:  `"01/09/2024"` → `"2024-09"` (DD/MM/YYYY)
+ * - ISO:      `"2024-01"` or `"2024-01-15"` → `"2024-01"` (YYYY-MM[-DD])
+ *
+ * **Important:** Returns an **empty string** (`""`) for any input that does
+ * not match one of the above patterns. Callers must not assume that the
+ * original raw string is returned as-is; doing so would allow unrecognised
+ * date formats (e.g. `"Q4 2025"`) to silently propagate into the data model
+ * as literal grouping keys.
+ *
+ * @param dateString - Raw date value from an imported CSV column.
+ * @returns Normalised `"YYYY-MM"` string, or `""` if the format is not recognised.
+ */
 export function normalizeDateToMonth(dateString: string): string {
   if (!dateString) return ''
   const str = dateString.trim()
@@ -9,11 +27,13 @@ export function normalizeDateToMonth(dateString: string): string {
   const blMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
   if (blMatch) return `${blMatch[3]}-${blMatch[2].padStart(2, '0')}`
 
-  // ISO Fallback (YYYY-MM-DD) -> "YYYY-MM"
+  // ISO Fallback (YYYY-MM-DD or YYYY-MM) -> "YYYY-MM"
   const isoMatch = str.match(/^(\d{4})-(\d{2})/)
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`
 
-  return str
+  // Return empty string for unrecognised formats so invalid/free-form dates
+  // don't silently propagate through the system as literal string keys.
+  return ''
 }
 
 export interface SalesTransaction {

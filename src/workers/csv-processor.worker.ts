@@ -62,6 +62,14 @@ import type { ExchangeRates } from '@/lib/currency'
 
 // ── Message type definitions ──────────────────────────────────────────────────
 
+/**
+ * Regex that matches the canonical sales-month format used throughout the
+ * data model. Only strings that match this pattern are valid as `sales_month`
+ * values in `SalesTransaction` and as period-bound inputs to HTML
+ * `<input type="month">` elements.
+ */
+const VALID_MONTH_RE = /^\d{4}-\d{2}$/
+
 export interface WorkerProcessConfig {
   compilationFilters: CompilationFilter[]
   artistMappings: ArtistMapping[]
@@ -186,8 +194,15 @@ function runProcess(config: WorkerProcessConfig): void {
       return
     }
 
-    // Detect reporting period from all transactions
-    const months = allTransactions.map(t => t.sales_month).filter(Boolean).sort()
+    // Detect reporting period from all transactions.
+    // Only keep values that match the normalised YYYY-MM format to prevent
+    // placeholder strings like 'Unknown' or free-form date text (e.g. from
+    // Darkmerch) from polluting the period bounds and triggering browser
+    // warnings on <input type="month"> which requires exactly that format.
+    const months = allTransactions
+      .map(t => t.sales_month)
+      .filter((m): m is string => typeof m === 'string' && VALID_MONTH_RE.test(m))
+      .sort()
     const periodStart = months[0] ?? ''
     const periodEnd = months[months.length - 1] ?? ''
 
