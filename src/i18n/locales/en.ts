@@ -626,5 +626,12 @@ export const en = {
   },
 } as const
 
-export type TranslationKeys = typeof en
+/**
+ * Recursively replaces all leaf string literals with `string` so that
+ * translation files (e.g. de.ts) can provide different string values
+ * while still being structurally validated against this file's keys.
+ */
+type Stringify<T> = { [K in keyof T]: T[K] extends string ? string : Stringify<T[K]> }
+
+export type TranslationKeys = Stringify<typeof en>
 export default en

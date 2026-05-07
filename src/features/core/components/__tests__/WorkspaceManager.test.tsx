@@ -30,14 +30,14 @@ describe('WorkspaceManager Export', () => {
     global.URL.revokeObjectURL = vi.fn()
 
     const mockData = {
-      compilationFilters: [{ id: '1', title: 'Filter 1', type: 'ean' as const }],
-      artistMappings: [{ id: '1', name: 'Artist A', aliases: ['Alias A'] }],
+      compilationFilters: [{ id: '1', title: 'Filter 1', type: 'ean' as const, identifier: 'Filter 1', label: 'Filter 1' }],
+      artistMappings: [{ id: '1', featuringName: 'Alias A', primaryArtist: 'Artist A' }],
       splitFees: [{ artist: 'Artist A', percentage: 50 }],
       manualRevenues: [{ id: '1', artist: 'Artist A', amount: 100, date: '2023-01-01', description: 'Test', type: 'digital' as const }],
       csvAliases: [{ id: '1', fieldName: 'artist', synonym: 'interpret' }],
       labelInfo: { name: 'Test Label', address: '123 Main St' },
       labelArtists: [{ id: '1', name: 'Artist A', email: 'test@test.com', isEuNonGerman: false }],
-      ignoredEntries: [{ id: '1', value: 'IGNORE', type: 'artist' as const }],
+      ignoredEntries: [{ id: '1', artist: 'IGNORE', createdAt: '2023-01-01T00:00:00.000Z' }],
       onImport: vi.fn(),
     }
 
@@ -72,7 +72,7 @@ describe('WorkspaceManager Import', () => {
     splitFees: [],
     manualRevenues: [],
     csvAliases: [],
-    labelInfo: { name: 'Test Label' },
+    labelInfo: { name: 'Test Label', address: '' },
     labelArtists: [],
     ignoredEntries: [],
     onImport: vi.fn(),
@@ -92,7 +92,7 @@ describe('WorkspaceManager Import', () => {
       csvAliases: [{ id: '1', fieldName: 'artist', synonym: 'interpret' }],
       labelInfo: { name: 'New Label', address: '456 Side St' },
       labelArtists: [{ id: '1', name: 'Artist A', email: 'test@test.com', isEuNonGerman: false }],
-      ignoredEntries: [{ id: '1', value: 'IGNORE', type: 'artist' }],
+      ignoredEntries: [{ id: '1', artist: 'IGNORE', createdAt: '2023-01-01T00:00:00.000Z' }],
     }
 
     const file = new File([JSON.stringify(fullBackup)], 'backup.json', { type: 'application/json' })
