@@ -253,8 +253,13 @@ function buildPlatformBreakdown(transactions: SalesTransaction[]): PlatformReven
 }
 
 function buildCountryBreakdown(transactions: SalesTransaction[]): CountryRevenue[] {
+  // Only include transactions that carry a known country.  Items without a
+  // country (e.g. physical merch / Darkmerch orders) are absorbed into the
+  // overall revenue totals and must not appear as an "Unknown" row here.
   const agg = aggregateBy(
-    transactions.map(t => ({ key: t.country || 'Unknown', revenue: t.net_revenue, quantity: t.quantity }))
+    transactions
+      .filter(t => t.country)
+      .map(t => ({ key: t.country, revenue: t.net_revenue, quantity: t.quantity }))
   )
   return Array.from(agg.entries())
     .map(([country, { revenue, quantity }]) => ({ country, revenue, quantity }))
@@ -271,8 +276,11 @@ function parseMonthToDate(month: string): number {
 function buildMonthlyBreakdown(transactions: SalesTransaction[]): MonthlyRevenue[] {
   const map = new Map<string, number>()
   for (const t of transactions) {
-    const month = t.sales_month || 'Unknown'
-    map.set(month, (map.get(month) ?? 0) + t.net_revenue)
+    // Skip items without a valid sales month (e.g. physical merch / Darkmerch
+    // orders with no date).  Their revenue is already included in the overall
+    // totals and must not appear as an "Unknown" row in this breakdown.
+    if (!t.sales_month) continue
+    map.set(t.sales_month, (map.get(t.sales_month) ?? 0) + t.net_revenue)
   }
   return Array.from(map.entries())
     .map(([month, revenue]) => ({ month, revenue }))

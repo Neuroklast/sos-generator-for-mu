@@ -390,6 +390,19 @@ describe('breakdown accuracy', () => {
     expect(deEntry?.revenue).toBeCloseTo(16)
   })
 
+  it('excludes items with no country from the country breakdown (no Unknown row)', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', country: 'DE', net_revenue: 10 }),
+      // physical/merch item with no country
+      makeTx({ original_artist: 'Omnimar', country: '', net_revenue: 5, is_physical: true }),
+    ]
+    const result = processTransactions(txs, emptyConfig)
+    // No 'Unknown' or empty-string entry in the breakdown
+    expect(result[0].countryBreakdown.some(c => !c.country)).toBe(false)
+    // Revenue from the no-country item is still in the totals
+    expect(result[0].grossRevenue).toBeCloseTo(15)
+  })
+
   it('builds accurate monthly breakdown', () => {
     const txs = [
       makeTx({ original_artist: 'Omnimar', sales_month: '2024-01', net_revenue: 10 }),
@@ -401,6 +414,19 @@ describe('breakdown accuracy', () => {
     const feb = result[0].monthlyBreakdown.find(m => m.month === '2024-02')
     expect(jan?.revenue).toBeCloseTo(15)
     expect(feb?.revenue).toBeCloseTo(20)
+  })
+
+  it('excludes items with no sales_month from the monthly breakdown (no Unknown row)', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', sales_month: '2024-01', net_revenue: 10 }),
+      // physical/merch item with no date
+      makeTx({ original_artist: 'Omnimar', sales_month: '', net_revenue: 8, is_physical: true }),
+    ]
+    const result = processTransactions(txs, emptyConfig)
+    // No empty-month entry in the breakdown
+    expect(result[0].monthlyBreakdown.some(m => !m.month)).toBe(false)
+    // Revenue from the no-date item is still in the totals
+    expect(result[0].grossRevenue).toBeCloseTo(18)
   })
 
   it('sorts monthly breakdown chronologically', () => {

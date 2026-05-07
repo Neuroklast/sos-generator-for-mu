@@ -469,27 +469,36 @@ function buildPDF(
   yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
 
   // ── Section heading helper ────────────────────────────────────────────────
-  // Renders a small bold label above a breakdown table. The heading is only
-  // painted when sufficient vertical space remains on the current page; otherwise
-  // autoTable's own pagination will open a fresh page with its repeated header.
+  // Renders a small bold label above a breakdown table. When insufficient
+  // vertical space remains on the current page, a new page is added first so
+  // the heading is never orphaned at the bottom of a page without the table
+  // that follows it.
   const renderSectionHeading = (title: string): void => {
     const pageHeight = doc.internal.pageSize.getHeight()
-    if (yPos < pageHeight - MIN_SPACE_FOR_SECTION_HEADING_MM) {
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(40, 40, 60)
-      doc.text(title, margin, yPos)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(0, 0, 0)
-      yPos += 5
+    if (yPos >= pageHeight - MIN_SPACE_FOR_SECTION_HEADING_MM) {
+      doc.addPage()
+      yPos = margin
     }
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(40, 40, 60)
+    doc.text(title, margin, yPos)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    yPos += 5
   }
 
   // ── Release breakdown ─────────────────────────────────────────────────────
   if (settings.includeReleaseBreakdown && artistData.releaseBreakdown.length > 0) {
-    const releaseBreakdown = settings.hideCompilationsInStatement
+    const allReleaseBreakdown = settings.hideCompilationsInStatement
       ? artistData.releaseBreakdown.filter(rel => !isCompilationRelease(rel, compilationFilters))
       : artistData.releaseBreakdown
+    // Filter out entries that have no usable identifier (empty title AND empty
+    // UPC/EAN AND empty catalog number).  These are typically physical merch or
+    // platform service-fee rows whose revenue is already counted in the totals.
+    const releaseBreakdown = allReleaseBreakdown.filter(
+      rel => rel.releaseTitle || rel.upcEan || rel.catalogNumber
+    )
     if (releaseBreakdown.length > 0) {
       renderSectionHeading('Revenue by Release')
       autoTable(doc, {
@@ -574,7 +583,7 @@ function buildPDF(
       startY: yPos,
       head: [['Country', 'Revenue', 'Qty']],
       body: artistData.countryBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(c => [
-        c.country || 'Unknown',
+        c.country,
         formatCurrency(c.revenue),
         String(c.quantity),
       ]),
@@ -608,6 +617,7 @@ function buildPDF(
       columnStyles: { 1: { halign: 'right' } },
       margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
     })
+    yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
 
   // ── Pie chart: revenue category breakdown ─────────────────────────────────
