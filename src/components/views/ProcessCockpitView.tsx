@@ -15,6 +15,8 @@ import {
   ChevronUp,
   FileText,
   Sparkles,
+  Banknote,
+  Database,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -26,7 +28,7 @@ import { ArtistMappingManager } from '@/features/rules/components/ArtistMappingM
 import { ManualRevenueManager } from '@/features/rules/components/ManualRevenueManager'
 import { ExpenseManager } from '@/features/rules/components/ExpenseManager'
 import { toast } from 'sonner'
-import { fmtEur, fmtPct, totalDeductions } from '@/lib/formatters'
+import { fmtEur, fmtPct, totalDeductions, fmtCurrencyEur } from '@/lib/formatters'
 import type {
   ArtistRevenue,
   CompilationFilter,
@@ -45,6 +47,8 @@ interface ProcessCockpitViewProps {
   revenues: ArtistRevenue[]
   totalFiles: number
   uniqueArtists: string[]
+  /** EUR-normalised gross revenue across ALL uploaded records, before roster filter. */
+  totalGrossAllData: number
   compilationFilters: CompilationFilter[]
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
   handleRemoveCompilationFilter: (id: string) => void
@@ -93,6 +97,7 @@ export function ProcessCockpitView({
   revenues,
   totalFiles,
   uniqueArtists,
+  totalGrossAllData,
   compilationFilters,
   handleAddCompilationFilter,
   handleRemoveCompilationFilter,
@@ -134,6 +139,9 @@ export function ProcessCockpitView({
   isProcessing,
   navigate,
 }: ProcessCockpitViewProps) {
+  const totalPayout = revenues.reduce((sum, rev) => sum + rev.finalAmount, 0)
+  const rosterGross = revenues.reduce((sum, rev) => sum + rev.totalRevenue, 0)
+
   return (
     <div className="flex flex-col min-h-full -mx-6 md:-mx-8 lg:-mx-12 -my-8 md:-my-10">
       {/* Title */}
@@ -159,7 +167,7 @@ export function ProcessCockpitView({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <StatCard
               label="Files Loaded"
               value={String(totalFiles)}
@@ -176,12 +184,26 @@ export function ProcessCockpitView({
             />
             <StatCard
               label="Total Payout"
-              value={new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(
-                revenues.reduce((sum, r) => sum + r.finalAmount, 0)
-              )}
+              value={fmtCurrencyEur(totalPayout)}
               icon={TrendingUp}
               gradient="from-emerald-500 to-teal-500"
               delay={0.1}
+            />
+            <StatCard
+              label="Roster Gross"
+              value={fmtCurrencyEur(rosterGross)}
+              sub="before split deductions"
+              icon={Banknote}
+              gradient="from-amber-500 to-orange-500"
+              delay={0.15}
+            />
+            <StatCard
+              label="All Records Gross"
+              value={fmtCurrencyEur(totalGrossAllData)}
+              sub="incl. non-roster artists"
+              icon={Database}
+              gradient="from-rose-500 to-pink-600"
+              delay={0.2}
             />
           </div>
 

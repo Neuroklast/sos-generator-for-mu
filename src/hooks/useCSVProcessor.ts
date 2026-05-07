@@ -369,6 +369,7 @@ export function useCSVProcessor(
     autoMappings,
     detectedPeriodStart: workerResult.periodStart,
     detectedPeriodEnd: workerResult.periodEnd,
+    totalGrossAllData: workerResult.totalGrossAllData,
   }
 }
 
