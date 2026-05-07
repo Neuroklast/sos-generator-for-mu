@@ -188,24 +188,41 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
     ].filter(item => item.value > 0)
   }, [filteredRevenues])
 
+  /** Sums digital revenue from the release breakdown (non-physical rows). */
+  const sumDigitalFromBreakdown = (revenues: typeof filteredRevenues): number =>
+    revenues.reduce(
+      (sum, r) => sum + r.releaseBreakdown.filter(rel => !rel.isPhysical).reduce((s, rel) => s + rel.revenue, 0),
+      0
+    )
+
   const releaseTypeData = useMemo(() => {
-    let digital = 0
+    let streams = 0
+    let downloads = 0
     let physical = 0
 
     filteredRevenues.forEach(r => {
+      // Guard against undefined/NaN from partially-cached data
+      streams += isFinite(r.totalStreamRevenue) ? r.totalStreamRevenue : 0
+      downloads += isFinite(r.totalDownloadRevenue) ? r.totalDownloadRevenue : 0
       r.releaseBreakdown.forEach(rel => {
         if (rel.isPhysical) {
           physical += rel.revenue
-        } else {
-          digital += rel.revenue
         }
       })
     })
 
+    // "digital other" = digital revenue that is neither a stream nor a download
+    // (e.g. unclassified Believe rows where is_download is undefined)
+    const totalDigitalFromBreakdown = sumDigitalFromBreakdown(filteredRevenues)
+    const digitalOther = Math.max(0, totalDigitalFromBreakdown - streams - downloads)
+
     return [
-      { name: 'Digital', value: parseFloat(digital.toFixed(2)) },
+      { name: 'Streaming', value: parseFloat(streams.toFixed(2)) },
+      { name: 'Downloads', value: parseFloat(downloads.toFixed(2)) },
       { name: 'Physical', value: parseFloat(physical.toFixed(2)) },
+      ...(digitalOther > 0 ? [{ name: 'Digital (other)', value: parseFloat(digitalOther.toFixed(2)) }] : []),
     ].filter(item => item.value > 0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredRevenues])
 
   const formatCurrency = (value: number) => `€${value.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -460,7 +477,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
           <Card className="p-6 md:p-8 border-primary/20">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <MusicNote size={24} weight="duotone" className="text-primary" />
-              Digital vs Physical
+              Streaming / Downloads / Physical
             </h3>
             <ResponsiveContainer width="100%" height={400}>
               <PieChart>

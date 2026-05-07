@@ -136,7 +136,7 @@ export function RevenueSummaryCard({
         </Card>
         <Card className="p-6 border-2">
           <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-1">
-            Artists
+            Active Artists
           </p>
           <p className="text-3xl font-bold font-mono text-foreground">{revenues.length}</p>
         </Card>

@@ -132,8 +132,13 @@ export interface ArtistMapping {
 export interface ReleaseSplitOverride {
   /** Substring of the release title (case-insensitive match). */
   releaseTitle: string
-  /** Split percentage (0–100) for matching transactions. */
+  /** Digital split percentage (0–100) for matching transactions. */
   percentage: number
+  /**
+   * Optional physical split percentage (0–100) for matching transactions.
+   * When omitted, `percentage` is used for physical revenue as well.
+   */
+  physicalPercentage?: number
 }
 
 export interface SplitFee {
@@ -378,6 +383,10 @@ export interface ArtistRevenue {
   totalExpenses: number
   /** Distribution fee amount deducted before the artist split was applied. */
   distributionFeeDeducted: number
+  /** EUR revenue from streaming transactions (subset of digital). */
+  totalStreamRevenue: number
+  /** EUR revenue from digital download transactions (subset of digital). */
+  totalDownloadRevenue: number
   platformBreakdown: PlatformRevenue[]
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]
