@@ -627,9 +627,22 @@ export const en = {
 } as const
 
 /**
- * Recursively replaces all leaf string literals with `string` so that
- * translation files (e.g. de.ts) can provide different string values
- * while still being structurally validated against this file's keys.
+ * Recursively replaces all leaf string literal types with `string`.
+ *
+ * **Why this exists:** `en` is declared `as const`, so every translation value
+ * becomes a narrow string literal type (e.g. `"Analytics"`). Without this
+ * helper, `TranslationKeys` would require every other locale file to return the
+ * exact English strings, making German (or any other) translations impossible
+ * to type-check.
+ *
+ * **How it works:** For each key in `T`, if the value is a `string` leaf it is
+ * widened to `string`; otherwise the same transformation is applied
+ * recursively. This preserves the full key structure (so missing or extra keys
+ * are still caught as type errors) while allowing locale files to provide any
+ * translated string value.
+ *
+ * **Limitation:** Only handles plain `string` leaf values. Arrays and other
+ * primitive types are not encountered in the current translation schema.
  */
 type Stringify<T> = { [K in keyof T]: T[K] extends string ? string : Stringify<T[K]> }
 

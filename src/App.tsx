@@ -195,8 +195,10 @@ function App() {
   const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
   const stableLabelArtists = useMemo(() => labelArtists ?? [], [labelArtists])
   const stableIgnoredEntries = useMemo(() => ignoredEntries ?? [], [ignoredEntries])
-  const safePeriodStart = VALID_DATE_RE.test(periodStart ?? '') ? (periodStart ?? '') : ''
-  const safePeriodEnd = VALID_DATE_RE.test(periodEnd ?? '') ? (periodEnd ?? '') : ''
+  const rawStart = periodStart ?? ''
+  const rawEnd = periodEnd ?? ''
+  const safePeriodStart = VALID_DATE_RE.test(rawStart) ? rawStart : ''
+  const safePeriodEnd = VALID_DATE_RE.test(rawEnd) ? rawEnd : ''
 
   const {
     uniqueArtists,
