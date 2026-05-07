@@ -174,7 +174,12 @@ export function ReportingPanel({
   }
 
   function toggleArtist(artist: string) {
-    setSelectedArtists(prev => { const n = new Set(prev); n.has(artist) ? n.delete(artist) : n.add(artist); return n })
+    setSelectedArtists(prev => {
+      const n = new Set(prev)
+      if (n.has(artist)) n.delete(artist)
+      else n.add(artist)
+      return n
+    })
   }
 
   function exportSelected() { onDownloadSelected(Array.from(selectedArtists)) }
