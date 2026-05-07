@@ -22,4 +22,16 @@ export default defineConfig({
       '@': resolve(projectRoot, 'src')
     }
   },
+  server: {
+    proxy: {
+      // Mirrors the Vercel Edge Function at /api/exchange-rates so that
+      // local `vite dev` calls to /api/exchange-rates are forwarded to the
+      // Frankfurter upstream without hitting CORS issues.
+      '/api/exchange-rates': {
+        target: 'https://api.frankfurter.app',
+        changeOrigin: true,
+        rewrite: () => '/latest?from=EUR',
+      },
+    },
+  },
 });

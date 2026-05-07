@@ -42,14 +42,18 @@ const FALLBACK_RATES: ExchangeRates = {
 }
 
 /**
- * Fetches current exchange rates from the Frankfurter API.
+ * Fetches current exchange rates via the /api/exchange-rates proxy.
+ *
+ * The proxy (Vercel Edge Function in production, Vite dev-proxy locally)
+ * forwards the request to the Frankfurter API server-side, avoiding the
+ * CORS restriction that the upstream imposes on browser-originated requests.
  * Falls back to static approximate rates on any network or parse error.
  *
  * @returns A map of currency code → EUR-base rate (1 EUR = N units of that currency).
  */
 export async function fetchExchangeRates(): Promise<ExchangeRates> {
   try {
-    const response = await fetch('https://api.frankfurter.app/latest?from=EUR', {
+    const response = await fetch('/api/exchange-rates', {
       signal: AbortSignal.timeout(8000),
     })
     if (!response.ok) {
