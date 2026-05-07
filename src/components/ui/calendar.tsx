@@ -88,6 +88,8 @@ function Calendar({
           const cls = cn("size-4", chevronClassName)
           if (orientation === "left") return <ChevronLeft className={cls} />
           if (orientation === "right") return <ChevronRight className={cls} />
+          // Dropdown affordance chevrons ("up"/"down") sit inside the compact
+          // caption label, so a slightly smaller size fits the row height better.
           if (orientation === "up") return <ChevronUp className={cn("size-3", chevronClassName)} />
           return <ChevronDown className={cn("size-3", chevronClassName)} />
         },
