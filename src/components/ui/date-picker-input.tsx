@@ -25,6 +25,27 @@ const MIN_DAY = 1
 const MAX_DAY = 31
 
 /**
+ * Earliest selectable year in the dropdown.
+ *
+ * Music streaming royalties realistically start from around 2000. Using a
+ * fixed start keeps the year list compact and avoids 100-entry scrolling.
+ */
+const CALENDAR_START_MONTH = new Date(2000, 0, 1)
+
+/**
+ * Latest selectable year — three years ahead of module load time.
+ *
+ * Pre-scheduled statement periods rarely exceed this window. We intentionally
+ * compute at module initialisation (once) rather than per-render to keep the
+ * Date object referentially stable and avoid triggering Calendar re-mounts.
+ */
+const CALENDAR_END_MONTH = (() => {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() + 3)
+  return d
+})()
+
+/**
  * Parses the persisted `YYYY-MM-DD` form value into a local calendar date.
  *
  * We intentionally split the string into date parts instead of passing the raw
@@ -149,6 +170,9 @@ export function DatePickerInput({
           selected={selectedDate}
           defaultMonth={selectedDate}
           onSelect={handleSelect}
+          captionLayout="dropdown"
+          startMonth={CALENDAR_START_MONTH}
+          endMonth={CALENDAR_END_MONTH}
         />
       </PopoverContent>
     </Popover>
