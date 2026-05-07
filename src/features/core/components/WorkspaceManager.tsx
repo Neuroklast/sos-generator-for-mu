@@ -82,7 +82,7 @@ export function WorkspaceManager({
     setTimeout(() => URL.revokeObjectURL(url), 100)
 
     toast.success('Workspace exported', {
-      description: 'sos_workspace_backup.json wurde heruntergeladen.',
+      description: 'sos_workspace_backup.json downloaded.',
     })
   }
 
@@ -98,8 +98,8 @@ export function WorkspaceManager({
         const raw = JSON.parse(event.target?.result as string) as Partial<WorkspaceBackup>
 
         if (raw.schemaVersion !== 1) {
-          toast.error('Unbekanntes Backup-Format', {
-            description: `Erwartet schemaVersion 1, erhalten: ${raw.schemaVersion ?? 'unbekannt'}.`,
+          toast.error('Unknown backup format', {
+            description: `Expected schemaVersion 1, received: ${raw.schemaVersion ?? 'unknown'}.`,
           })
           return
         }
@@ -117,8 +117,8 @@ export function WorkspaceManager({
           (raw.ignoredEntries !== undefined && !isArrayOf(raw.ignoredEntries)) ||
           (raw.labelInfo !== null && raw.labelInfo !== undefined && typeof raw.labelInfo !== 'object')
         ) {
-          toast.error('Ungültiges Backup', {
-            description: 'Die Backup-Datei enthält unerwartete Datentypen und kann nicht importiert werden.',
+          toast.error('Invalid backup', {
+            description: 'The backup file contains unexpected data types and cannot be imported.',
           })
           return
         }
@@ -137,17 +137,17 @@ export function WorkspaceManager({
         }
 
         onImport(backup)
-        toast.success('Workspace wiederhergestellt', {
-          description: `Backup vom ${new Date(backup.exportedAt).toLocaleString('de-DE')} importiert.`,
+        toast.success('Workspace restored', {
+          description: `Backup from ${new Date(backup.exportedAt).toLocaleString('en-GB')} imported.`,
         })
       } catch {
-        toast.error('Import fehlgeschlagen', {
-          description: 'Die Datei konnte nicht als gültiges JSON gelesen werden.',
+        toast.error('Import failed', {
+          description: 'The file could not be read as valid JSON.',
         })
       }
     }
     reader.onerror = () => {
-      toast.error('Datei konnte nicht gelesen werden')
+      toast.error('Failed to read file')
     }
     reader.readAsText(file)
     // Reset so the same file can be re-selected
@@ -163,7 +163,7 @@ export function WorkspaceManager({
         <div>
           <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Workspace Backup</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Alle Einstellungen als JSON sichern oder wiederherstellen — Compilation-Filter, Artist-Mappings, Split-Fees, manuelle Einnahmen, CSV-Aliase und Label-Daten.
+            Back up or restore all settings as JSON — compilation filters, artist mappings, split fees, manual revenues, CSV aliases, and label data.
           </p>
         </div>
       </div>
@@ -197,7 +197,7 @@ export function WorkspaceManager({
       </div>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Der Import überschreibt alle aktuellen Einstellungen unwiderruflich. CSV-Dateien werden nicht gesichert.
+        Import overwrites all current settings irreversibly. CSV files are not included in the backup.
       </p>
     </Card>
   )
