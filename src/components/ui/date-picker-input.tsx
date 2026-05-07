@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { format } from "date-fns"
 import { CalendarDays } from "lucide-react"
 
@@ -19,6 +19,10 @@ interface DatePickerInputProps {
 }
 
 const ISO_DATE_VALUE_RE = /^\d{4}-\d{2}-\d{2}$/
+const MIN_MONTH = 1
+const MAX_MONTH = 12
+const MIN_DAY = 1
+const MAX_DAY = 31
 
 /**
  * Parses the persisted `YYYY-MM-DD` form value into a local calendar date.
@@ -45,7 +49,16 @@ function parseDateValue(value: string): Date | undefined {
 
   const [year, month, day] = dateParts.map(Number)
 
-  if (!year || year < 1000 || !month || !day) {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    year < 1 ||
+    month < MIN_MONTH ||
+    month > MAX_MONTH ||
+    day < MIN_DAY ||
+    day > MAX_DAY
+  ) {
     return undefined
   }
 
@@ -99,6 +112,14 @@ export function DatePickerInput({
 
   const selectedDate = useMemo(() => parseDateValue(value), [value])
   const triggerLabel = selectedDate ? format(selectedDate, "d MMM yyyy") : placeholder
+  const handleSelect = useCallback((date: Date | undefined) => {
+    if (!date) {
+      return
+    }
+
+    onChange(formatDateValue(date))
+    setOpen(false)
+  }, [onChange])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -127,14 +148,7 @@ export function DatePickerInput({
           mode="single"
           selected={selectedDate}
           defaultMonth={selectedDate}
-          onSelect={date => {
-            if (!date) {
-              return
-            }
-
-            onChange(formatDateValue(date))
-            setOpen(false)
-          }}
+          onSelect={handleSelect}
         />
       </PopoverContent>
     </Popover>
