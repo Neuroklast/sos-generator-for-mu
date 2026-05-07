@@ -96,6 +96,9 @@ const pageVariants = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' as const } },
   exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
 }
+/** Accepts only month strings in `YYYY-MM` format for `<input type="month">` consumers. */
+const VALID_MONTH_RE = /^\d{4}-\d{2}$/
+const STORAGE_CLEAR_RELOAD_DELAY_MS = 1200
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 
@@ -126,6 +129,7 @@ function App() {
   // CSV Import Profiles — pre-seeded with system defaults on first load.
   const [csvImportProfiles, setCsvImportProfiles] = useKV<CsvImportProfile[]>('csv-import-profiles', DEFAULT_CSV_PROFILES)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
+  const [clearAllStorageConfirmOpen, setClearAllStorageConfirmOpen] = useState(false)
 
   const { push: pushUndo, undo } = useUndoStack()
 
@@ -188,6 +192,8 @@ function App() {
   const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
   const stableLabelArtists = useMemo(() => labelArtists ?? [], [labelArtists])
   const stableIgnoredEntries = useMemo(() => ignoredEntries ?? [], [ignoredEntries])
+  const safePeriodStart = VALID_MONTH_RE.test(periodStart ?? '') ? periodStart : ''
+  const safePeriodEnd = VALID_MONTH_RE.test(periodEnd ?? '') ? periodEnd : ''
 
   const {
     uniqueArtists,
@@ -305,8 +311,8 @@ function App() {
   const { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected } = useExports(
     processedData,
     labelInfo ?? { name: '', address: '' },
-    periodStart ?? '',
-    periodEnd ?? '',
+    safePeriodStart,
+    safePeriodEnd,
     pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS,
     appDefaults ?? DEFAULT_APP_DEFAULTS,
     stableLabelArtists,
@@ -546,6 +552,28 @@ function App() {
     setClearConfirmOpen(false)
     toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
   }, [believeManager, bandcampManager, shopifyManager, printfulManager, darkmerchManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
+
+  const handleApplyDefaultSplitToAll = useCallback(() => {
+    const defaultPct = appDefaults?.defaultSplitPercentage ?? DEFAULT_APP_DEFAULTS.defaultSplitPercentage
+    setSplitFees(current => {
+      const updated = (current ?? []).map(sf => ({ ...sf, percentage: defaultPct }))
+      toast.success(`Default split (${defaultPct}%) auf alle ${updated.length} Künstler angewendet`)
+      return updated
+    })
+  }, [appDefaults, setSplitFees])
+
+  const handleClearAllStorage = useCallback(async () => {
+    try {
+      const { clear } = await import('idb-keyval')
+      await clear()
+      setClearAllStorageConfirmOpen(false)
+      toast.success('Kompletter Storage geleert – Seite wird neu geladen…')
+      setTimeout(() => window.location.reload(), STORAGE_CLEAR_RELOAD_DELAY_MS)
+    } catch (error) {
+      console.error('Failed to clear complete storage', error)
+      toast.error('Storage konnte nicht vollständig gelöscht werden. Bitte erneut versuchen.')
+    }
+  }, [])
 
   const handleWorkspaceImport = useCallback(
     (backup: WorkspaceBackup) => {
@@ -948,8 +976,8 @@ function App() {
                   bandcampManager={bandcampManager}
                   isProcessing={isProcessing}
                   currentStep={currentStep}
-                  periodStart={periodStart ?? ''}
-                  periodEnd={periodEnd ?? ''}
+                  periodStart={safePeriodStart}
+                  periodEnd={safePeriodEnd}
                   navigate={navigate}
                   handleDownloadAll={handleDownloadAll}
                   handleDownloadPDF={handleDownloadPDF}
@@ -963,8 +991,8 @@ function App() {
                 <IngestView
                   detectedPeriodStart={detectedPeriodStart}
                   detectedPeriodEnd={detectedPeriodEnd}
-                  periodStart={periodStart ?? ''}
-                  periodEnd={periodEnd ?? ''}
+                  periodStart={safePeriodStart}
+                  periodEnd={safePeriodEnd}
                   setPeriodStart={setPeriodStart}
                   setPeriodEnd={setPeriodEnd}
                   believeManager={believeManager}
@@ -1032,8 +1060,8 @@ function App() {
                   labelInfo={labelInfo ?? { name: '', address: '' }}
                   appDefaults={appDefaults ?? DEFAULT_APP_DEFAULTS}
                   emailConfig={emailConfig ?? DEFAULT_EMAIL_CONFIG}
-                  periodStart={periodStart ?? ''}
-                  periodEnd={periodEnd ?? ''}
+                  periodStart={safePeriodStart}
+                  periodEnd={safePeriodEnd}
                 />
               )}
 
@@ -1075,8 +1103,8 @@ function App() {
                   expenses={stableExpenses}
                   handleAddExpense={handleAddExpense}
                   handleRemoveExpense={handleRemoveExpense}
-                  periodStart={periodStart ?? ''}
-                  periodEnd={periodEnd ?? ''}
+                  periodStart={safePeriodStart}
+                  periodEnd={safePeriodEnd}
                   setPeriodStart={setPeriodStart}
                   setPeriodEnd={setPeriodEnd}
                   detectedPeriodStart={detectedPeriodStart}
@@ -1104,10 +1132,13 @@ function App() {
                   handleRemoveIgnoredEntry={handleRemoveIgnoredEntry}
                   clearConfirmOpen={clearConfirmOpen}
                   setClearConfirmOpen={setClearConfirmOpen}
+                  clearAllStorageConfirmOpen={clearAllStorageConfirmOpen}
+                  setClearAllStorageConfirmOpen={setClearAllStorageConfirmOpen}
                   handleClearWorkspace={handleClearWorkspace}
+                  handleClearAllStorage={handleClearAllStorage}
                   totalFiles={totalFiles}
-                  periodStart={periodStart ?? ''}
-                  periodEnd={periodEnd ?? ''}
+                  periodStart={safePeriodStart}
+                  periodEnd={safePeriodEnd}
                   excludePhysical={excludePhysical ?? false}
                   setExcludePhysical={setExcludePhysical}
                   handleAddCompilationFilter={handleAddCompilationFilter}
@@ -1116,6 +1147,7 @@ function App() {
                   handleRemoveAlias={handleRemoveAlias}
                   appDefaults={appDefaults ?? DEFAULT_APP_DEFAULTS}
                   setAppDefaults={setAppDefaults}
+                  onApplyDefaultSplitToAll={handleApplyDefaultSplitToAll}
                   emailConfig={emailConfig ?? DEFAULT_EMAIL_CONFIG}
                   setEmailConfig={setEmailConfig}
                   pdfExportSettings={pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS}

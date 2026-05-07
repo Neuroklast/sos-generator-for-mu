@@ -1,12 +1,14 @@
-import { SlidersHorizontal, EnvelopeSimple, CalendarBlank, Coins, Percent, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { SlidersHorizontal, EnvelopeSimple, CalendarBlank, Coins, Percent, ArrowClockwise, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import type { AppDefaults } from '@/lib/types'
 
 interface DefaultSettingsProps {
   defaults: AppDefaults
   onUpdate: (next: AppDefaults) => void
+  onApplyDefaultSplitToAll?: () => void
 }
 
 function SectionHeading({ icon: Icon, title }: { icon: PhosphorIcon; title: string }) {
@@ -23,7 +25,7 @@ function clampPct(value: number): number {
   return Math.min(100, Math.max(0, value))
 }
 
-export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
+export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }: DefaultSettingsProps) {
   const patch = (partial: Partial<AppDefaults>) => onUpdate({ ...defaults, ...partial })
 
   return (
@@ -58,6 +60,17 @@ export function DefaultSettings({ defaults, onUpdate }: DefaultSettingsProps) {
             <p className="text-xs text-muted-foreground">
               Wird für neue Künstler verwendet, wenn keine individuelle Split-Rate gesetzt ist.
             </p>
+            {onApplyDefaultSplitToAll && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onApplyDefaultSplitToAll}
+                className="mt-1 gap-1.5"
+              >
+                <ArrowClockwise size={14} />
+                Default-Split auf alle Künstler anwenden
+              </Button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
