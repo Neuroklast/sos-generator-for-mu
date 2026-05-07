@@ -20,11 +20,19 @@ export function DetectedPeriodBanner({
   if (!detectedStart || !detectedEnd) return null
   if (detectedStart === currentStart && detectedEnd === currentEnd) return null
 
-  const fmt = (m: string) => {
-    if (!m) return ''
-    const [y, mo] = m.split('-')
-    const d = new Date(Number(y), Number(mo) - 1)
-    return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+  const fmt = (value: string) => {
+    if (!value) return ''
+    // Handle both YYYY-MM-DD (new) and YYYY-MM (legacy) formats.
+    // Parse the parts explicitly to avoid timezone-shift issues that arise when
+    // Date.parse treats a bare date string as UTC midnight (off-by-one in
+    // negative-UTC-offset locales).
+    const parts = value.split('-').map(Number)
+    const year = parts[0]
+    const month = parts[1]
+    const day = parts[2] ?? 1
+    if (!year || !month) return value
+    const d = new Date(year, month - 1, day)
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   return (

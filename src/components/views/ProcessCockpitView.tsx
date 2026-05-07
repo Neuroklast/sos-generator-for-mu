@@ -637,14 +637,14 @@ export function ProcessCockpitView({
             </div>
             <div className="flex items-center gap-2">
               <Input
-                type="month"
+                type="date"
                 value={periodStart}
                 onChange={e => setPeriodStart(e.target.value)}
                 className="w-38 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
               />
               <span className="text-muted-foreground text-sm">→</span>
               <Input
-                type="month"
+                type="date"
                 value={periodEnd}
                 onChange={e => setPeriodEnd(e.target.value)}
                 className="w-38 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"

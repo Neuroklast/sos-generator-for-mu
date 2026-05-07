@@ -77,6 +77,9 @@ export function useLocalKV<T = string>(
         typeof newValueOrUpdater === 'function'
           ? (newValueOrUpdater as (old: T | undefined) => T)(valueRef.current)
           : newValueOrUpdater
+      // Update the ref immediately so that synchronous back-to-back calls
+      // (e.g. forEach loops) each see the latest value rather than a stale one.
+      valueRef.current = resolved
       cache.set(key, resolved)
       setLocalValue(resolved)
       notify(key)

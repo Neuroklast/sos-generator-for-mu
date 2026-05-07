@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Minus, Trash, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,7 @@ export function ExpenseManager({
   onAddExpense,
   onRemoveExpense,
 }: ExpenseManagerProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [artist, setArtist] = useState('')
   const [customArtist, setCustomArtist] = useState('')
@@ -113,7 +115,7 @@ export function ExpenseManager({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Minus size={20} weight="bold" className="text-destructive" />
-          <h3 className="font-semibold">Recoupable Expenses</h3>
+          <h3 className="font-semibold">{t('expense.title')}</h3>
           {expenses.length > 0 && (
             <span className="text-xs text-muted-foreground bg-destructive/10 text-destructive px-2 py-0.5 rounded-full font-mono">
               - {formatCurrency(totalExpenses)}
@@ -125,7 +127,7 @@ export function ExpenseManager({
           <DialogTrigger asChild>
             <Button size="sm" variant="outline" className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10">
               <Minus size={16} weight="bold" />
-              Add Expense
+              {t('expense.addExpense')}
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -139,7 +141,7 @@ export function ExpenseManager({
 
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="expense-artist">Artist</Label>
+                <Label htmlFor="expense-artist">{t('expense.artist')}</Label>
                 <Select value={artist} onValueChange={handleArtistChange}>
                   <SelectTrigger id="expense-artist">
                     <SelectValue placeholder="Select or enter artist" />
@@ -166,7 +168,7 @@ export function ExpenseManager({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="expense-description">Description</Label>
+                <Label htmlFor="expense-description">{t('expense.expenseDescription')}</Label>
                 <Input
                   id="expense-description"
                   value={description}
@@ -177,7 +179,7 @@ export function ExpenseManager({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="expense-amount">Amount (EUR)</Label>
+                  <Label htmlFor="expense-amount">{t('expense.amount')}</Label>
                   <Input
                     id="expense-amount"
                     type="number"
@@ -204,14 +206,14 @@ export function ExpenseManager({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={handleAdd}
                 disabled={!effectiveArtist || !description.trim() || !amount || parseFloat(amount) <= 0}
                 className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               >
-                Add Expense
+                {t('expense.addExpense')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -340,7 +342,7 @@ export function ExpenseManager({
           <Card className="p-8 text-center border-dashed">
             <Minus size={32} className="mx-auto mb-2 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              {filterArtist ? `No expenses for ${filterArtist}` : 'No expense entries yet'}
+              {filterArtist ? `No expenses for ${filterArtist}` : t('expense.noExpensesYet')}
             </p>
             {!filterArtist && (
               <p className="text-xs text-muted-foreground/60 mt-1">

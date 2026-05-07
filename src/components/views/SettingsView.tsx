@@ -1,3 +1,4 @@
+import { useTranslation, Trans } from 'react-i18next'
 import { Trash2, DatabaseZap } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ import type {
   EmailConfig,
 } from '@/lib/types'
 import type { CsvImportProfile } from '@/features/ingest/types'
+import type { CompilationDetectionResult } from '@/lib/compilation-heuristics'
 
 interface SettingsViewProps {
   // ── Workspace backup ─────────────────────────────────────────────────────
@@ -60,7 +62,10 @@ interface SettingsViewProps {
   excludePhysical: boolean
   setExcludePhysical: (checked: boolean) => void
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
+  handleAddMultipleCompilationFilters: (filters: Omit<CompilationFilter, 'id'>[]) => void
   handleRemoveCompilationFilter: (id: string) => void
+  detectedCompilationCandidates: CompilationDetectionResult[]
+  availableReleases: string[]
   handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void
   handleRemoveAlias: (id: string) => void
 
@@ -106,7 +111,10 @@ export function SettingsView({
   excludePhysical,
   setExcludePhysical,
   handleAddCompilationFilter,
+  handleAddMultipleCompilationFilters,
   handleRemoveCompilationFilter,
+  detectedCompilationCandidates,
+  availableReleases,
   handleAddAlias,
   handleRemoveAlias,
   appDefaults,
@@ -121,13 +129,14 @@ export function SettingsView({
   onUpdateCsvProfile,
   onDeleteCsvProfile,
 }: SettingsViewProps) {
+  const { t } = useTranslation()
   return (
     <Tabs defaultValue="app-system" className="flex flex-col h-full">
       <TabsList className="grid grid-cols-4 w-full max-w-xl shrink-0 mb-6">
-        <TabsTrigger value="app-system">App-System</TabsTrigger>
-        <TabsTrigger value="label-profil">Label-Profil</TabsTrigger>
-        <TabsTrigger value="export-regeln">Export &amp; Regeln</TabsTrigger>
-        <TabsTrigger value="csv-profile">CSV-Profile</TabsTrigger>
+        <TabsTrigger value="app-system">{t('settings.tabAppSystem')}</TabsTrigger>
+        <TabsTrigger value="label-profil">{t('settings.tabLabelProfile')}</TabsTrigger>
+        <TabsTrigger value="export-regeln">{t('settings.tabExportRules')}</TabsTrigger>
+        <TabsTrigger value="csv-profile">{t('settings.tabCsvProfiles')}</TabsTrigger>
       </TabsList>
 
       {/* ── App-System Tab ── */}
@@ -154,10 +163,10 @@ export function SettingsView({
             <div className="space-y-1.5">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <Trash2 size={16} className="text-red-400" />
-                Clear Workspace &amp; Start New Period
+                {t('settings.clearWorkspaceTitle')}
               </h3>
               <p className="text-sm text-muted-foreground">
-                Removes all uploaded CSV files, manual revenue entries, and the current statement period. Label settings, split rates, and artist mappings are kept. Use this at the end of a quarter to start fresh.
+                {t('settings.clearWorkspaceDescription')}
               </p>
             </div>
             {!clearConfirmOpen ? (
@@ -169,11 +178,11 @@ export function SettingsView({
                 disabled={totalFiles === 0 && manualRevenues.length === 0 && !periodStart && !periodEnd}
               >
                 <Trash2 size={14} />
-                Clear Workspace
+                {t('settings.clearWorkspace')}
               </Button>
             ) : (
               <div className="flex flex-col items-end gap-2 shrink-0">
-                <p className="text-xs text-red-400 font-medium">Are you sure? This cannot be undone.</p>
+                <p className="text-xs text-red-400 font-medium">{t('settings.clearWorkspaceAreYouSure')}</p>
                 <div className="flex gap-2">
                   <Button
                     variant="ghost"
@@ -181,7 +190,7 @@ export function SettingsView({
                     className="text-muted-foreground hover:text-foreground"
                     onClick={() => setClearConfirmOpen(false)}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                   <Button
                     size="sm"
@@ -189,7 +198,7 @@ export function SettingsView({
                     onClick={handleClearWorkspace}
                   >
                     <Trash2 size={14} />
-                    Yes, clear everything
+                    {t('settings.confirmClearEverything')}
                   </Button>
                 </div>
               </div>
@@ -202,12 +211,10 @@ export function SettingsView({
             <div className="space-y-1.5">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <DatabaseZap size={16} className="text-red-600" />
-                Kompletten Storage löschen
+                {t('settings.clearAllStorage')}
               </h3>
               <p className="text-sm text-muted-foreground">
-                Löscht <strong>alle gespeicherten Daten</strong> (CSV-Dateien, Split-Rates, Artist-Mappings,
-                Label-Einstellungen, Abrechnungszeitraum und weitere Konfigurationsdaten).
-                Die Seite wird danach neu geladen. <strong>Diese Aktion ist unwiderruflich.</strong>
+                <Trans i18nKey="settings.clearAllStorageDescription" components={{ strong: <strong /> }} />
               </p>
             </div>
             {!clearAllStorageConfirmOpen ? (
@@ -218,12 +225,12 @@ export function SettingsView({
                 onClick={() => setClearAllStorageConfirmOpen(true)}
               >
                 <DatabaseZap size={14} />
-                Alles löschen
+                {t('settings.clearAll')}
               </Button>
             ) : (
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <p role="alert" aria-live="polite" className="text-xs text-red-500 font-medium">
-                  Wirklich alles löschen? Nicht rückgängig machbar!
+                  {t('settings.clearAllStorageAreYouSure')}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -232,7 +239,7 @@ export function SettingsView({
                     className="text-muted-foreground hover:text-foreground"
                     onClick={() => setClearAllStorageConfirmOpen(false)}
                   >
-                    Abbrechen
+                    {t('common.cancel')}
                   </Button>
                   <Button
                     size="sm"
@@ -240,7 +247,7 @@ export function SettingsView({
                     onClick={handleClearAllStorage}
                   >
                     <DatabaseZap size={14} />
-                    Ja, alles löschen
+                    {t('settings.confirmClearEverything')}
                   </Button>
                 </div>
               </div>
@@ -303,16 +310,19 @@ export function SettingsView({
           <CompilationFilterManager
             filters={compilationFilters}
             onAddFilter={handleAddCompilationFilter}
+            onAddMultipleFilters={handleAddMultipleCompilationFilters}
             onRemoveFilter={handleRemoveCompilationFilter}
+            availableReleases={availableReleases}
+            detectedCandidates={detectedCompilationCandidates}
           />
         </Card>
 
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
           <div className="flex items-center justify-between">
             <div className="space-y-1.5">
-              <h3 className="font-semibold">Exclude Physical Products</h3>
+              <h3 className="font-semibold">{t('settings.excludePhysicalProducts')}</h3>
               <p className="text-sm text-muted-foreground">
-                Exclude physical sales (CD, Vinyl…) from revenue calculations.
+                {t('settings.excludePhysicalDescription')}
               </p>
             </div>
             <Switch

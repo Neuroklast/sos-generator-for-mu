@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash, GitBranch, Pencil, GitMerge, Sparkle, CaretUpDown, Check } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -123,6 +124,8 @@ export function ArtistMappingManager({
   artists = [],
   autoMappings = [],
 }: ArtistMappingManagerProps) {
+  const { t } = useTranslation()
+
   // ── Add dialog state ───────────────────────────────────────────────────────
   const [addOpen, setAddOpen] = useState(false)
   const [featuringName, setFeaturingName] = useState('')
@@ -238,7 +241,7 @@ export function ArtistMappingManager({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <GitBranch size={20} weight="bold" className="text-primary" />
-          <h3 className="font-semibold">Artist Mappings</h3>
+          <h3 className="font-semibold">{t('artistMapping.title')}</h3>
         </div>
 
         <div className="flex gap-2 flex-wrap">
@@ -304,7 +307,7 @@ export function ArtistMappingManager({
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setMergeOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setMergeOpen(false)}>{t('common.cancel')}</Button>
                 <Button onClick={handleMerge} disabled={!mergePrimary.trim() || mergeSelected.size < 2}>
                   Merge
                 </Button>
@@ -317,7 +320,7 @@ export function ArtistMappingManager({
             <DialogTrigger asChild>
               <Button size="sm" className="gap-2">
                 <Plus size={16} weight="bold" />
-                Add Mapping
+                {t('artistMapping.addMapping')}
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -351,8 +354,8 @@ export function ArtistMappingManager({
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-                <Button onClick={handleAdd} disabled={!featuringName.trim() || !primaryArtist.trim()}>Add Mapping</Button>
+                <Button variant="outline" onClick={() => setAddOpen(false)}>{t('common.cancel')}</Button>
+                <Button onClick={handleAdd} disabled={!featuringName.trim() || !primaryArtist.trim()}>{t('artistMapping.addMapping')}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -390,8 +393,8 @@ export function ArtistMappingManager({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleEdit} disabled={!editFeat.trim() || !editPrimary.trim()}>Save Changes</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={handleEdit} disabled={!editFeat.trim() || !editPrimary.trim()}>{t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -454,7 +457,7 @@ export function ArtistMappingManager({
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setWizardOpen(false)} className="sm:mr-auto">
-              Cancel
+              {t('common.cancel')}
             </Button>
             {currentSuggestion && (
               <>
@@ -504,7 +507,7 @@ export function ArtistMappingManager({
                         variant="ghost" size="sm"
                         onClick={() => openEdit(mapping)}
                         className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
-                        title="Edit mapping"
+                        title={t('common.edit')}
                       >
                         <Pencil size={14} />
                       </Button>
@@ -514,7 +517,7 @@ export function ArtistMappingManager({
                         variant="ghost" size="sm"
                         onClick={() => onRemoveMapping(mapping.id)}
                         className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
-                        title="Remove mapping"
+                        title={t('common.remove')}
                       >
                         <Trash size={16} />
                       </Button>
@@ -527,7 +530,7 @@ export function ArtistMappingManager({
         ) : (
           <Card className="p-8 text-center border-dashed">
             <GitBranch size={32} className="mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No artist mappings configured yet</p>
+            <p className="text-sm text-muted-foreground">{t('artistMapping.noMappingsYet')}</p>
           </Card>
         )}
       </AnimatePresence>

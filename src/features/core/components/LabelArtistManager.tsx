@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18next from 'i18next'
 import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil, Bank, SortAscending } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,7 +65,7 @@ function ArtistDetailEditor({
           <div className="space-y-1">
             <Label htmlFor={`artist-email-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
               <EnvelopeSimple size={11} />
-              E-Mail
+              Email
             </Label>
             <Input
               id={`artist-email-${artist.id}`}
@@ -85,7 +87,7 @@ function ArtistDetailEditor({
               type="text"
               value={artist.vatNumber ?? ''}
               onChange={e => patch({ vatNumber: e.target.value || undefined })}
-              placeholder="z.B. DE123456789 oder GB123456789"
+              placeholder="e.g. DE123456789 or GB123456789"
               className="h-8 text-xs"
             />
           </div>
@@ -93,8 +95,8 @@ function ArtistDetailEditor({
 
         <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/8">
           <div>
-            <p className="text-xs font-medium">EU-Künstler (nicht-DE)</p>
-            <p className="text-xs text-muted-foreground">Reverse-Charge-Verfahren — keine deutsche MwSt. auf Rechnung</p>
+            <p className="text-xs font-medium">EU Artist (non-DE)</p>
+            <p className="text-xs text-muted-foreground">Reverse charge — no German VAT on invoice</p>
           </div>
           <Switch
             checked={artist.isEuNonGerman ?? false}
@@ -105,7 +107,7 @@ function ArtistDetailEditor({
         <div className="space-y-1">
           <Label htmlFor={`artist-vatrate-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
             <IdentificationCard size={11} />
-            MwSt.-Satz (%) — überschreibt globale Einstellung
+            VAT Rate (%) — overrides global setting
           </Label>
           <div className="flex items-center gap-2">
             <Input
@@ -116,7 +118,7 @@ function ArtistDetailEditor({
               step={1}
               value={artist.vatRate ?? ''}
               onChange={e => patch({ vatRate: parseVatRate(e.target.value) })}
-              placeholder="z.B. 19 (leer = global)"
+              placeholder="e.g. 19 (empty = global)"
               className="h-8 text-xs max-w-[140px]"
             />
             <span className="text-xs text-muted-foreground">%</span>
@@ -129,36 +131,36 @@ function ArtistDetailEditor({
         <div className="space-y-1">
           <Label htmlFor={`artist-notes-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
             <NotePencil size={11} />
-            Notizen / Besonderheiten
+            Notes / Remarks
           </Label>
           <Textarea
             id={`artist-notes-${artist.id}`}
             value={artist.notes ?? ''}
             onChange={e => patch({ notes: e.target.value || undefined })}
-            placeholder="Vertragsbesonderheiten, Anmerkungen, …"
+            placeholder="Contract specifics, annotations, …"
             rows={2}
             className="text-xs resize-none"
           />
         </div>
 
-        {/* ── Bankverbindung für SEPA-Auszahlungen ──────────────────── */}
+        {/* ── Bank account for SEPA payouts ──────────────────── */}
         <div className="mt-1 pt-2 border-t border-white/8 space-y-2">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
             <Bank size={10} weight="bold" />
-            Bankverbindung (SEPA)
+            Bank Account (SEPA)
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor={`artist-accholder-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
-                Kontoinhaber
+                Account Holder
               </Label>
               <Input
                 id={`artist-accholder-${artist.id}`}
                 type="text"
                 value={artist.accountHolder ?? ''}
                 onChange={e => patch({ accountHolder: e.target.value || undefined })}
-                placeholder="Vollständiger Name (wie auf dem Konto)"
+                placeholder="Full name (as registered with the bank)"
                 className="h-8 text-xs"
               />
             </div>
@@ -169,13 +171,13 @@ function ArtistDetailEditor({
                   IBAN
                   {artist.iban && (
                     isValidIBAN(artist.iban)
-                      ? <span className="ml-1 text-emerald-400 text-[10px]">✓ gültig</span>
+                      ? <span className="ml-1 text-emerald-400 text-[10px]">✓ valid</span>
                       : <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="ml-1 text-red-400 text-[10px] cursor-help underline decoration-dotted">✗ fehlerhaft</span>
+                            <span className="ml-1 text-red-400 text-[10px] cursor-help underline decoration-dotted">✗ invalid</span>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="text-xs bg-red-900/90 text-red-100 border-red-700">
-                            Prüfsumme fehlerhaft. SEPA-Export blockiert.
+                            Checksum failed. SEPA export blocked.
                           </TooltipContent>
                         </Tooltip>
                   )}
@@ -188,7 +190,7 @@ function ArtistDetailEditor({
                     const normalised = sanitiseIBAN(e.target.value)
                     patch({ iban: normalised || undefined })
                   }}
-                  placeholder="z.B. DE89370400440532013000"
+                  placeholder="e.g. DE89370400440532013000"
                   className="h-8 text-xs font-mono"
                 />
                 {artist.iban && (
@@ -207,7 +209,7 @@ function ArtistDetailEditor({
               type="text"
               value={artist.bic ?? ''}
               onChange={e => patch({ bic: e.target.value.trim().toUpperCase() || undefined })}
-              placeholder="z.B. COBADEFFXXX"
+              placeholder="e.g. COBADEFFXXX"
               className="h-8 text-xs font-mono"
             />
           </div>
@@ -224,6 +226,7 @@ export function LabelArtistManager({
   onUpdate,
   onImportLabelArtistsCSV,
 }: LabelArtistManagerProps & { onImportLabelArtistsCSV?: (artists: Omit<LabelArtist, 'id'>[]) => void }) {
+  const { t } = useTranslation()
   const [newName, setNewName] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [sortAlpha, setSortAlpha] = useKV<boolean>('labelArtistsSortAlpha', false)
@@ -239,7 +242,7 @@ export function LabelArtistManager({
     const name = newName.trim()
     if (!name) return
     if (artists.some(a => a.name.toLowerCase() === name.toLowerCase())) {
-      toast.error('Artist already in roster')
+      toast.error(i18next.t('toast.artistAlreadyInRoster'))
       return
     }
     onAdd(name)
@@ -257,7 +260,7 @@ export function LabelArtistManager({
 
   const handleExport = useCallback(() => {
     if (artists.length === 0) {
-      toast.error('No artists to export')
+      toast.error(i18next.t('toast.noArtistsToExport'))
       return
     }
     const CSV_FIELDS = ['name', 'email', 'vatNumber', 'isEuNonGerman', 'notes', 'accountHolder', 'iban', 'bic'] as const
@@ -285,7 +288,7 @@ export function LabelArtistManager({
     link.click()
     document.body.removeChild(link)
     setTimeout(() => URL.revokeObjectURL(url), 100)
-    toast.success('Label artist roster exported')
+    toast.success(i18next.t('toast.labelArtistRosterExported'))
   }, [artists])
 
   return (
@@ -296,9 +299,9 @@ export function LabelArtistManager({
           <Users size={20} className="text-white" weight="bold" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Label Artist Roster</h3>
+          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">{t('labelArtist.title')}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Artists signed to your label. Click a row to edit email, VAT number, and notes.
+            {t('labelArtist.description')}
           </p>
         </div>
         <TooltipProvider>
@@ -325,7 +328,7 @@ export function LabelArtistManager({
       {/* Add artist */}
       <div className="flex gap-2 mb-4">
         <Input
-          placeholder="Artist name…"
+          placeholder={t('labelArtist.artistName')}
           value={newName}
           onChange={e => setNewName(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -338,7 +341,7 @@ export function LabelArtistManager({
           className="gap-1.5 shrink-0"
         >
           <Plus size={14} weight="bold" />
-          Add
+          {t('common.add')}
         </Button>
       </div>
 
@@ -352,7 +355,7 @@ export function LabelArtistManager({
           disabled={artists.length === 0}
         >
           <Download size={13} weight="bold" />
-          Export CSV
+          {t('labelArtist.exportRoster')}
         </Button>
         <div className="relative">
           <Input
@@ -390,18 +393,18 @@ export function LabelArtistManager({
                     if (parsed.length > 0) {
                       if (onImportLabelArtistsCSV) {
                         onImportLabelArtistsCSV(parsed)
-                        toast.success(`${parsed.length} Artists aus CSV importiert.`)
+                        toast.success(i18next.t('toast.artistsImportedFromCSV', { count: parsed.length }))
                       } else {
-                        toast.error('Bitte importiere die CSV über den Tab "Upload / Ingestion"')
+                        toast.error(i18next.t('toast.importCSVViaUpload'))
                       }
                     }
                   },
                   error: (err) => {
-                    toast.error(`Fehler beim Lesen der CSV: ${err.message}`)
+                    toast.error(i18next.t('toast.csvReadError', { message: err.message }))
                   }
                 })
               } catch (e) {
-                toast.error('Fehler beim Lesen der CSV')
+                toast.error(i18next.t('toast.failedToReadCSV'))
               }
               e.target.value = ''
             }}
@@ -412,7 +415,7 @@ export function LabelArtistManager({
             className="gap-1.5"
             onClick={() => {}}
           >
-            Import CSV
+            {t('labelArtist.importCSV')}
           </Button>
         </div>
       </div>
@@ -421,7 +424,7 @@ export function LabelArtistManager({
       {artists.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-xl border border-dashed border-border/50 bg-card/30">
           <Users size={28} className="text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No artists in roster yet</p>
+          <p className="text-sm text-muted-foreground">{t('labelArtist.noArtistsYet')}</p>
           <p className="text-xs text-muted-foreground/60">Add artists manually or import a CSV via the Ingestion view. When the roster is empty, all artists are shown.</p>
         </div>
       ) : (

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash, CurrencyEur, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,7 @@ export function ManualRevenueManager({
   onAddRevenue,
   onRemoveRevenue,
 }: ManualRevenueManagerProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [artist, setArtist] = useState('')
   const [customArtist, setCustomArtist] = useState('')
@@ -111,14 +113,14 @@ export function ManualRevenueManager({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CurrencyEur size={20} weight="bold" className="text-primary" />
-          <h3 className="font-semibold">Manual Revenue</h3>
+          <h3 className="font-semibold">{t('manualRevenue.title')}</h3>
         </div>
         
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-2">
               <Plus size={16} weight="bold" />
-              Add Revenue
+              {t('manualRevenue.addRevenue')}
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -131,7 +133,7 @@ export function ManualRevenueManager({
             
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="revenue-artist">Artist</Label>
+                <Label htmlFor="revenue-artist">{t('manualRevenue.artist')}</Label>
                 <Select value={artist} onValueChange={handleArtistChange}>
                   <SelectTrigger id="revenue-artist">
                     <SelectValue placeholder="Select or enter artist" />
@@ -158,7 +160,7 @@ export function ManualRevenueManager({
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="revenue-description">Description</Label>
+                <Label htmlFor="revenue-description">{t('manualRevenue.revenueDescription')}</Label>
                 <Input
                   id="revenue-description"
                   value={description}
@@ -168,7 +170,7 @@ export function ManualRevenueManager({
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="revenue-amount">Amount (EUR)</Label>
+                <Label htmlFor="revenue-amount">{t('manualRevenue.amount')}</Label>
                 <Input
                   id="revenue-amount"
                   type="number"
@@ -185,13 +187,13 @@ export function ManualRevenueManager({
             
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={handleAdd}
                 disabled={!effectiveArtist || !description.trim() || !amount || parseFloat(amount) <= 0}
               >
-                Add Revenue
+                {t('manualRevenue.addRevenue')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -315,7 +317,7 @@ export function ManualRevenueManager({
           <Card className="p-8 text-center border-dashed">
             <CurrencyEur size={32} className="mx-auto mb-2 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              {filterArtist ? `No manual revenues for ${filterArtist}` : 'No manual revenue entries yet'}
+              {filterArtist ? `No manual revenues for ${filterArtist}` : t('manualRevenue.noRevenuesYet')}
             </p>
           </Card>
         )}

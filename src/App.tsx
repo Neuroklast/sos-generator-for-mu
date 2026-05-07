@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useKV } from '@/hooks/useLocalKV'
 import { useUndoStack } from '@/hooks/useUndoStack'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -64,6 +65,7 @@ import {
   CalendarDays,
   Layers,
 } from 'lucide-react'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Toaster } from 'sonner'
 
 const NAV_ITEMS: NavItem[] = [
@@ -96,13 +98,15 @@ const pageVariants = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' as const } },
   exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
 }
-/** Accepts only month strings in `YYYY-MM` format for `<input type="month">` consumers. */
-const VALID_MONTH_RE = /^\d{4}-\d{2}$/
+/** Accepts date strings in `YYYY-MM-DD` format (new) or `YYYY-MM` format (legacy) for period inputs. */
+const VALID_DATE_RE = /^\d{4}-\d{2}(-\d{2})?$/
 const STORAGE_CLEAR_RELOAD_DELAY_MS = 1200
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 
 function App() {
+  const { t } = useTranslation()
+  const { NAV_ITEMS, STEP_ITEMS, SECONDARY_ITEMS } = useNavItems()
   const isMobile = useIsMobile()
   const [activeView, setActiveView] = useState<string>('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -192,8 +196,8 @@ function App() {
   const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
   const stableLabelArtists = useMemo(() => labelArtists ?? [], [labelArtists])
   const stableIgnoredEntries = useMemo(() => ignoredEntries ?? [], [ignoredEntries])
-  const safePeriodStart = VALID_MONTH_RE.test(periodStart ?? '') ? periodStart : ''
-  const safePeriodEnd = VALID_MONTH_RE.test(periodEnd ?? '') ? periodEnd : ''
+  const safePeriodStart = VALID_DATE_RE.test(periodStart ?? '') ? periodStart : ''
+  const safePeriodEnd = VALID_DATE_RE.test(periodEnd ?? '') ? periodEnd : ''
 
   const {
     uniqueArtists,
@@ -257,8 +261,8 @@ function App() {
     if (!periodStartRef.current && !periodEndRef.current) {
       setPeriodStart(detectedPeriodStart)
       setPeriodEnd(detectedPeriodEnd)
-      toast.success('Statement period auto-detected from CSV data', {
-        description: `${detectedPeriodStart} → ${detectedPeriodEnd}`,
+      toast.success(t('toast.periodAutoDetected'), {
+        description: t('toast.periodAutoDetectedDescription', { start: detectedPeriodStart, end: detectedPeriodEnd }),
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,45 +329,56 @@ function App() {
       const snapshot = compilationFilters ?? []
       setCompilationFilters(current => [...(current ?? []), { ...filter, id: crypto.randomUUID() }])
       pushUndo({ description: 'Add compilation filter', undo: () => setCompilationFilters(snapshot) })
-      toast.success('Compilation exclusion added')
+      toast.success(t('toast.compilationAdded'))
     },
-    [compilationFilters, setCompilationFilters, pushUndo]
+    [compilationFilters, setCompilationFilters, pushUndo, t]
+  )
+  const handleAddMultipleCompilationFilters = useCallback(
+    (newFilters: Omit<CompilationFilter, 'id'>[]) => {
+      if (newFilters.length === 0) return
+      const snapshot = compilationFilters ?? []
+      const withIds = newFilters.map(f => ({ ...f, id: crypto.randomUUID() }))
+      setCompilationFilters(current => [...(current ?? []), ...withIds])
+      pushUndo({ description: `Add ${withIds.length} compilation filters`, undo: () => setCompilationFilters(snapshot) })
+      toast.success(t('toast.compilationsAdded', { count: withIds.length, plural: withIds.length !== 1 ? 's' : '' }))
+    },
+    [compilationFilters, setCompilationFilters, pushUndo, t]
   )
   const handleRemoveCompilationFilter = useCallback(
     (id: string) => {
       const snapshot = compilationFilters ?? []
       setCompilationFilters(current => (current ?? []).filter(f => f.id !== id))
       pushUndo({ description: 'Remove compilation filter', undo: () => setCompilationFilters(snapshot) })
-      toast.info('Compilation exclusion removed')
+      toast.info(t('toast.compilationRemoved'))
     },
-    [compilationFilters, setCompilationFilters, pushUndo]
+    [compilationFilters, setCompilationFilters, pushUndo, t]
   )
   const handleAddArtistMapping = useCallback(
     (mapping: Omit<ArtistMapping, 'id'>) => {
       const snapshot = artistMappings ?? []
       setArtistMappings(current => [...(current ?? []), { ...mapping, id: crypto.randomUUID() }])
       pushUndo({ description: 'Add artist mapping', undo: () => setArtistMappings(snapshot) })
-      toast.success('Artist mapping added')
+      toast.success(t('toast.artistMappingAdded'))
     },
-    [artistMappings, setArtistMappings, pushUndo]
+    [artistMappings, setArtistMappings, pushUndo, t]
   )
   const handleRemoveArtistMapping = useCallback(
     (id: string) => {
       const snapshot = artistMappings ?? []
       setArtistMappings(current => (current ?? []).filter(m => m.id !== id))
       pushUndo({ description: 'Remove artist mapping', undo: () => setArtistMappings(snapshot) })
-      toast.info('Artist mapping removed')
+      toast.info(t('toast.artistMappingRemoved'))
     },
-    [artistMappings, setArtistMappings, pushUndo]
+    [artistMappings, setArtistMappings, pushUndo, t]
   )
   const handleUpdateArtistMapping = useCallback(
     (id: string, update: Omit<ArtistMapping, 'id'>) => {
       const snapshot = artistMappings ?? []
       setArtistMappings(current => (current ?? []).map(m => m.id === id ? { ...m, ...update } : m))
       pushUndo({ description: 'Edit artist mapping', undo: () => setArtistMappings(snapshot) })
-      toast.success('Artist mapping updated')
+      toast.success(t('toast.artistMappingUpdated'))
     },
-    [artistMappings, setArtistMappings, pushUndo]
+    [artistMappings, setArtistMappings, pushUndo, t]
   )
   const handleUpdateSplitFee = useCallback(
     (artist: string, percentage: number) => {
@@ -435,54 +450,54 @@ function App() {
       const snapshot = manualRevenues ?? []
       setManualRevenues(current => [...(current ?? []), { ...revenue, id: crypto.randomUUID() }])
       pushUndo({ description: 'Add manual revenue', undo: () => setManualRevenues(snapshot) })
-      toast.success('Manual revenue added')
+      toast.success(t('toast.manualRevenueAdded'))
     },
-    [manualRevenues, setManualRevenues, pushUndo]
+    [manualRevenues, setManualRevenues, pushUndo, t]
   )
   const handleRemoveManualRevenue = useCallback(
     (id: string) => {
       const snapshot = manualRevenues ?? []
       setManualRevenues(current => (current ?? []).filter(r => r.id !== id))
       pushUndo({ description: 'Remove manual revenue', undo: () => setManualRevenues(snapshot) })
-      toast.info('Manual revenue removed')
+      toast.info(t('toast.manualRevenueRemoved'))
     },
-    [manualRevenues, setManualRevenues, pushUndo]
+    [manualRevenues, setManualRevenues, pushUndo, t]
   )
   const handleAddExpense = useCallback(
     (expense: Omit<ExpenseEntry, 'id'>) => {
       const snapshot = expenses ?? []
       setExpenses(current => [...(current ?? []), { ...expense, id: crypto.randomUUID() }])
       pushUndo({ description: 'Add expense', undo: () => setExpenses(snapshot) })
-      toast.success('Expense added')
+      toast.success(t('toast.expenseAdded'))
     },
-    [expenses, setExpenses, pushUndo]
+    [expenses, setExpenses, pushUndo, t]
   )
   const handleRemoveExpense = useCallback(
     (id: string) => {
       const snapshot = expenses ?? []
       setExpenses(current => (current ?? []).filter(e => e.id !== id))
       pushUndo({ description: 'Remove expense', undo: () => setExpenses(snapshot) })
-      toast.info('Expense removed')
+      toast.info(t('toast.expenseRemoved'))
     },
-    [expenses, setExpenses, pushUndo]
+    [expenses, setExpenses, pushUndo, t]
   )
   const handleAddAlias = useCallback(
     (alias: Omit<CSVColumnAlias, 'id'>) => {
       const snapshot = csvAliases ?? []
       setCsvAliases(current => [...(current ?? []), { ...alias, id: crypto.randomUUID() }])
       pushUndo({ description: 'Add column synonym', undo: () => setCsvAliases(snapshot) })
-      toast.success('Column synonym added')
+      toast.success(t('toast.columnSynonymAdded'))
     },
-    [csvAliases, setCsvAliases, pushUndo]
+    [csvAliases, setCsvAliases, pushUndo, t]
   )
   const handleRemoveAlias = useCallback(
     (id: string) => {
       const snapshot = csvAliases ?? []
       setCsvAliases(current => (current ?? []).filter(a => a.id !== id))
       pushUndo({ description: 'Remove column synonym', undo: () => setCsvAliases(snapshot) })
-      toast.info('Column synonym removed')
+      toast.info(t('toast.columnSynonymRemoved'))
     },
-    [csvAliases, setCsvAliases, pushUndo]
+    [csvAliases, setCsvAliases, pushUndo, t]
   )
 
   // ── CSV Import Profile handlers ───────────────────────────────────────────
@@ -492,9 +507,9 @@ function App() {
         ...(current ?? []),
         { ...profile, id: crypto.randomUUID() },
       ])
-      toast.success(`Profile "${profile.name}" created`)
+      toast.success(t('toast.profileCreated', { name: profile.name }))
     },
-    [setCsvImportProfiles]
+    [setCsvImportProfiles, t]
   )
 
   const handleUpdateCsvProfile = useCallback(
@@ -511,9 +526,9 @@ function App() {
   const handleDeleteCsvProfile = useCallback(
     (id: string) => {
       setCsvImportProfiles(current => (current ?? []).filter(p => p.id !== id))
-      toast.info('Profile removed')
+      toast.info(t('toast.profileRemoved'))
     },
-    [setCsvImportProfiles]
+    [setCsvImportProfiles, t]
   )
 
   const stableCsvImportProfiles = useMemo(
@@ -550,30 +565,30 @@ function App() {
     setPeriodStart('')
     setPeriodEnd('')
     setClearConfirmOpen(false)
-    toast.success('Workspace cleared', { description: 'All files and manual revenues removed. Ready for a new period.' })
-  }, [believeManager, bandcampManager, shopifyManager, printfulManager, darkmerchManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd])
+    toast.success(t('settings.workspaceCleared'), { description: t('settings.workspaceDescription') })
+  }, [believeManager, bandcampManager, shopifyManager, printfulManager, darkmerchManager, setManualRevenues, setExpenses, setPeriodStart, setPeriodEnd, t])
 
   const handleApplyDefaultSplitToAll = useCallback(() => {
     const defaultPct = appDefaults?.defaultSplitPercentage ?? DEFAULT_APP_DEFAULTS.defaultSplitPercentage
     setSplitFees(current => {
       const updated = (current ?? []).map(sf => ({ ...sf, percentage: defaultPct }))
-      toast.success(`Default split (${defaultPct}%) auf alle ${updated.length} Künstler angewendet`)
+      toast.success(t('toast.defaultSplitApplied', { percentage: defaultPct, count: updated.length }))
       return updated
     })
-  }, [appDefaults, setSplitFees])
+  }, [appDefaults, setSplitFees, t])
 
   const handleClearAllStorage = useCallback(async () => {
     try {
       const { clear } = await import('idb-keyval')
       await clear()
       setClearAllStorageConfirmOpen(false)
-      toast.success('Kompletter Storage geleert – Seite wird neu geladen…')
+      toast.success(t('settings.allStorageCleared'))
       setTimeout(() => window.location.reload(), STORAGE_CLEAR_RELOAD_DELAY_MS)
     } catch (error) {
       console.error('Failed to clear complete storage', error)
-      toast.error('Storage konnte nicht vollständig gelöscht werden. Bitte erneut versuchen.')
+      toast.error(t('settings.storageClearFailed'))
     }
-  }, [])
+  }, [t])
 
   const handleWorkspaceImport = useCallback(
     (backup: WorkspaceBackup) => {
@@ -594,9 +609,9 @@ function App() {
       const snapshot = labelArtists ?? []
       setLabelArtists(current => [...(current ?? []), { id: crypto.randomUUID(), name }])
       pushUndo({ description: `Add "${name}" to label roster`, undo: () => setLabelArtists(snapshot) })
-      toast.success(`"${name}" added to label roster`)
+      toast.success(t('toast.labelArtistAdded', { name }))
     },
-    [labelArtists, setLabelArtists, pushUndo]
+    [labelArtists, setLabelArtists, pushUndo, t]
   )
 
   const handleRemoveLabelArtist = useCallback(
@@ -604,9 +619,9 @@ function App() {
       const snapshot = labelArtists ?? []
       setLabelArtists(current => (current ?? []).filter(a => a.id !== id))
       pushUndo({ description: 'Remove label artist', undo: () => setLabelArtists(snapshot) })
-      toast.info('Artist removed from roster')
+      toast.info(t('toast.artistRemovedFromRoster'))
     },
-    [labelArtists, setLabelArtists, pushUndo]
+    [labelArtists, setLabelArtists, pushUndo, t]
   )
 
   const handleUpdateLabelArtist = useCallback(
@@ -638,9 +653,9 @@ function App() {
         { ...entry, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
       ])
       pushUndo({ description: `Ignore "${entry.artist}"`, undo: () => setIgnoredEntries(snapshot) })
-      toast.success(`"${entry.artist}"${entry.releaseTitle ? ` / "${entry.releaseTitle}"` : ''} ignored`)
+      toast.success(t('toast.entryIgnored', { artist: entry.artist, release: entry.releaseTitle ? ` / "${entry.releaseTitle}"` : '' }))
     },
-    [ignoredEntries, setIgnoredEntries, pushUndo]
+    [ignoredEntries, setIgnoredEntries, pushUndo, t]
   )
 
   const handleRemoveIgnoredEntry = useCallback(
@@ -648,9 +663,9 @@ function App() {
       const snapshot = ignoredEntries ?? []
       setIgnoredEntries(current => (current ?? []).filter(e => e.id !== id))
       pushUndo({ description: 'Remove ignored entry', undo: () => setIgnoredEntries(snapshot) })
-      toast.info('Entry removed from ignore list')
+      toast.info(t('toast.entryRemovedFromIgnoreList'))
     },
-    [ignoredEntries, setIgnoredEntries, pushUndo]
+    [ignoredEntries, setIgnoredEntries, pushUndo, t]
   )
 
   // ── Global Ctrl+Z / Cmd+Z undo handler ──────────────────────────────────────
@@ -663,15 +678,15 @@ function App() {
         e.preventDefault()
         const action = undo()
         if (action) {
-          toast.info(`Undone: ${action.description}`)
+          toast.info(t('toast.undone', { description: action.description }))
         } else {
-          toast.info('Nothing to undo')
+          toast.info(t('toast.nothingToUndo'))
         }
       }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [undo])
+  }, [undo, t])
 
   const totalNetRevenue = useMemo(
     () => revenues.reduce((s, r) => s + r.finalAmount, 0),
@@ -779,7 +794,7 @@ function App() {
               </div>
               <div>
                 <p className="text-sm font-bold tracking-tight text-foreground leading-none">{APP_NAME}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 font-medium uppercase tracking-widest">Label Suite</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 font-medium uppercase tracking-widest">{t('nav.labelSuite')}</p>
               </div>
             </div>
             {!isMobile && (
@@ -833,6 +848,7 @@ function App() {
           )}
 
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             {isProcessing && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
@@ -841,7 +857,7 @@ function App() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-xs font-medium text-amber-400 uppercase tracking-wider">Processing</span>
+                <span className="text-xs font-medium text-amber-400 uppercase tracking-wider">{t('common.processing')}</span>
               </motion.div>
             )}
             {!isProcessing && (
@@ -850,13 +866,13 @@ function App() {
               }`}>
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isProcessing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
                 <span className={`text-xs font-medium uppercase tracking-wider ${isProcessing ? 'text-amber-400' : 'text-emerald-400'}`}>
-                  {isProcessing ? 'Processing…' : 'Ready'}
+                  {isProcessing ? t('common.processing') : t('common.ready')}
                 </span>
               </div>
             )}
             {totalFiles > 0 && !isProcessing && (
               <span className="text-xs px-3 py-1.5 rounded-full bg-primary/12 text-primary border border-primary/25 font-medium font-mono whitespace-nowrap">
-                {totalFiles} file{totalFiles !== 1 ? 's' : ''}
+                {totalFiles} {totalFiles === 1 ? t('common.file') : t('common.files')}
               </span>
             )}
             <Button
@@ -865,7 +881,7 @@ function App() {
               onClick={() => navigate('reports')}
             >
               <Download size={15} />
-              <span className="hidden sm:inline">Export</span>
+              <span className="hidden sm:inline">{t('common.export')}</span>
             </Button>
           </div>
         </div>
@@ -899,7 +915,7 @@ function App() {
                   </div>
                   <div>
                     <p className="text-sm font-bold tracking-tight text-foreground leading-none">{APP_NAME}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 font-medium uppercase tracking-widest">Label Suite</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-medium uppercase tracking-widest">{t('nav.labelSuite')}</p>
                   </div>
                   <Button
                     variant="ghost"
@@ -943,7 +959,7 @@ function App() {
                   }`}>
                     <span className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${isProcessing ? 'bg-amber-400' : 'bg-emerald-400'}`} />
                     <span className={`text-xs font-medium uppercase tracking-wider ${isProcessing ? 'text-amber-400' : 'text-emerald-400'}`}>
-                      {isProcessing ? 'Processing…' : 'Parser Ready'}
+                      {isProcessing ? t('common.processing') : t('common.parserReady')}
                     </span>
                   </div>
                 </div>
@@ -1142,7 +1158,10 @@ function App() {
                   excludePhysical={excludePhysical ?? false}
                   setExcludePhysical={setExcludePhysical}
                   handleAddCompilationFilter={handleAddCompilationFilter}
+                  handleAddMultipleCompilationFilters={handleAddMultipleCompilationFilters}
                   handleRemoveCompilationFilter={handleRemoveCompilationFilter}
+                  detectedCompilationCandidates={detectedCandidates}
+                  availableReleases={availableReleases}
                   handleAddAlias={handleAddAlias}
                   handleRemoveAlias={handleRemoveAlias}
                   appDefaults={appDefaults ?? DEFAULT_APP_DEFAULTS}
@@ -1194,7 +1213,7 @@ function App() {
               }`}
             >
               <Menu size={22} />
-              <span className="text-xs font-medium uppercase tracking-wide leading-none">More</span>
+              <span className="text-xs font-medium uppercase tracking-wide leading-none">{t('nav.settings')}</span>
             </button>
           </nav>
         )}

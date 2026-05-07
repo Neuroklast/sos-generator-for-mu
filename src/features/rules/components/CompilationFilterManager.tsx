@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash, FunnelSimple, MagnifyingGlass, TextT, ListBullets, Sparkle, CheckCircle } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,8 @@ import type { CompilationDetectionResult } from '@/lib/compilation-heuristics'
 interface CompilationFilterManagerProps {
   filters: CompilationFilter[]
   onAddFilter: (filter: Omit<CompilationFilter, 'id'>) => void
+  /** Optional bulk-add handler for adding multiple filters in one call. */
+  onAddMultipleFilters?: (filters: Omit<CompilationFilter, 'id'>[]) => void
   onRemoveFilter: (id: string) => void
   /** All unique release titles from the loaded data, for the dropdown picker. */
   availableReleases?: string[]
@@ -93,18 +96,25 @@ interface ManualTabProps {
 }
 
 function ManualTab({ type, setType, identifier, setIdentifier, onAdd }: ManualTabProps) {
+  const { t } = useTranslation()
+
+  const getFilterTypeLabel = (filterType: FilterType) =>
+    filterType === 'title' ? t('compilationFilter.releaseTitle') : FILTER_TYPE_LABELS[filterType]
+
+  const currentLabel = getFilterTypeLabel(type)
+
   return (
     <div className="space-y-4 py-2">
       <div className="space-y-2">
         <Label htmlFor="filter-type">Identifier Type</Label>
         <Select value={type} onValueChange={v => setType(v as FilterType)}>
           <SelectTrigger id="filter-type">
-            <SelectValue />
+            <SelectValue placeholder={t('compilationFilter.selectRelease')} />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(FILTER_TYPE_LABELS) as FilterType[]).map(t => (
-              <SelectItem key={t} value={t}>
-                {FILTER_TYPE_LABELS[t]}
+            {(Object.keys(FILTER_TYPE_LABELS) as FilterType[]).map(filterType => (
+              <SelectItem key={filterType} value={filterType}>
+                {getFilterTypeLabel(filterType)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -112,12 +122,12 @@ function ManualTab({ type, setType, identifier, setIdentifier, onAdd }: ManualTa
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="filter-value">{FILTER_TYPE_LABELS[type]}</Label>
+        <Label htmlFor="filter-value">{currentLabel}</Label>
         <Input
           id="filter-value"
           value={identifier}
           onChange={e => setIdentifier(e.target.value)}
-          placeholder={`Enter ${FILTER_TYPE_LABELS[type].toLowerCase()}`}
+          placeholder={`Enter ${currentLabel.toLowerCase()}`}
           onKeyDown={e => e.key === 'Enter' && onAdd()}
           autoFocus
         />
@@ -184,11 +194,13 @@ function ReleasePickerTab({ availableReleases, filters, onAdd }: ReleasePickerTa
 export function CompilationFilterManager({
   filters,
   onAddFilter,
+  onAddMultipleFilters,
   onRemoveFilter,
   availableReleases = [],
   detectedCandidates = [],
 }: CompilationFilterManagerProps) {
   const [open, setOpen] = useState(false)
+  const { t } = useTranslation()
   const { type, setType, identifier, setIdentifier, reset } = useDialogForm()
 
   // Keyword section state
@@ -233,10 +245,19 @@ export function CompilationFilterManager({
   )
 
   const handleAddAllHighConfidence = useCallback(() => {
-    detectedCandidates
-      .filter(c => c.confidence === 'high' && !isDuplicate(filters, c.releaseTitle))
-      .forEach(c => onAddFilter({ identifier: c.releaseTitle, type: 'title', label: c.releaseTitle }))
-  }, [detectedCandidates, filters, onAddFilter])
+    // Build a Set of existing identifiers for O(n+m) duplicate checking
+    const existingIds = new Set(filters.map(f => f.identifier.toLowerCase()))
+    const toAdd = detectedCandidates
+      .filter(c => c.confidence === 'high' && !existingIds.has(c.releaseTitle.toLowerCase()))
+      .map(c => ({ identifier: c.releaseTitle, type: 'title' as const, label: c.releaseTitle }))
+    if (toAdd.length === 0) return
+    if (onAddMultipleFilters) {
+      // Preferred: single call with all new filters to avoid stale-ref issues
+      onAddMultipleFilters(toAdd)
+    } else {
+      toAdd.forEach(f => onAddFilter(f))
+    }
+  }, [detectedCandidates, filters, onAddFilter, onAddMultipleFilters])
 
   const hasReleases = availableReleases.length > 0
   const hasCandidates = detectedCandidates.length > 0
@@ -262,14 +283,14 @@ export function CompilationFilterManager({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FunnelSimple size={20} weight="bold" className="text-primary" />
-          <h3 className="font-semibold">Compilation Exclusions</h3>
+          <h3 className="font-semibold">{t('compilationFilter.title')}</h3>
         </div>
 
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-2">
               <Plus size={16} weight="bold" />
-              Add Exclusion
+              {t('compilationFilter.addFilter')}
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
@@ -302,8 +323,8 @@ export function CompilationFilterManager({
                     onAdd={handleAddManual}
                   />
                   <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleAddManual} disabled={!identifier.trim()}>Add Exclusion</Button>
+                    <Button variant="outline" onClick={() => handleOpenChange(false)}>{t('common.cancel')}</Button>
+                    <Button onClick={handleAddManual} disabled={!identifier.trim()}>{t('compilationFilter.addFilter')}</Button>
                   </DialogFooter>
                 </TabsContent>
 
@@ -314,7 +335,7 @@ export function CompilationFilterManager({
                     onAdd={handleAddFromRelease}
                   />
                   <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
+                    <Button variant="outline" onClick={() => handleOpenChange(false)}>{t('common.cancel')}</Button>
                   </DialogFooter>
                 </TabsContent>
               </Tabs>
@@ -328,8 +349,8 @@ export function CompilationFilterManager({
                   onAdd={handleAddManual}
                 />
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
-                  <Button onClick={handleAddManual} disabled={!identifier.trim()}>Add Exclusion</Button>
+                  <Button variant="outline" onClick={() => handleOpenChange(false)}>{t('common.cancel')}</Button>
+                  <Button onClick={handleAddManual} disabled={!identifier.trim()}>{t('compilationFilter.addFilter')}</Button>
                 </DialogFooter>
               </>
             )}
@@ -354,7 +375,9 @@ export function CompilationFilterManager({
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{filter.label}</p>
                       <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                        {FILTER_TYPE_LABELS[filter.type]}
+                        {filter.type === 'title'
+                          ? t('compilationFilter.releaseTitle')
+                          : FILTER_TYPE_LABELS[filter.type]}
                       </p>
                     </div>
                     {isKeywordFilter(filter) && (
@@ -377,7 +400,7 @@ export function CompilationFilterManager({
         ) : (
           <Card className="p-8 text-center border-dashed">
             <FunnelSimple size={32} className="mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No compilations excluded yet</p>
+            <p className="text-sm text-muted-foreground">{t('compilationFilter.noFiltersYet')}</p>
           </Card>
         )}
       </AnimatePresence>
@@ -401,7 +424,7 @@ export function CompilationFilterManager({
           />
           <Button size="sm" onClick={handleAddKeyword} disabled={!keywordInput.trim()} className="gap-1.5 shrink-0">
             <Plus size={14} weight="bold" />
-            Add
+            {t('common.add')}
           </Button>
         </div>
       </div>
@@ -416,7 +439,7 @@ export function CompilationFilterManager({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Sparkle size={16} className="text-primary" />
-              <h4 className="text-sm font-semibold">Auto-Detected Compilations</h4>
+              <h4 className="text-sm font-semibold">{t('compilationFilter.autoDetected')}</h4>
               <Badge variant="secondary" className="text-xs">{detectedCandidates.length}</Badge>
             </div>
             {highConfidenceCount > 0 && (
@@ -427,7 +450,7 @@ export function CompilationFilterManager({
                 onClick={handleAddAllHighConfidence}
               >
                 <CheckCircle size={12} />
-                Add All High ({highConfidenceCount})
+                {t('compilationFilter.addAllCandidates')} ({highConfidenceCount})
               </Button>
             )}
           </div>

@@ -1,5 +1,7 @@
 import { useRef } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
+import i18next from 'i18next'
 import { Download, Upload, DatabaseBackup } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -52,6 +54,7 @@ export function WorkspaceManager({
   ignoredEntries,
   onImport,
 }: WorkspaceManagerProps) {
+  const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Export ────────────────────────────────────────────────────────────────
@@ -81,8 +84,8 @@ export function WorkspaceManager({
     document.body.removeChild(link)
     setTimeout(() => URL.revokeObjectURL(url), 100)
 
-    toast.success('Workspace exported', {
-      description: 'sos_workspace_backup.json wurde heruntergeladen.',
+    toast.success(i18next.t('toast.workspaceExported'), {
+      description: 'sos_workspace_backup.json downloaded.',
     })
   }
 
@@ -98,8 +101,8 @@ export function WorkspaceManager({
         const raw = JSON.parse(event.target?.result as string) as Partial<WorkspaceBackup>
 
         if (raw.schemaVersion !== 1) {
-          toast.error('Unbekanntes Backup-Format', {
-            description: `Erwartet schemaVersion 1, erhalten: ${raw.schemaVersion ?? 'unbekannt'}.`,
+          toast.error(i18next.t('toast.unknownBackupFormat'), {
+            description: `Expected schemaVersion 1, received: ${raw.schemaVersion ?? 'unknown'}.`,
           })
           return
         }
@@ -117,8 +120,8 @@ export function WorkspaceManager({
           (raw.ignoredEntries !== undefined && !isArrayOf(raw.ignoredEntries)) ||
           (raw.labelInfo !== null && raw.labelInfo !== undefined && typeof raw.labelInfo !== 'object')
         ) {
-          toast.error('Ungültiges Backup', {
-            description: 'Die Backup-Datei enthält unerwartete Datentypen und kann nicht importiert werden.',
+          toast.error(i18next.t('toast.invalidBackup'), {
+            description: 'The backup file contains unexpected data types and cannot be imported.',
           })
           return
         }
@@ -137,17 +140,17 @@ export function WorkspaceManager({
         }
 
         onImport(backup)
-        toast.success('Workspace wiederhergestellt', {
-          description: `Backup vom ${new Date(backup.exportedAt).toLocaleString('de-DE')} importiert.`,
+        toast.success(i18next.t('toast.workspaceRestored'), {
+          description: `Backup from ${new Date(backup.exportedAt).toLocaleString('en-GB')} imported.`,
         })
       } catch {
-        toast.error('Import fehlgeschlagen', {
-          description: 'Die Datei konnte nicht als gültiges JSON gelesen werden.',
+        toast.error(i18next.t('toast.importFailed'), {
+          description: 'The file could not be read as valid JSON.',
         })
       }
     }
     reader.onerror = () => {
-      toast.error('Datei konnte nicht gelesen werden')
+      toast.error(i18next.t('toast.failedToReadFile'))
     }
     reader.readAsText(file)
     // Reset so the same file can be re-selected
@@ -161,9 +164,9 @@ export function WorkspaceManager({
           <DatabaseBackup size={20} className="text-white" />
         </div>
         <div>
-          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Workspace Backup</h3>
+          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">{t('workspace.title')}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Alle Einstellungen als JSON sichern oder wiederherstellen — Compilation-Filter, Artist-Mappings, Split-Fees, manuelle Einnahmen, CSV-Aliase und Label-Daten.
+            {t('workspace.description')}
           </p>
         </div>
       </div>
@@ -175,7 +178,7 @@ export function WorkspaceManager({
           onClick={handleExport}
         >
           <Download size={15} />
-          Export Workspace
+          {t('workspace.exportWorkspace')}
         </Button>
 
         <Button
@@ -184,7 +187,7 @@ export function WorkspaceManager({
           onClick={() => fileInputRef.current?.click()}
         >
           <Upload size={15} />
-          Import Workspace
+          {t('workspace.importWorkspace')}
         </Button>
 
         <input
@@ -197,7 +200,7 @@ export function WorkspaceManager({
       </div>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Der Import überschreibt alle aktuellen Einstellungen unwiderruflich. CSV-Dateien werden nicht gesichert.
+        Import overwrites all current settings irreversibly. CSV files are not included in the backup.
       </p>
     </Card>
   )
