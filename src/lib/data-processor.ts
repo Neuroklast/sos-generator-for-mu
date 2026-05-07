@@ -290,7 +290,7 @@ function buildReleaseBreakdown(transactions: SalesTransaction[]): ReleaseRevenue
       existing.quantity += t.quantity
     } else {
       map.set(key, {
-        releaseTitle: t.release_title || 'Unknown',
+        releaseTitle: t.release_title || '',
         upcEan: t.upc_ean || '',
         catalogNumber: t.catalog_number || '',
         revenue: t.net_revenue,
@@ -299,7 +299,41 @@ function buildReleaseBreakdown(transactions: SalesTransaction[]): ReleaseRevenue
       })
     }
   }
-  return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue)
+  /**
+   * Second pass: merge entries that share the same normalized release title.
+   *
+   * Why this exists:
+   * Some sources provide stable identifiers (UPC/catalog) while others only
+   * provide release titles for the same record. The first pass groups by
+   * identifier, but that can still leave duplicate rows for one release.
+   *
+   * Behavior:
+   * - Normalizes title matching via trim + lowercase
+   * - Merges revenue/quantity for matching titles
+   * - Keeps untitled entries distinct to avoid false merges
+   *
+   * Known limitation:
+   * This intentionally does not collapse punctuation/Unicode variants.
+   * If upstream sources emit materially different title spellings, those
+   * remain separate entries to avoid accidental over-aggregation.
+   */
+  const byTitle = new Map<string, ReleaseRevenue>()
+  const untitled: ReleaseRevenue[] = []
+  for (const entry of map.values()) {
+    const titleKey = entry.releaseTitle.trim().toLowerCase()
+    if (!titleKey) {
+      untitled.push(entry)
+      continue
+    }
+    const existing = byTitle.get(titleKey)
+    if (existing) {
+      existing.revenue += entry.revenue
+      existing.quantity += entry.quantity
+    } else {
+      byTitle.set(titleKey, entry)
+    }
+  }
+  return [...byTitle.values(), ...untitled].sort((a, b) => b.revenue - a.revenue)
 }
 
 // ── Main processing ────────────────────────────────────────────────────────────
@@ -648,7 +682,7 @@ export function buildArtistTree(
       if (!release) {
         release = {
           meta: {
-            releaseTitle: t.release_title || 'Unknown',
+            releaseTitle: t.release_title || '',
             upcEan: t.upc_ean || '',
             catalogNumber: t.catalog_number || '',
             isPhysical: t.is_physical,

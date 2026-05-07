@@ -416,9 +416,9 @@ describe('breakdown accuracy', () => {
 
   it('aggregates release breakdown by UPC/EAN', () => {
     const txs = [
-      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC001', net_revenue: 7 }),
-      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC001', net_revenue: 3 }),
-      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC002', net_revenue: 15 }),
+      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC001', release_title: 'Release 1', net_revenue: 7 }),
+      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC001', release_title: 'Release 1', net_revenue: 3 }),
+      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC002', release_title: 'Release 2', net_revenue: 15 }),
     ]
     const result = processTransactions(txs, emptyConfig)
     const rel1 = result[0].releaseBreakdown.find(r => r.upcEan === 'UPC001')
@@ -488,6 +488,30 @@ describe('case-insensitive release grouping', () => {
     const result = processTransactions(txs, emptyConfig)
     expect(result[0].releaseBreakdown).toHaveLength(1)
     expect(result[0].releaseBreakdown[0].revenue).toBeCloseTo(20)
+  })
+
+  it('merges duplicate releases by title when one source misses the UPC', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', source: 'believe', upc_ean: 'UPC001', catalog_number: '', release_title: 'Same Album', net_revenue: 8, quantity: 2 }),
+      makeTx({ original_artist: 'Omnimar', source: 'bandcamp', upc_ean: '', catalog_number: '', release_title: 'Same Album', net_revenue: 12, quantity: 3 }),
+    ]
+    const result = processTransactions(txs, emptyConfig)
+    expect(result[0].releaseBreakdown).toHaveLength(1)
+    expect(result[0].releaseBreakdown[0].releaseTitle).toBe('Same Album')
+    expect(result[0].releaseBreakdown[0].revenue).toBeCloseTo(20)
+    expect(result[0].releaseBreakdown[0].quantity).toBe(5)
+  })
+
+  it('does not merge untitled releases with different identifiers', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC001', catalog_number: '', release_title: '', net_revenue: 8 }),
+      makeTx({ original_artist: 'Omnimar', upc_ean: 'UPC002', catalog_number: '', release_title: '', net_revenue: 12 }),
+    ]
+    const result = processTransactions(txs, emptyConfig)
+    expect(result[0].releaseBreakdown).toHaveLength(2)
+    expect(result[0].releaseBreakdown.every(r => r.releaseTitle === '')).toBe(true)
+    expect(result[0].releaseBreakdown[0].revenue).toBeCloseTo(12)
+    expect(result[0].releaseBreakdown[1].revenue).toBeCloseTo(8)
   })
 })
 

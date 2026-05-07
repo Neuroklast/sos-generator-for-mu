@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react'
+import { Trash2, DatabaseZap } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -45,7 +45,10 @@ interface SettingsViewProps {
   // ── Danger zone ──────────────────────────────────────────────────────────
   clearConfirmOpen: boolean
   setClearConfirmOpen: (open: boolean) => void
+  clearAllStorageConfirmOpen: boolean
+  setClearAllStorageConfirmOpen: (open: boolean) => void
   handleClearWorkspace: () => void
+  handleClearAllStorage: () => void
   totalFiles: number
   periodStart: string
   periodEnd: string
@@ -64,6 +67,7 @@ interface SettingsViewProps {
   // ── Export settings ──────────────────────────────────────────────────────
   appDefaults: AppDefaults
   setAppDefaults: (defaults: AppDefaults) => void
+  onApplyDefaultSplitToAll?: () => void
   emailConfig: EmailConfig
   setEmailConfig: (config: EmailConfig) => void
   pdfExportSettings: PdfExportSettings
@@ -89,7 +93,10 @@ export function SettingsView({
   onUpdateLabelInfo,
   clearConfirmOpen,
   setClearConfirmOpen,
+  clearAllStorageConfirmOpen,
+  setClearAllStorageConfirmOpen,
   handleClearWorkspace,
+  handleClearAllStorage,
   totalFiles,
   periodStart,
   periodEnd,
@@ -104,6 +111,7 @@ export function SettingsView({
   handleRemoveAlias,
   appDefaults,
   setAppDefaults,
+  onApplyDefaultSplitToAll,
   emailConfig,
   setEmailConfig,
   pdfExportSettings,
@@ -188,6 +196,57 @@ export function SettingsView({
             )}
           </div>
         </Card>
+
+        <Card className="p-8 border border-red-900/30 bg-card backdrop-blur-md rounded-2xl">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1.5">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <DatabaseZap size={16} className="text-red-600" />
+                Kompletten Storage löschen
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Löscht <strong>alle gespeicherten Daten</strong> (CSV-Dateien, Split-Rates, Artist-Mappings,
+                Label-Einstellungen, Abrechnungszeitraum und weitere Konfigurationsdaten).
+                Die Seite wird danach neu geladen. <strong>Diese Aktion ist unwiderruflich.</strong>
+              </p>
+            </div>
+            {!clearAllStorageConfirmOpen ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-red-700/40 text-red-500 hover:bg-red-700/10 hover:border-red-600/60 gap-1.5"
+                onClick={() => setClearAllStorageConfirmOpen(true)}
+              >
+                <DatabaseZap size={14} />
+                Alles löschen
+              </Button>
+            ) : (
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <p role="alert" aria-live="polite" className="text-xs text-red-500 font-medium">
+                  Wirklich alles löschen? Nicht rückgängig machbar!
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => setClearAllStorageConfirmOpen(false)}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-red-700 hover:bg-red-800 text-white gap-1.5"
+                    onClick={handleClearAllStorage}
+                  >
+                    <DatabaseZap size={14} />
+                    Ja, alles löschen
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
       </TabsContent>
 
       {/* ── Label-Profil Tab ── */}
@@ -216,7 +275,11 @@ export function SettingsView({
         </Card>
 
         <Card className="border border-white/10 bg-card backdrop-blur-md rounded-2xl overflow-hidden">
-          <DefaultSettings defaults={appDefaults} onUpdate={setAppDefaults} />
+          <DefaultSettings
+            defaults={appDefaults}
+            onUpdate={setAppDefaults}
+            onApplyDefaultSplitToAll={onApplyDefaultSplitToAll}
+          />
         </Card>
 
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
