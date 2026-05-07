@@ -71,6 +71,13 @@ export function PdfExportSettingsPanel({ settings, onUpdate }: PdfExportSettings
               onCheckedChange={v => patch({ includeReleaseBreakdown: v })}
             />
             <ToggleRow
+              id="pdf-hide-compilations"
+              label="Compilations ausblenden"
+              description="Versteckt Sampler-Releases (die über den Compilation-Filter definiert sind) in der Release-Aufschlüsselung des Statements."
+              checked={settings.hideCompilationsInStatement ?? true}
+              onCheckedChange={v => patch({ hideCompilationsInStatement: v })}
+            />
+            <ToggleRow
               id="pdf-platforms"
               label="Plattform-Aufschlüsselung"
               description="Umsatz pro Streaming-Dienst (Spotify, Apple Music, etc.)."

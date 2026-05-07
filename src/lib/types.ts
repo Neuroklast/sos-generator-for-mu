@@ -288,10 +288,9 @@ export interface PdfExportSettings {
   includeEmailCoverLetter: boolean
   /**
    * When true (default), compilation releases are excluded from the release
-   * breakdown table in exported PDF statements. Compilation releases are
-   * identified by matching any active CompilationFilter identifier.
-   * @deprecated Compilations are always hidden; this field is kept for
-   * backward-compatibility with persisted workspace snapshots but is not used.
+   * breakdown table in exported PDF and Excel statements.
+   * Compilation releases are identified by matching any active CompilationFilter.
+   * Defaults to true (compilations hidden).
    */
   hideCompilationsInStatement: boolean
   /**
