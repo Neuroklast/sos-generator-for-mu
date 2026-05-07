@@ -390,9 +390,30 @@ function buildPDF(
   // Visualises the revenue flow:
   //   Gross Revenue → –Fee → × Split% → +Manual Revenue → –Recoupable Expenses → Net Payout
   const physicalReleasesRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
-  const waterfallRows: string[][] = [
-    ['Digital Revenue (Streams + Downloads)', formatCurrency(artistData.totalDigitalRevenue)],
-  ]
+
+  // Digital revenue broken into streams / downloads / unclassified
+  const digitalOtherRevenue = Math.max(
+    0,
+    artistData.totalDigitalRevenue - artistData.totalStreamRevenue - artistData.totalDownloadRevenue
+  )
+  const hasStreamDownloadDetail =
+    artistData.totalStreamRevenue > 0 || artistData.totalDownloadRevenue > 0
+
+  const waterfallRows: string[][] = []
+
+  if (hasStreamDownloadDetail) {
+    if (artistData.totalStreamRevenue > 0) {
+      waterfallRows.push(['Streaming Revenue', formatCurrency(artistData.totalStreamRevenue)])
+    }
+    if (artistData.totalDownloadRevenue > 0) {
+      waterfallRows.push(['Download Revenue', formatCurrency(artistData.totalDownloadRevenue)])
+    }
+    if (digitalOtherRevenue > 0) {
+      waterfallRows.push(['Digital Revenue (other)', formatCurrency(digitalOtherRevenue)])
+    }
+  } else if (artistData.totalDigitalRevenue > 0) {
+    waterfallRows.push(['Digital Revenue', formatCurrency(artistData.totalDigitalRevenue)])
+  }
 
   if (physicalReleasesRevenue !== 0) {
     waterfallRows.push(['Physical Releases', formatCurrency(physicalReleasesRevenue)])

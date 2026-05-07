@@ -383,6 +383,10 @@ export interface ArtistRevenue {
   totalExpenses: number
   /** Distribution fee amount deducted before the artist split was applied. */
   distributionFeeDeducted: number
+  /** EUR revenue from streaming transactions (subset of digital). */
+  totalStreamRevenue: number
+  /** EUR revenue from digital download transactions (subset of digital). */
+  totalDownloadRevenue: number
   platformBreakdown: PlatformRevenue[]
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]

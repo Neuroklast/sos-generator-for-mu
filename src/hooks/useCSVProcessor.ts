@@ -341,6 +341,8 @@ export function useCSVProcessor(
         totalQuantity: data.totalQuantity,
         totalExpenses: data.totalExpenses,
         distributionFeeDeducted: data.distributionFeeDeducted,
+        totalStreamRevenue: data.totalStreamRevenue,
+        totalDownloadRevenue: data.totalDownloadRevenue,
         platformBreakdown: data.platformBreakdown,
         countryBreakdown: data.countryBreakdown,
         monthlyBreakdown: data.monthlyBreakdown,
