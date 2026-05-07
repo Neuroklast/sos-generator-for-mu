@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
+import i18next from 'i18next'
 import { computeAutoMappings } from '@/lib/auto-mapping'
 import { fetchExchangeRates } from '@/lib/currency'
 import type { ExchangeRates } from '@/lib/currency'
@@ -124,11 +125,10 @@ export function useCSVProcessor(
     try {
       const rates = await fetchExchangeRates()
       setExchangeRates(rates)
+      toast.success(i18next.t('ingest.exchangeRatesUpdated'))
     } catch (err) {
       console.warn('[useCSVProcessor] Exchange rate refresh failed:', err)
-      toast.warning('Wechselkurse konnten nicht aktualisiert werden', {
-        description: 'Es werden die zuletzt geladenen Kurse verwendet.',
-      })
+      toast.warning(i18next.t('ingest.exchangeRatesFailed'))
     } finally {
       setExchangeRatesLoading(false)
     }
