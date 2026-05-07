@@ -213,6 +213,7 @@ function App() {
     detectedPeriodStart,
     detectedPeriodEnd,
     autoMappings,
+    totalGrossAllData,
   } = useCSVProcessor(
     believeManager.files,
     bandcampManager.files,
@@ -1088,6 +1089,7 @@ function App() {
                   revenues={revenues}
                   totalFiles={totalFiles}
                   uniqueArtists={uniqueArtists}
+                  totalGrossAllData={totalGrossAllData}
                   compilationFilters={stableCompilationFilters}
                   handleAddCompilationFilter={handleAddCompilationFilter}
                   handleRemoveCompilationFilter={handleRemoveCompilationFilter}

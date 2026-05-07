@@ -15,6 +15,8 @@ import {
   ChevronUp,
   FileText,
   Sparkles,
+  Banknote,
+  Database,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -45,6 +47,8 @@ interface ProcessCockpitViewProps {
   revenues: ArtistRevenue[]
   totalFiles: number
   uniqueArtists: string[]
+  /** EUR-normalised gross revenue across ALL uploaded records, before roster filter. */
+  totalGrossAllData: number
   compilationFilters: CompilationFilter[]
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
   handleRemoveCompilationFilter: (id: string) => void
@@ -93,6 +97,7 @@ export function ProcessCockpitView({
   revenues,
   totalFiles,
   uniqueArtists,
+  totalGrossAllData,
   compilationFilters,
   handleAddCompilationFilter,
   handleRemoveCompilationFilter,
@@ -159,7 +164,7 @@ export function ProcessCockpitView({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <StatCard
               label="Files Loaded"
               value={String(totalFiles)}
@@ -182,6 +187,26 @@ export function ProcessCockpitView({
               icon={TrendingUp}
               gradient="from-emerald-500 to-teal-500"
               delay={0.1}
+            />
+            <StatCard
+              label="Roster Gross"
+              value={new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(
+                revenues.reduce((sum, r) => sum + r.totalRevenue, 0)
+              )}
+              sub="before split deductions"
+              icon={Banknote}
+              gradient="from-amber-500 to-orange-500"
+              delay={0.15}
+            />
+            <StatCard
+              label="All Records Gross"
+              value={new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(
+                totalGrossAllData
+              )}
+              sub="incl. non-roster artists"
+              icon={Database}
+              gradient="from-rose-500 to-pink-600"
+              delay={0.2}
             />
           </div>
 
