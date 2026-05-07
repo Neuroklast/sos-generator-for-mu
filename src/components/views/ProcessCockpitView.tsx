@@ -28,7 +28,7 @@ import { ArtistMappingManager } from '@/features/rules/components/ArtistMappingM
 import { ManualRevenueManager } from '@/features/rules/components/ManualRevenueManager'
 import { ExpenseManager } from '@/features/rules/components/ExpenseManager'
 import { toast } from 'sonner'
-import { fmtEur, fmtPct, totalDeductions } from '@/lib/formatters'
+import { fmtEur, fmtPct, totalDeductions, fmtCurrencyEur } from '@/lib/formatters'
 import type {
   ArtistRevenue,
   CompilationFilter,
@@ -181,18 +181,14 @@ export function ProcessCockpitView({
             />
             <StatCard
               label="Total Payout"
-              value={new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(
-                revenues.reduce((sum, r) => sum + r.finalAmount, 0)
-              )}
+              value={fmtCurrencyEur(revenues.reduce((sum, rev) => sum + rev.finalAmount, 0))}
               icon={TrendingUp}
               gradient="from-emerald-500 to-teal-500"
               delay={0.1}
             />
             <StatCard
               label="Roster Gross"
-              value={new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(
-                revenues.reduce((sum, r) => sum + r.totalRevenue, 0)
-              )}
+              value={fmtCurrencyEur(revenues.reduce((sum, rev) => sum + rev.totalRevenue, 0))}
               sub="before split deductions"
               icon={Banknote}
               gradient="from-amber-500 to-orange-500"
@@ -200,9 +196,7 @@ export function ProcessCockpitView({
             />
             <StatCard
               label="All Records Gross"
-              value={new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(
-                totalGrossAllData
-              )}
+              value={fmtCurrencyEur(totalGrossAllData)}
               sub="incl. non-roster artists"
               icon={Database}
               gradient="from-rose-500 to-pink-600"
