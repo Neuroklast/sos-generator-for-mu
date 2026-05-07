@@ -11,7 +11,8 @@ import type { SplitFee } from '@/lib/types'
  * @param isReady - Guard flag. When false (e.g. IndexedDB not yet loaded),
  *   the effect is skipped entirely so artists are not registered with a
  *   stale fallback percentage. Mirrors the same pattern used for the
- *   auto-period effect (Bug 5 fix). Defaults to true for backward-compat.
+ *   auto-period effect (Bug 5 fix).
+ * @default true
  */
 export function useSplitFeeSync(
   uniqueArtists: string[],

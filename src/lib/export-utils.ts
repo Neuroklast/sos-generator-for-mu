@@ -784,8 +784,8 @@ function buildExcel(
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
 
   // Release breakdown sheet (aggregated, memory-efficient alternative to raw rows)
-  const hideCompilations = settings?.hideCompilationsInStatement ?? DEFAULT_PDF_SETTINGS.hideCompilationsInStatement
-  const releaseBreakdown = hideCompilations
+  const shouldHideCompilations = settings?.hideCompilationsInStatement ?? DEFAULT_PDF_SETTINGS.hideCompilationsInStatement
+  const releaseBreakdown = shouldHideCompilations
     ? artistData.releaseBreakdown.filter(rel => !isCompilationRelease(rel, compilationFilters))
     : artistData.releaseBreakdown
   if (releaseBreakdown.length > 0) {
