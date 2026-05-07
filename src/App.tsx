@@ -38,6 +38,7 @@ import type {
   EmailConfig,
   ReleaseSplitOverride,
 } from '@/lib/types'
+import { detectCompilationCandidates, buildHeuristicTransactions } from '@/lib/compilation-heuristics'
 import { toast } from 'sonner'
 import { APP_NAME, APP_LOGO, APP_CREDITS } from '@/config/softwareBranding'
 import type { CsvImportProfile } from '@/features/ingest/types'
@@ -275,6 +276,30 @@ function App() {
       ])
     ),
     [processedData]
+  )
+
+  // All unique release titles across all artists — de-duplicated and sorted for
+  // the compilation exclusion dropdown picker.
+  const availableReleases = useMemo<string[]>(() => {
+    const seen = new Set<string>()
+    for (const d of processedData) {
+      for (const r of d.releaseBreakdown) {
+        if (r.releaseTitle) seen.add(r.releaseTitle)
+      }
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b))
+  }, [processedData])
+
+  // Heuristic compilation detection — build a flat transaction list from
+  // processedData and run the detector.  Memoized so it only re-runs when
+  // processedData or artistMappings change.
+  const detectedCandidates = useMemo(
+    () =>
+      detectCompilationCandidates(
+        buildHeuristicTransactions(processedData),
+        { artistMappings: stableArtistMappings }
+      ),
+    [processedData, stableArtistMappings]
   )
 
   const { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected } = useExports(
@@ -1021,6 +1046,8 @@ function App() {
                   compilationFilters={stableCompilationFilters}
                   handleAddCompilationFilter={handleAddCompilationFilter}
                   handleRemoveCompilationFilter={handleRemoveCompilationFilter}
+                  availableReleases={availableReleases}
+                  detectedCandidates={detectedCandidates}
                   excludePhysical={excludePhysical ?? false}
                   setExcludePhysical={setExcludePhysical}
                   masterSearch={masterSearch}

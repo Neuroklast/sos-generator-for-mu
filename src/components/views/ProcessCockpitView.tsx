@@ -36,6 +36,7 @@ import type {
   GuestPayoutRule,
   ArtistCollabNode,
 } from '@/lib/types'
+import type { CompilationDetectionResult } from '@/lib/compilation-heuristics'
 
 export type MasterSortField = 'artist' | 'totalQuantity' | 'totalRevenue' | 'finalAmount'
 export type MasterSortDir = 'asc' | 'desc'
@@ -47,6 +48,10 @@ interface ProcessCockpitViewProps {
   compilationFilters: CompilationFilter[]
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
   handleRemoveCompilationFilter: (id: string) => void
+  /** All unique release titles from loaded data for the dropdown picker. */
+  availableReleases?: string[]
+  /** Auto-detected compilation candidates from the heuristic engine. */
+  detectedCandidates?: CompilationDetectionResult[]
   excludePhysical: boolean
   setExcludePhysical: (checked: boolean) => void
   masterSearch: string
@@ -91,6 +96,8 @@ export function ProcessCockpitView({
   compilationFilters,
   handleAddCompilationFilter,
   handleRemoveCompilationFilter,
+  availableReleases = [],
+  detectedCandidates = [],
   excludePhysical,
   setExcludePhysical,
   masterSearch,
@@ -215,6 +222,8 @@ export function ProcessCockpitView({
               filters={compilationFilters}
               onAddFilter={handleAddCompilationFilter}
               onRemoveFilter={handleRemoveCompilationFilter}
+              availableReleases={availableReleases}
+              detectedCandidates={detectedCandidates}
             />
           </div>
         </Card>
