@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18next from 'i18next'
 import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil, Bank, SortAscending } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -224,6 +226,7 @@ export function LabelArtistManager({
   onUpdate,
   onImportLabelArtistsCSV,
 }: LabelArtistManagerProps & { onImportLabelArtistsCSV?: (artists: Omit<LabelArtist, 'id'>[]) => void }) {
+  const { t } = useTranslation()
   const [newName, setNewName] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [sortAlpha, setSortAlpha] = useKV<boolean>('labelArtistsSortAlpha', false)
@@ -239,7 +242,7 @@ export function LabelArtistManager({
     const name = newName.trim()
     if (!name) return
     if (artists.some(a => a.name.toLowerCase() === name.toLowerCase())) {
-      toast.error('Artist already in roster')
+      toast.error(i18next.t('toast.artistAlreadyInRoster'))
       return
     }
     onAdd(name)
@@ -257,7 +260,7 @@ export function LabelArtistManager({
 
   const handleExport = useCallback(() => {
     if (artists.length === 0) {
-      toast.error('No artists to export')
+      toast.error(i18next.t('toast.noArtistsToExport'))
       return
     }
     const CSV_FIELDS = ['name', 'email', 'vatNumber', 'isEuNonGerman', 'notes', 'accountHolder', 'iban', 'bic'] as const
@@ -285,7 +288,7 @@ export function LabelArtistManager({
     link.click()
     document.body.removeChild(link)
     setTimeout(() => URL.revokeObjectURL(url), 100)
-    toast.success('Label artist roster exported')
+    toast.success(i18next.t('toast.labelArtistRosterExported'))
   }, [artists])
 
   return (
@@ -296,9 +299,9 @@ export function LabelArtistManager({
           <Users size={20} className="text-white" weight="bold" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Label Artist Roster</h3>
+          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">{t('labelArtist.title')}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Artists signed to your label. Click a row to edit email, VAT number, and notes.
+            {t('labelArtist.description')}
           </p>
         </div>
         <TooltipProvider>
@@ -325,7 +328,7 @@ export function LabelArtistManager({
       {/* Add artist */}
       <div className="flex gap-2 mb-4">
         <Input
-          placeholder="Artist name…"
+          placeholder={t('labelArtist.artistName')}
           value={newName}
           onChange={e => setNewName(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -338,7 +341,7 @@ export function LabelArtistManager({
           className="gap-1.5 shrink-0"
         >
           <Plus size={14} weight="bold" />
-          Add
+          {t('common.add')}
         </Button>
       </div>
 
@@ -352,7 +355,7 @@ export function LabelArtistManager({
           disabled={artists.length === 0}
         >
           <Download size={13} weight="bold" />
-          Export CSV
+          {t('labelArtist.exportRoster')}
         </Button>
         <div className="relative">
           <Input
@@ -390,18 +393,18 @@ export function LabelArtistManager({
                     if (parsed.length > 0) {
                       if (onImportLabelArtistsCSV) {
                         onImportLabelArtistsCSV(parsed)
-                        toast.success(`${parsed.length} artists imported from CSV.`)
+                        toast.success(i18next.t('toast.artistsImportedFromCSV', { count: parsed.length }))
                       } else {
-                        toast.error('Please import the CSV via the "Upload / Ingestion" tab')
+                        toast.error(i18next.t('toast.importCSVViaUpload'))
                       }
                     }
                   },
                   error: (err) => {
-                    toast.error(`Failed to read CSV: ${err.message}`)
+                    toast.error(i18next.t('toast.csvReadError', { message: err.message }))
                   }
                 })
               } catch (e) {
-                toast.error('Failed to read CSV')
+                toast.error(i18next.t('toast.failedToReadCSV'))
               }
               e.target.value = ''
             }}
@@ -412,7 +415,7 @@ export function LabelArtistManager({
             className="gap-1.5"
             onClick={() => {}}
           >
-            Import CSV
+            {t('labelArtist.importCSV')}
           </Button>
         </div>
       </div>
@@ -421,7 +424,7 @@ export function LabelArtistManager({
       {artists.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-xl border border-dashed border-border/50 bg-card/30">
           <Users size={28} className="text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No artists in roster yet</p>
+          <p className="text-sm text-muted-foreground">{t('labelArtist.noArtistsYet')}</p>
           <p className="text-xs text-muted-foreground/60">Add artists manually or import a CSV via the Ingestion view. When the roster is empty, all artists are shown.</p>
         </div>
       ) : (

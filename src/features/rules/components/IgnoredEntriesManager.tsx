@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18next from 'i18next'
 import { EyeSlash, Plus, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +21,7 @@ export function IgnoredEntriesManager({
   onAdd,
   onRemove,
 }: IgnoredEntriesManagerProps) {
+  const { t } = useTranslation()
   const [artist, setArtist] = useState('')
   const [releaseTitle, setReleaseTitle] = useState('')
   const [note, setNote] = useState('')
@@ -26,7 +29,7 @@ export function IgnoredEntriesManager({
   const handleAdd = useCallback(() => {
     const a = artist.trim()
     if (!a) {
-      toast.error('Artist name is required')
+      toast.error(i18next.t('toast.artistNameRequired'))
       return
     }
     onAdd({ artist: a, releaseTitle: releaseTitle.trim() || undefined, note: note.trim() || undefined })
@@ -46,9 +49,9 @@ export function IgnoredEntriesManager({
           <EyeSlash size={20} className="text-white" weight="bold" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">Ignored Entries</h3>
+          <h3 className="font-bold text-lg font-['Space_Grotesk'] leading-tight">{t('ignoredEntry.title')}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Exclude specific artists or releases from statement of sales calculations.
+            {t('ignoredEntry.description')}
           </p>
         </div>
       </div>
@@ -59,7 +62,7 @@ export function IgnoredEntriesManager({
           <div className="flex-1">
             <Input
               list="ignored-artists-list"
-              placeholder="Artist name *"
+              placeholder={t('ignoredEntry.artist')}
               value={artist}
               onChange={e => setArtist(e.target.value)}
               className="h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
@@ -69,7 +72,7 @@ export function IgnoredEntriesManager({
             </datalist>
           </div>
           <Input
-            placeholder="Release title (optional)"
+            placeholder={t('ignoredEntry.releaseTitle')}
             value={releaseTitle}
             onChange={e => setReleaseTitle(e.target.value)}
             className="h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60 flex-1"
@@ -89,7 +92,7 @@ export function IgnoredEntriesManager({
             className="gap-1.5 shrink-0"
           >
             <Plus size={14} weight="bold" />
-            Ignore
+            {t('ignoredEntry.addEntry')}
           </Button>
         </div>
       </div>
@@ -98,7 +101,7 @@ export function IgnoredEntriesManager({
       {entries.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-xl border border-dashed border-border/50 bg-card/30">
           <EyeSlash size={28} className="text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No entries ignored</p>
+          <p className="text-sm text-muted-foreground">{t('ignoredEntry.noIgnoredEntriesYet')}</p>
           <p className="text-xs text-muted-foreground/60">Ignored entries are excluded from all revenue calculations.</p>
         </div>
       ) : (
