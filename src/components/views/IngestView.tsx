@@ -207,8 +207,7 @@ export function IngestView({
               </Label>
               <Input
                 id="period-start"
-                type="text"
-                placeholder="YYYY-MM"
+                type="month"
                 value={periodStart}
                 onChange={e => setPeriodStart(e.target.value)}
                 className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
@@ -221,8 +220,7 @@ export function IngestView({
               </Label>
               <Input
                 id="period-end"
-                type="text"
-                placeholder="YYYY-MM"
+                type="month"
                 value={periodEnd}
                 onChange={e => setPeriodEnd(e.target.value)}
                 className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"

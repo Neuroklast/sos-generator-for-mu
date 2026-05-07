@@ -132,8 +132,13 @@ export interface ArtistMapping {
 export interface ReleaseSplitOverride {
   /** Substring of the release title (case-insensitive match). */
   releaseTitle: string
-  /** Split percentage (0–100) for matching transactions. */
+  /** Digital split percentage (0–100) for matching transactions. */
   percentage: number
+  /**
+   * Optional physical split percentage (0–100) for matching transactions.
+   * When omitted, `percentage` is used for physical revenue as well.
+   */
+  physicalPercentage?: number
 }
 
 export interface SplitFee {

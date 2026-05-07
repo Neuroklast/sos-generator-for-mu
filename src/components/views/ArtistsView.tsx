@@ -4,6 +4,7 @@ import { ArtistTreeView } from '@/components/ArtistTreeView'
 import { ArtistMappingManager } from '@/features/rules/components/ArtistMappingManager'
 import { LabelArtistManager } from '@/features/core/components/LabelArtistManager'
 import { SplitFeeManager } from '@/features/rules/components/SplitFeeManager'
+import { useMemo } from 'react'
 import type {
   ArtistTreeNode,
   ArtistCollabNode,
@@ -64,6 +65,15 @@ export function ArtistsView({
   onUpdateReleaseOverrides,
   releaseTitlesByArtist,
 }: ArtistsViewProps) {
+  const activeArtistSet = useMemo(
+    () => new Set(uniqueArtists.map(a => a.toLowerCase())),
+    [uniqueArtists]
+  )
+  const visibleSplitFees = useMemo(
+    () => splitFees.filter(sf => activeArtistSet.has(sf.artist.toLowerCase())),
+    [splitFees, activeArtistSet]
+  )
+
   return (
     <Tabs defaultValue="stammdaten" className="space-y-6">
       <TabsList className="grid grid-cols-3 w-full max-w-lg">
@@ -92,7 +102,7 @@ export function ArtistsView({
       <TabsContent value="umsatz-splits">
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
           <SplitFeeManager
-            splitFees={splitFees}
+            splitFees={visibleSplitFees}
             onUpdateSplitFee={onUpdateSplitFee}
             onBulkUpdateSplitFee={onBulkUpdateSplitFee}
             onUpdateSplitFeeTypeOverride={onUpdateSplitFeeTypeOverride}

@@ -34,6 +34,7 @@ const COL_WIDTH_CHECKBOX = 56
 const COL_WIDTH_ACTIONS = 120
 
 type ColId = 'artist' | 'totalRevenue' | 'payout'
+type SortMode = 'payout' | 'artist-asc' | 'artist-desc'
 
 
 
@@ -66,6 +67,7 @@ export function ReportingPanel({
 }: ReportingPanelProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
+  const [sortMode, setSortMode] = useState<SortMode>('payout')
 
   const period = useMemo(() => {
     if (periodStart && periodEnd) return `${periodStart} – ${periodEnd}`
@@ -149,10 +151,16 @@ export function ReportingPanel({
   function onDragEnd() { dragColRef.current = null; setDragOver(null) }
 
   // ── Filter ────────────────────────────────────────────────────────────────
-  const filtered = useMemo(
-    () => revenues.filter(r => r.artist.toLowerCase().includes(filter.toLowerCase())),
-    [revenues, filter],
-  )
+  const filtered = useMemo(() => {
+    const byFilter = revenues.filter(r => r.artist.toLowerCase().includes(filter.toLowerCase()))
+    if (sortMode === 'artist-asc') {
+      return [...byFilter].sort((a, b) => a.artist.localeCompare(b.artist))
+    }
+    if (sortMode === 'artist-desc') {
+      return [...byFilter].sort((a, b) => b.artist.localeCompare(a.artist))
+    }
+    return byFilter
+  }, [revenues, filter, sortMode])
 
   const allSelected = filtered.length > 0 && filtered.every(r => selectedArtists.has(r.artist))
   const someSelected = filtered.some(r => selectedArtists.has(r.artist))
@@ -203,15 +211,26 @@ export function ReportingPanel({
 
       {/* ── Filter ────────────────────────────────────────────── */}
       <div className="px-6 py-4 border-b border-white/5">
-        <div className="relative max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Filter by artist…"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            className="pl-8 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
-          />
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="relative max-w-sm flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Filter by artist…"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              className="pl-8 h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
+            />
+          </div>
+          <select
+            value={sortMode}
+            onChange={e => setSortMode(e.target.value as SortMode)}
+            className="h-9 rounded-md border border-border/60 bg-background/50 px-3 text-xs text-foreground"
+          >
+            <option value="payout">Sort: payout</option>
+            <option value="artist-asc">Sort: artist A-Z</option>
+            <option value="artist-desc">Sort: artist Z-A</option>
+          </select>
         </div>
       </div>
 

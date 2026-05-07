@@ -135,8 +135,10 @@ function ReleaseOverrideList({
 }) {
   const [newTitle, setNewTitle] = useState('')
   const [newPct, setNewPct] = useState('')
+  const [newPhysicalPct, setNewPhysicalPct] = useState('')
   const [titleError, setTitleError] = useState('')
   const [pctError, setPctError] = useState('')
+  const [physicalPctError, setPhysicalPctError] = useState('')
 
   const handleRemove = useCallback(
     (index: number, e: React.MouseEvent) => {
@@ -151,6 +153,16 @@ function ReleaseOverrideList({
     (index: number, value: number | undefined) => {
       if (value == null) return
       const updated = overrides.map((o, i) => i === index ? { ...o, percentage: value } : o)
+      onUpdate(artist, updated)
+    },
+    [artist, overrides, onUpdate]
+  )
+
+  const handleChangePhysicalPercent = useCallback(
+    (index: number, value: number | undefined) => {
+      const updated = overrides.map((o, i) =>
+        i === index ? { ...o, physicalPercentage: value } : o
+      )
       onUpdate(artist, updated)
     },
     [artist, overrides, onUpdate]
@@ -179,12 +191,27 @@ function ReleaseOverrideList({
       } else {
         setPctError('')
       }
-      if (!valid || !pctResult.ok || pctResult.value == null) return
-      onUpdate(artist, [...overrides, { releaseTitle: trimmedTitle, percentage: pctResult.value }])
+      const physicalPctResult = parsePercentInput(newPhysicalPct, false)
+      if (!physicalPctResult.ok) {
+        setPhysicalPctError(physicalPctResult.error)
+        valid = false
+      } else {
+        setPhysicalPctError('')
+      }
+      if (!valid || !pctResult.ok || pctResult.value == null || !physicalPctResult.ok) return
+      onUpdate(artist, [
+        ...overrides,
+        {
+          releaseTitle: trimmedTitle,
+          percentage: pctResult.value,
+          ...(physicalPctResult.value != null ? { physicalPercentage: physicalPctResult.value } : {}),
+        },
+      ])
       setNewTitle('')
       setNewPct('')
+      setNewPhysicalPct('')
     },
-    [artist, overrides, onUpdate, newTitle, newPct]
+    [artist, overrides, onUpdate, newTitle, newPct, newPhysicalPct]
   )
 
   // Releases already covered by an override — excluded from the dropdown.
@@ -204,9 +231,15 @@ function ReleaseOverrideList({
                 {o.releaseTitle}
               </span>
               <PercentInput
-                id={`release-override-${artist}-${i}`}
+                id={`release-override-digital-${artist}-${i}`}
                 value={o.percentage}
                 onChange={val => handleChangePercent(i, val)}
+              />
+              <PercentInput
+                id={`release-override-physical-${artist}-${i}`}
+                value={o.physicalPercentage}
+                placeholder="phys = digital"
+                onChange={val => handleChangePhysicalPercent(i, val)}
               />
               <button
                 type="button"
@@ -277,14 +310,30 @@ function ReleaseOverrideList({
             </div>
             {pctError && <p className="text-xs text-destructive">{pctError}</p>}
           </div>
+          <div className="flex flex-col gap-1 items-end">
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                placeholder="phys optional"
+                value={newPhysicalPct}
+                onChange={e => { setNewPhysicalPct(e.target.value); setPhysicalPctError('') }}
+                className={`w-28 text-right font-mono text-xs ${physicalPctError ? 'border-destructive' : ''}`}
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+            {physicalPctError && <p className="text-xs text-destructive">{physicalPctError}</p>}
+          </div>
           <Button size="sm" variant="outline" onClick={handleAdd} className="text-xs shrink-0">
             Add
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground/60">
           {useDropdown
-            ? 'Exact release · overrides type-level split'
-            : 'Substring match · case-insensitive · overrides type-level split'}
+            ? 'Exact release · digital + optional physical override'
+            : 'Substring match · case-insensitive · digital + optional physical override'}
         </p>
       </div>
     </div>

@@ -96,7 +96,8 @@ export function useExports(
           artistData,
           labelInfo,
           periodStart || undefined,
-          periodEnd || undefined
+          periodEnd || undefined,
+          compilationFilters
         )
         downloadBlob(blob, `${createSafeFilename(artist)}_statement.xlsx`)
         toast.success(`Excel for "${artist}" downloaded`)
@@ -106,7 +107,7 @@ export function useExports(
         console.error('Excel export error:', err)
       }
     },
-    [processedData, labelInfo, periodStart, periodEnd]
+    [processedData, labelInfo, periodStart, periodEnd, compilationFilters]
   )
 
   /**

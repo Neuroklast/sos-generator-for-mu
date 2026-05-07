@@ -23,7 +23,7 @@ export const DEFAULT_PDF_EXPORT_SETTINGS: PdfExportSettings = {
   includeMonthlyBreakdown: false,
   includeEmailCoverLetter: false,
   hideCompilationsInStatement: true,
-  includePieChart: false,
+  includePieChart: true,
 }
 
 export const DEFAULT_EMAIL_CONFIG: EmailConfig = {

@@ -102,7 +102,7 @@ export function PdfExportSettingsPanel({ settings, onUpdate }: PdfExportSettings
               id="pdf-pie-chart"
               label="Umsatz-Kuchendiagramm"
               description="Fügt ein Kuchendiagramm ein, das den Anteil jeder Umsatzkategorie am Bruttoerlös zeigt."
-              checked={settings.includePieChart ?? false}
+              checked={settings.includePieChart ?? true}
               onCheckedChange={v => patch({ includePieChart: v })}
             />
           </div>

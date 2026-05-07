@@ -13,7 +13,7 @@ const DEFAULT_PDF_SETTINGS: PdfExportSettings = {
   includeMonthlyBreakdown: false,
   includeEmailCoverLetter: false,
   hideCompilationsInStatement: true,
-  includePieChart: false,
+  includePieChart: true,
 }
 
 export function formatCurrency(value: number): string {
@@ -21,6 +21,26 @@ export function formatCurrency(value: number): string {
     style: 'currency',
     currency: 'EUR',
   }).format(value)
+}
+
+/**
+ * Returns true when a release row matches any active compilation filter.
+ * Matches by filter type, mirroring the core processing logic.
+ */
+function isCompilationRelease(
+  release: Pick<SafeProcessedArtistData['releaseBreakdown'][number], 'releaseTitle' | 'upcEan' | 'catalogNumber'>,
+  compilationFilters: CompilationFilter[]
+): boolean {
+  if (compilationFilters.length === 0) return false
+  const title = release.releaseTitle.toLowerCase()
+  const upcEan = release.upcEan.toLowerCase()
+  const catalogNumber = release.catalogNumber.toLowerCase()
+  return compilationFilters.some(cf => {
+    const identifier = cf.identifier.toLowerCase()
+    if (cf.type === 'title') return title.includes(identifier)
+    if (cf.type === 'ean') return upcEan === identifier
+    return catalogNumber === identifier
+  })
 }
 
 /**
@@ -368,11 +388,7 @@ function buildPDF(
 
   // ── Financial waterfall summary ───────────────────────────────────────────
   // Visualises the revenue flow:
-  //   Digital Revenue (streams + downloads)
-  //   Physical Releases (CDs, Vinyl, etc.)
-  //   Merchandise
-  //   Manual Revenue entries (each individually)
-  //   = Gross Revenue → –Fee → –Expenses → × Split% → = Net Payout
+  //   Gross Revenue → –Fee → × Split% → +Manual Revenue → –Recoupable Expenses → Net Payout
   const physicalReleasesRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
   const waterfallRows: string[][] = [
     ['Digital Revenue (Streams + Downloads)', formatCurrency(artistData.totalDigitalRevenue)],
@@ -382,7 +398,7 @@ function buildPDF(
     waterfallRows.push(['Physical Releases', formatCurrency(physicalReleasesRevenue)])
   }
   if (artistData.darkmerchRevenue !== 0) {
-    waterfallRows.push(['Merchandise', formatCurrency(artistData.darkmerchRevenue)])
+    waterfallRows.push(['Darkmerch / Merchandise', formatCurrency(artistData.darkmerchRevenue)])
   }
 
   // Show each manual revenue entry individually with its description
@@ -399,19 +415,21 @@ function buildPDF(
     waterfallRows.push(['– Label Distribution Fee', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
   }
 
-  if (artistData.totalExpenses > 0) {
-    waterfallRows.push(['– Deductible Costs / Advances', `- ${formatCurrency(artistData.totalExpenses)}`])
-  }
-
-  if (artistData.distributionFeeDeducted > 0 || artistData.totalExpenses > 0) {
-    const splitBasis = artistData.grossRevenue - artistData.distributionFeeDeducted - artistData.totalExpenses
+  if (artistData.distributionFeeDeducted > 0) {
+    const splitBasis = artistData.grossRevenue - artistData.distributionFeeDeducted
     waterfallRows.push(['= Split Basis', formatCurrency(splitBasis)])
   }
 
-  waterfallRows.push(
-    [`× Split ${artistData.splitPercentage}%`, ''],
-    ['= Net Payout (Artist Share)', formatCurrency(artistData.finalPayout)],
-  )
+  const splitBeforeManualAndExpenses = artistData.finalPayout - artistData.manualRevenue + artistData.totalExpenses
+  waterfallRows.push([`× Split ${artistData.splitPercentage}%`, formatCurrency(splitBeforeManualAndExpenses)])
+
+  if (artistData.manualRevenue !== 0) {
+    waterfallRows.push(['+ Manual Revenue (post-split)', formatCurrency(artistData.manualRevenue)])
+  }
+  if (artistData.totalExpenses > 0) {
+    waterfallRows.push(['– Deductible Costs / Advances (post-split)', `- ${formatCurrency(artistData.totalExpenses)}`])
+  }
+  waterfallRows.push(['= Net Payout (Artist Share)', formatCurrency(artistData.finalPayout)])
 
   autoTable(doc, {
     startY: yPos,
@@ -446,15 +464,9 @@ function buildPDF(
   // ── Release breakdown ─────────────────────────────────────────────────────
   if (settings.includeReleaseBreakdown && artistData.releaseBreakdown.length > 0) {
     // Compilations are always excluded from the statement.
-    const compilationIdentifiersLower = compilationFilters.length > 0
-      ? compilationFilters.map(cf => cf.identifier.toLowerCase())
-      : []
-    const releaseBreakdown = compilationIdentifiersLower.length > 0
-      ? artistData.releaseBreakdown.filter(rel => {
-          const titleLower = rel.releaseTitle.toLowerCase()
-          return !compilationIdentifiersLower.some(id => titleLower.includes(id))
-        })
-      : artistData.releaseBreakdown
+    const releaseBreakdown = artistData.releaseBreakdown.filter(
+      rel => !isCompilationRelease(rel, compilationFilters)
+    )
     if (releaseBreakdown.length > 0) {
       renderSectionHeading('Revenue by Release')
       autoTable(doc, {
@@ -464,7 +476,7 @@ function buildPDF(
           rel.releaseTitle || '-',
           formatCurrency(rel.revenue),
           String(rel.quantity),
-          rel.isPhysical ? 'Physical' : 'Digital',
+          rel.isPhysical ? 'Physical' : 'Streams / Downloads',
         ]),
         theme: 'striped',
         styles: { fontSize: 8, cellPadding: 2 },
@@ -693,10 +705,11 @@ export function generateExcel(
   artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
-  periodEnd?: string
+  periodEnd?: string,
+  compilationFilters: CompilationFilter[] = []
 ): Blob {
   try {
-    return buildExcel(artistData, labelInfo, periodStart, periodEnd)
+    return buildExcel(artistData, labelInfo, periodStart, periodEnd, compilationFilters)
   } catch (err) {
     throw new Error(
       `Excel generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
@@ -708,7 +721,8 @@ function buildExcel(
   artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
   periodStart?: string,
-  periodEnd?: string
+  periodEnd?: string,
+  compilationFilters: CompilationFilter[] = []
 ): Blob {
   const workbook = XLSX.utils.book_new()
 
@@ -724,7 +738,10 @@ function buildExcel(
     ['Revenue Summary'],
     ['Believe Revenue', artistData.believeRevenue],
     ['Bandcamp Revenue', artistData.bandcampRevenue],
-    ['Digital Revenue', artistData.totalDigitalRevenue],
+    ['Darkmerch Revenue', artistData.darkmerchRevenue],
+    ['Streaming Revenue', artistData.totalStreamRevenue],
+    ['Download Revenue', artistData.totalDownloadRevenue],
+    ['Digital Revenue (Total)', artistData.totalDigitalRevenue],
     ['Physical Revenue', artistData.totalPhysicalRevenue],
     ['Manual Revenue', artistData.manualRevenue],
     ['Gross Revenue', artistData.grossRevenue],
@@ -742,17 +759,20 @@ function buildExcel(
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
 
   // Release breakdown sheet (aggregated, memory-efficient alternative to raw rows)
-  if (artistData.releaseBreakdown.length > 0) {
+  const releaseBreakdown = artistData.releaseBreakdown.filter(
+    rel => !isCompilationRelease(rel, compilationFilters)
+  )
+  if (releaseBreakdown.length > 0) {
     const releaseHeaders = [
       'Release Title', 'UPC/EAN', 'Catalog Number', 'Revenue', 'Quantity', 'Type',
     ]
-    const releaseRows = artistData.releaseBreakdown.map(r => [
+    const releaseRows = releaseBreakdown.map(r => [
       r.releaseTitle || '',
       r.upcEan || '',
       r.catalogNumber || '',
       r.revenue,
       r.quantity,
-      r.isPhysical ? 'Physical' : 'Digital',
+      r.isPhysical ? 'Physical' : 'Streams / Downloads',
     ])
     const releaseSheet = XLSX.utils.aoa_to_sheet([releaseHeaders, ...releaseRows])
     releaseSheet['!cols'] = [
@@ -870,7 +890,7 @@ export async function generateZipOfAllStatements(
     }
 
     if (format === 'excel' || format === 'both') {
-      const excelBlob = generateExcel(artistData, labelInfo, periodStart, periodEnd)
+      const excelBlob = generateExcel(artistData, labelInfo, periodStart, periodEnd, compilationFilters)
       zip.file(`${safeArtistName}_statement.xlsx`, excelBlob)
     }
 

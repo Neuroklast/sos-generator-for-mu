@@ -39,7 +39,7 @@ export interface ProcessedArtistData {
   splitPercentage: number
   finalPayout: number
   totalQuantity: number
-  /** Total recoupable expenses deducted from gross revenue before split. */
+  /** Total recoupable expenses deducted from artist payout after split. */
   totalExpenses: number
   /** Label distribution fee (EUR) deducted from streaming/physical revenue before the split. */
   distributionFeeDeducted: number
@@ -506,24 +506,6 @@ export function processTransactionsWithCompilations(
     const digitalAfterFee = digitalRevenue - digitalFeeDeducted
     const physicalAfterFee = physicalRevenue - physicalFeeDeducted
 
-    // Revenue available for the artist split after fee and expense deductions.
-    // Expenses are deducted from the combined streaming/physical base, then
-    // scaled proportionally across digital and physical so that neither type
-    // bears a disproportionate share of the expense burden.
-    // Math.max(0, …) ensures we never pass a negative base into the split
-    // calculation — expenses and fees cannot create a negative payout.
-    const streamingPhysicalAfterFee = digitalAfterFee + physicalAfterFee
-    const afterExpenses = Math.max(0, streamingPhysicalAfterFee - totalExpenses)
-
-    // Proportional scaling factor so expense deductions are applied evenly
-    // across both revenue types (avoids double-deduction or starvation).
-    // When streamingPhysicalAfterFee is zero (no revenue after fees) expenses
-    // cannot be allocated proportionally, so scale defaults to 0 — the artist
-    // receives nothing from this bucket regardless.
-    const expenseScale = streamingPhysicalAfterFee > 0 ? afterExpenses / streamingPhysicalAfterFee : 0
-    const digitalRecoupable = digitalAfterFee * expenseScale
-    const physicalRecoupable = physicalAfterFee * expenseScale
-
     const grossRevenue = digitalRevenue + physicalRevenue + manualRevenue
 
     const defaultBase = config.defaultSplitPercentage ?? 100
@@ -536,9 +518,9 @@ export function processTransactionsWithCompilations(
     const digitalSplitPct = resolveSplitPercentage(splitFee, 'digital', defaultBase, config.defaultSplitPercentageDigital)
     const physicalSplitPct = resolveSplitPercentage(splitFee, 'physical', defaultBase, config.defaultSplitPercentagePhysical)
 
-    // Expenses and distribution fee are deducted from the streaming/physical base
-    // before the split percentage is applied. Manual revenues (sync deals, etc.)
-    // pass through in full.
+    // Distribution fee is deducted before split.
+    // Recoupable expenses are deducted AFTER split.
+    // Manual revenues are added AFTER split.
     let finalPayout: number
 
     const releaseOverrides = splitFee?.releaseOverrides
@@ -576,17 +558,6 @@ export function processTransactionsWithCompilations(
         const releaseDigitalAfterFee = releaseDigital - releaseDigital * digitalFeeRate
         const releasePhysicalAfterFee = releasePhysical - releasePhysical * physicalFeeRate
 
-        // Scale down by the same expense factor computed at the aggregate level.
-        // Linear scaling preserves the invariant:
-        //   sum(per-release recoupable) == digitalRecoupable + physicalRecoupable
-        // This equality holds as long as all transactions are included in the groups
-        // and the same fee rates and expenseScale are applied consistently.
-        // Math.max(0, …) guards are applied early to prevent negative intermediates
-        // from propagating into the split multiplication (a distribution fee > 100%
-        // on a specific release would otherwise yield a negative recoupable).
-        const releaseDigitalRecoupable = Math.max(0, releaseDigitalAfterFee * expenseScale)
-        const releasePhysicalRecoupable = Math.max(0, releasePhysicalAfterFee * expenseScale)
-
         // Look up the first release override whose releaseTitle is a case-insensitive
         // substring of this release's normalised title key.
         const matchedOverride = findReleaseOverride(releaseOverrides, releaseKey)
@@ -595,21 +566,24 @@ export function processTransactionsWithCompilations(
           ? clampSplitPercentage(matchedOverride.percentage)
           : digitalSplitPct
         const effectivePhysicalPct = matchedOverride != null
-          ? clampSplitPercentage(matchedOverride.percentage)
+          ? clampSplitPercentage(matchedOverride.physicalPercentage ?? matchedOverride.percentage)
           : physicalSplitPct
 
         perReleasePayout +=
-          releaseDigitalRecoupable * (effectiveDigitalPct / 100) +
-          releasePhysicalRecoupable * (effectivePhysicalPct / 100)
+          releaseDigitalAfterFee * (effectiveDigitalPct / 100) +
+          releasePhysicalAfterFee * (effectivePhysicalPct / 100)
       }
 
-      finalPayout = perReleasePayout + manualRevenue
+      finalPayout = Math.max(0, perReleasePayout - totalExpenses + manualRevenue)
     } else {
       // Standard path (no release overrides): identical to the original formula.
-      finalPayout =
-        digitalRecoupable * (digitalSplitPct / 100) +
-        physicalRecoupable * (physicalSplitPct / 100) +
-        manualRevenue
+      finalPayout = Math.max(
+        0,
+        digitalAfterFee * (digitalSplitPct / 100) +
+          physicalAfterFee * (physicalSplitPct / 100) -
+          totalExpenses +
+          manualRevenue
+      )
     }
 
     artistData.push({
@@ -752,5 +726,3 @@ export function extractCollabs(title: string): { mainArtist: string; guestArtist
 
   return { mainArtist: title.trim(), guestArtists: [] }
 }
-
-
