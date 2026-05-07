@@ -105,10 +105,10 @@ export function IngestView({
               size="sm"
               onClick={() => {
                 refreshExchangeRates()
-                toast.info('Wechselkurse werden aktualisiert…')
+                toast.info('Updating exchange rates…')
               }}
               disabled={exchangeRatesLoading}
-              title="Wechselkurse aktualisieren"
+              title="Refresh exchange rates"
               className="ml-auto h-8 w-8 p-0"
             >
               <RefreshCw size={15} className={exchangeRatesLoading ? 'animate-spin' : ''} />
@@ -120,19 +120,19 @@ export function IngestView({
           {exchangeRatesLoading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-2xl bg-card/90 backdrop-blur-sm">
               <Loader2 size={28} className="text-primary animate-spin" />
-              <p className="text-sm font-medium text-muted-foreground">Lade aktuelle Wechselkurse (EZB)…</p>
-              <p className="text-xs text-muted-foreground/60">Datei-Upload ist verfügbar, sobald die Kurse geladen sind.</p>
+              <p className="text-sm font-medium text-muted-foreground">Loading current exchange rates (ECB)…</p>
+              <p className="text-xs text-muted-foreground/60">File upload is available once the rates have loaded.</p>
               {refreshExchangeRates && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
                     refreshExchangeRates()
-                    toast.info('Wechselkurse werden aktualisiert…')
+                    toast.info('Updating exchange rates…')
                   }}
                   className="mt-1 text-xs"
                 >
-                  Kurse erneut laden
+                  Reload rates
                 </Button>
               )}
             </div>
@@ -207,7 +207,7 @@ export function IngestView({
               </Label>
               <Input
                 id="period-start"
-                type="month"
+                type="date"
                 value={periodStart}
                 onChange={e => setPeriodStart(e.target.value)}
                 className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
@@ -220,7 +220,7 @@ export function IngestView({
               </Label>
               <Input
                 id="period-end"
-                type="month"
+                type="date"
                 value={periodEnd}
                 onChange={e => setPeriodEnd(e.target.value)}
                 className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"

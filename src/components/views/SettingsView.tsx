@@ -26,6 +26,7 @@ import type {
   EmailConfig,
 } from '@/lib/types'
 import type { CsvImportProfile } from '@/features/ingest/types'
+import type { CompilationDetectionResult } from '@/lib/compilation-heuristics'
 
 interface SettingsViewProps {
   // ── Workspace backup ─────────────────────────────────────────────────────
@@ -60,7 +61,10 @@ interface SettingsViewProps {
   excludePhysical: boolean
   setExcludePhysical: (checked: boolean) => void
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
+  handleAddMultipleCompilationFilters: (filters: Omit<CompilationFilter, 'id'>[]) => void
   handleRemoveCompilationFilter: (id: string) => void
+  detectedCompilationCandidates: CompilationDetectionResult[]
+  availableReleases: string[]
   handleAddAlias: (alias: Omit<CSVColumnAlias, 'id'>) => void
   handleRemoveAlias: (id: string) => void
 
@@ -106,7 +110,10 @@ export function SettingsView({
   excludePhysical,
   setExcludePhysical,
   handleAddCompilationFilter,
+  handleAddMultipleCompilationFilters,
   handleRemoveCompilationFilter,
+  detectedCompilationCandidates,
+  availableReleases,
   handleAddAlias,
   handleRemoveAlias,
   appDefaults,
@@ -202,12 +209,12 @@ export function SettingsView({
             <div className="space-y-1.5">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <DatabaseZap size={16} className="text-red-600" />
-                Kompletten Storage löschen
+                Clear All Storage
               </h3>
               <p className="text-sm text-muted-foreground">
-                Löscht <strong>alle gespeicherten Daten</strong> (CSV-Dateien, Split-Rates, Artist-Mappings,
-                Label-Einstellungen, Abrechnungszeitraum und weitere Konfigurationsdaten).
-                Die Seite wird danach neu geladen. <strong>Diese Aktion ist unwiderruflich.</strong>
+                Deletes <strong>all stored data</strong> (CSV files, split rates, artist mappings,
+                label settings, statement period, and other configuration data).
+                The page will reload afterwards. <strong>This action is irreversible.</strong>
               </p>
             </div>
             {!clearAllStorageConfirmOpen ? (
@@ -218,12 +225,12 @@ export function SettingsView({
                 onClick={() => setClearAllStorageConfirmOpen(true)}
               >
                 <DatabaseZap size={14} />
-                Alles löschen
+                Clear All
               </Button>
             ) : (
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <p role="alert" aria-live="polite" className="text-xs text-red-500 font-medium">
-                  Wirklich alles löschen? Nicht rückgängig machbar!
+                  Really clear everything? This cannot be undone!
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -232,7 +239,7 @@ export function SettingsView({
                     className="text-muted-foreground hover:text-foreground"
                     onClick={() => setClearAllStorageConfirmOpen(false)}
                   >
-                    Abbrechen
+                    Cancel
                   </Button>
                   <Button
                     size="sm"
@@ -240,7 +247,7 @@ export function SettingsView({
                     onClick={handleClearAllStorage}
                   >
                     <DatabaseZap size={14} />
-                    Ja, alles löschen
+                    Yes, clear everything
                   </Button>
                 </div>
               </div>
@@ -303,7 +310,10 @@ export function SettingsView({
           <CompilationFilterManager
             filters={compilationFilters}
             onAddFilter={handleAddCompilationFilter}
+            onAddMultipleFilters={handleAddMultipleCompilationFilters}
             onRemoveFilter={handleRemoveCompilationFilter}
+            availableReleases={availableReleases}
+            detectedCandidates={detectedCompilationCandidates}
           />
         </Card>
 

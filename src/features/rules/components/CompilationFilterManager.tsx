@@ -29,6 +29,8 @@ import type { CompilationDetectionResult } from '@/lib/compilation-heuristics'
 interface CompilationFilterManagerProps {
   filters: CompilationFilter[]
   onAddFilter: (filter: Omit<CompilationFilter, 'id'>) => void
+  /** Optional bulk-add handler for adding multiple filters in one call. */
+  onAddMultipleFilters?: (filters: Omit<CompilationFilter, 'id'>[]) => void
   onRemoveFilter: (id: string) => void
   /** All unique release titles from the loaded data, for the dropdown picker. */
   availableReleases?: string[]
@@ -184,6 +186,7 @@ function ReleasePickerTab({ availableReleases, filters, onAdd }: ReleasePickerTa
 export function CompilationFilterManager({
   filters,
   onAddFilter,
+  onAddMultipleFilters,
   onRemoveFilter,
   availableReleases = [],
   detectedCandidates = [],
@@ -233,10 +236,17 @@ export function CompilationFilterManager({
   )
 
   const handleAddAllHighConfidence = useCallback(() => {
-    detectedCandidates
+    const toAdd = detectedCandidates
       .filter(c => c.confidence === 'high' && !isDuplicate(filters, c.releaseTitle))
-      .forEach(c => onAddFilter({ identifier: c.releaseTitle, type: 'title', label: c.releaseTitle }))
-  }, [detectedCandidates, filters, onAddFilter])
+      .map(c => ({ identifier: c.releaseTitle, type: 'title' as const, label: c.releaseTitle }))
+    if (toAdd.length === 0) return
+    if (onAddMultipleFilters) {
+      // Preferred: single call with all new filters to avoid stale-ref issues
+      onAddMultipleFilters(toAdd)
+    } else {
+      toAdd.forEach(f => onAddFilter(f))
+    }
+  }, [detectedCandidates, filters, onAddFilter, onAddMultipleFilters])
 
   const hasReleases = availableReleases.length > 0
   const hasCandidates = detectedCandidates.length > 0

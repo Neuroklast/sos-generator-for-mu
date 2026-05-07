@@ -32,17 +32,17 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
     <div className="space-y-4 p-8">
       <div className="flex items-center gap-2">
         <SlidersHorizontal size={20} weight="bold" className="text-primary" />
-        <h3 className="font-semibold">Standard-Voreinstellungen</h3>
+        <h3 className="font-semibold">Default Settings</h3>
       </div>
 
       <Card className="p-6 space-y-8">
 
         {/* ── Split-Rate ───────────────────────────── */}
         <div className="space-y-4">
-          <SectionHeading icon={Coins} title="Auszahlungs-Voreinstellung" />
+          <SectionHeading icon={Coins} title="Payout Default" />
 
           <div className="space-y-2">
-            <Label htmlFor="default-split">Standard Split-Rate (%)</Label>
+            <Label htmlFor="default-split">Default Split Rate (%)</Label>
             <Input
               id="default-split"
               type="number"
@@ -54,11 +54,11 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                 const val = parseFloat(e.target.value)
                 if (!Number.isNaN(val)) patch({ defaultSplitPercentage: clampPct(val) })
               }}
-              placeholder="z.B. 50"
+              placeholder="e.g. 50"
               className="max-w-xs"
             />
             <p className="text-xs text-muted-foreground">
-              Wird für neue Künstler verwendet, wenn keine individuelle Split-Rate gesetzt ist.
+              Used for new artists when no individual split rate has been set.
             </p>
             {onApplyDefaultSplitToAll && (
               <Button
@@ -68,14 +68,14 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                 className="mt-1 gap-1.5"
               >
                 <ArrowClockwise size={14} />
-                Default-Split auf alle Künstler anwenden
+                Apply default split to all artists
               </Button>
             )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="default-split-digital">Digital-Split (%) – optional</Label>
+              <Label htmlFor="default-split-digital">Digital Split (%) – optional</Label>
               <Input
                 id="default-split-digital"
                 type="number"
@@ -92,16 +92,16 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                     if (!Number.isNaN(val)) patch({ defaultSplitPercentageDigital: clampPct(val) })
                   }
                 }}
-                placeholder="Leer = globale Rate"
+                placeholder="Empty = global rate"
                 className="max-w-full"
               />
               <p className="text-xs text-muted-foreground">
-                Überschreibt die globale Split-Rate für Streaming-Einnahmen. Leer lassen, um die globale Rate zu verwenden.
+                Overrides the global split rate for streaming revenue. Leave empty to use the global rate.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="default-split-physical">Physisch/Merch-Split (%) – optional</Label>
+              <Label htmlFor="default-split-physical">Physical/Merch Split (%) – optional</Label>
               <Input
                 id="default-split-physical"
                 type="number"
@@ -118,22 +118,22 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                     if (!Number.isNaN(val)) patch({ defaultSplitPercentagePhysical: clampPct(val) })
                   }
                 }}
-                placeholder="Leer = globale Rate"
+                placeholder="Empty = global rate"
                 className="max-w-full"
               />
               <p className="text-xs text-muted-foreground">
-                Überschreibt die globale Split-Rate für physische / Merch-Einnahmen. Leer lassen, um die globale Rate zu verwenden.
+                Overrides the global split rate for physical / merch revenue. Leave empty to use the global rate.
               </p>
             </div>
           </div>
         </div>
 
-        {/* ── Label-Vertriebsprovision ─────────────── */}
+        {/* ── Label Distribution Fee ─────────────── */}
         <div className="space-y-4">
-          <SectionHeading icon={Percent} title="Label Vertriebsprovision" />
+          <SectionHeading icon={Percent} title="Label Distribution Fee" />
 
           <div className="space-y-2">
-            <Label htmlFor="distribution-fee">Globale Vertriebsprovision (%)</Label>
+            <Label htmlFor="distribution-fee">Global Distribution Fee (%)</Label>
             <Input
               id="distribution-fee"
               type="number"
@@ -145,19 +145,19 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                 const val = parseFloat(e.target.value)
                 if (!Number.isNaN(val)) patch({ distributionFeePercentage: clampPct(val) })
               }}
-              placeholder="z.B. 15"
+              placeholder="e.g. 15"
               className="max-w-xs"
             />
             <p className="text-xs text-muted-foreground">
-              Dieser Prozentsatz wird vom Streaming-/Physischen-Umsatz jedes Künstlers als
-              Label-Vertriebsprovision einbehalten, bevor die individuelle Split-Rate angewendet wird.
-              Bei 0 % wird keine Provision abgezogen.
+              This percentage is retained from each artist's streaming/physical revenue as a
+              label distribution fee before the individual split rate is applied.
+              At 0% no fee is deducted.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="distribution-fee-digital">Digital-Provision (%) – optional</Label>
+              <Label htmlFor="distribution-fee-digital">Digital Fee (%) – optional</Label>
               <Input
                 id="distribution-fee-digital"
                 type="number"
@@ -174,17 +174,17 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                     if (!Number.isNaN(val)) patch({ distributionFeeDigital: clampPct(val) })
                   }
                 }}
-                placeholder="Leer = globale Rate"
+                placeholder="Empty = global rate"
                 className="max-w-full"
               />
               <p className="text-xs text-muted-foreground">
-                Überschreibt die globale Rate ausschließlich für Streaming-Einnahmen.
-                Leer lassen, um die globale Rate zu verwenden.
+                Overrides the global rate exclusively for streaming revenue.
+                Leave empty to use the global rate.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="distribution-fee-physical">Physisch/Merch-Provision (%) – optional</Label>
+              <Label htmlFor="distribution-fee-physical">Physical/Merch Fee (%) – optional</Label>
               <Input
                 id="distribution-fee-physical"
                 type="number"
@@ -201,24 +201,24 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                     if (!Number.isNaN(val)) patch({ distributionFeePhysical: clampPct(val) })
                   }
                 }}
-                placeholder="Leer = globale Rate"
+                placeholder="Empty = global rate"
                 className="max-w-full"
               />
               <p className="text-xs text-muted-foreground">
-                Überschreibt die globale Rate ausschließlich für physische / Merch-Einnahmen.
-                Leer lassen, um die globale Rate zu verwenden.
+                Overrides the global rate exclusively for physical / merch revenue.
+                Leave empty to use the global rate.
               </p>
             </div>
           </div>
         </div>
 
-        {/* ── Zahlungsfrist ────────────────────────── */}
+        {/* ── Payment Deadline ─────────────────────── */}
         <div className="space-y-4">
-          <SectionHeading icon={CalendarBlank} title="Rechnungs-Frist" />
+          <SectionHeading icon={CalendarBlank} title="Invoice Deadline" />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="deadline-days">Zahlungsfrist (Tage)</Label>
+              <Label htmlFor="deadline-days">Payment Deadline (days)</Label>
               <Input
                 id="deadline-days"
                 type="number"
@@ -230,59 +230,59 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                   const val = parseInt(e.target.value, 10)
                   if (!Number.isNaN(val)) patch({ invoiceDeadlineDays: Math.max(1, val) })
                 }}
-                placeholder="z.B. 25"
+                placeholder="e.g. 25"
               />
               <p className="text-xs text-muted-foreground">
-                Anzahl Tage, innerhalb derer Künstler ihre Rechnung einsenden müssen.
+                Number of days within which artists must submit their invoice.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="deadline-date">Konkretes Fälligkeitsdatum (optional)</Label>
+              <Label htmlFor="deadline-date">Specific due date (optional)</Label>
               <Input
                 id="deadline-date"
                 type="text"
                 value={defaults.invoiceDeadlineDate}
                 onChange={e => patch({ invoiceDeadlineDate: e.target.value })}
-                placeholder="z.B. 20. Dezember"
+                placeholder="e.g. 20 December"
               />
               <p className="text-xs text-muted-foreground">
-                Wird in der E-Mail-Vorlage als {'{'}deadline_date{'}'} eingesetzt.
+                Used in the email template as {'{'}deadline_date{'}'}.
               </p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="donation-org">Organisation für nicht eingeforderte Tantiemen</Label>
+            <Label htmlFor="donation-org">Organisation for unclaimed royalties</Label>
             <Input
               id="donation-org"
               type="text"
               value={defaults.royaltyDonationOrg}
               onChange={e => patch({ royaltyDonationOrg: e.target.value })}
-              placeholder="z.B. Tierheim, Kinderhilfswerk"
+              placeholder="e.g. Animal Shelter, Children's Aid"
             />
             <p className="text-xs text-muted-foreground">
-              Name der gemeinnützigen Organisation, an die nicht beanspruchte Tantiemen gespendet werden.
+              Name of the non-profit organisation to which unclaimed royalties will be donated.
             </p>
           </div>
         </div>
 
-        {/* ── Kontakt ──────────────────────────────── */}
+        {/* ── Contact ──────────────────────────────── */}
         <div className="space-y-4">
-          <SectionHeading icon={EnvelopeSimple} title="Rechnungsempfang" />
+          <SectionHeading icon={EnvelopeSimple} title="Invoice Receipt" />
 
           <div className="space-y-2">
-            <Label htmlFor="finance-email">Rechnungs-E-Mail</Label>
+            <Label htmlFor="finance-email">Finance Email</Label>
             <Input
               id="finance-email"
               type="email"
               value={defaults.financeEmail}
               onChange={e => patch({ financeEmail: e.target.value })}
-              placeholder="z.B. finance@label.com"
+              placeholder="e.g. finance@label.com"
             />
             <p className="text-xs text-muted-foreground">
-              An diese Adresse sollen Künstler ihre Rechnung schicken. Wird in E-Mail-Vorlagen als{' '}
-              {'{'}invoice_email{'}'} eingesetzt.
+              Artists should send their invoice to this address. Used in email templates as{' '}
+              {'{'}invoice_email{'}'}.
             </p>
           </div>
         </div>

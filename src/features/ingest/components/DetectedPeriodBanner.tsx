@@ -20,11 +20,14 @@ export function DetectedPeriodBanner({
   if (!detectedStart || !detectedEnd) return null
   if (detectedStart === currentStart && detectedEnd === currentEnd) return null
 
-  const fmt = (m: string) => {
-    if (!m) return ''
-    const [y, mo] = m.split('-')
-    const d = new Date(Number(y), Number(mo) - 1)
-    return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+  const fmt = (value: string) => {
+    if (!value) return ''
+    // Handle both YYYY-MM-DD (new) and YYYY-MM (legacy) formats.
+    // Append a day if needed so Date.parse produces a valid date in local time.
+    const normalized = value.length === 7 ? `${value}-01` : value
+    const d = new Date(normalized)
+    if (isNaN(d.getTime())) return value
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   return (

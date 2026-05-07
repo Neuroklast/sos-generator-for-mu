@@ -96,8 +96,8 @@ const pageVariants = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' as const } },
   exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
 }
-/** Accepts only month strings in `YYYY-MM` format for `<input type="month">` consumers. */
-const VALID_MONTH_RE = /^\d{4}-\d{2}$/
+/** Accepts date strings in `YYYY-MM-DD` format (new) or `YYYY-MM` format (legacy) for period inputs. */
+const VALID_DATE_RE = /^\d{4}-\d{2}(-\d{2})?$/
 const STORAGE_CLEAR_RELOAD_DELAY_MS = 1200
 
 // ── Main App ──────────────────────────────────────────────────────────────────
@@ -192,8 +192,8 @@ function App() {
   const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
   const stableLabelArtists = useMemo(() => labelArtists ?? [], [labelArtists])
   const stableIgnoredEntries = useMemo(() => ignoredEntries ?? [], [ignoredEntries])
-  const safePeriodStart = VALID_MONTH_RE.test(periodStart ?? '') ? periodStart : ''
-  const safePeriodEnd = VALID_MONTH_RE.test(periodEnd ?? '') ? periodEnd : ''
+  const safePeriodStart = VALID_DATE_RE.test(periodStart ?? '') ? periodStart : ''
+  const safePeriodEnd = VALID_DATE_RE.test(periodEnd ?? '') ? periodEnd : ''
 
   const {
     uniqueArtists,
@@ -326,6 +326,17 @@ function App() {
       setCompilationFilters(current => [...(current ?? []), { ...filter, id: crypto.randomUUID() }])
       pushUndo({ description: 'Add compilation filter', undo: () => setCompilationFilters(snapshot) })
       toast.success('Compilation exclusion added')
+    },
+    [compilationFilters, setCompilationFilters, pushUndo]
+  )
+  const handleAddMultipleCompilationFilters = useCallback(
+    (newFilters: Omit<CompilationFilter, 'id'>[]) => {
+      if (newFilters.length === 0) return
+      const snapshot = compilationFilters ?? []
+      const withIds = newFilters.map(f => ({ ...f, id: crypto.randomUUID() }))
+      setCompilationFilters(current => [...(current ?? []), ...withIds])
+      pushUndo({ description: `Add ${withIds.length} compilation filters`, undo: () => setCompilationFilters(snapshot) })
+      toast.success(`${withIds.length} compilation exclusion${withIds.length !== 1 ? 's' : ''} added`)
     },
     [compilationFilters, setCompilationFilters, pushUndo]
   )
@@ -557,7 +568,7 @@ function App() {
     const defaultPct = appDefaults?.defaultSplitPercentage ?? DEFAULT_APP_DEFAULTS.defaultSplitPercentage
     setSplitFees(current => {
       const updated = (current ?? []).map(sf => ({ ...sf, percentage: defaultPct }))
-      toast.success(`Default split (${defaultPct}%) auf alle ${updated.length} Künstler angewendet`)
+      toast.success(`Default split (${defaultPct}%) applied to all ${updated.length} artists`)
       return updated
     })
   }, [appDefaults, setSplitFees])
@@ -567,11 +578,11 @@ function App() {
       const { clear } = await import('idb-keyval')
       await clear()
       setClearAllStorageConfirmOpen(false)
-      toast.success('Kompletter Storage geleert – Seite wird neu geladen…')
+      toast.success('All storage cleared – reloading page…')
       setTimeout(() => window.location.reload(), STORAGE_CLEAR_RELOAD_DELAY_MS)
     } catch (error) {
       console.error('Failed to clear complete storage', error)
-      toast.error('Storage konnte nicht vollständig gelöscht werden. Bitte erneut versuchen.')
+      toast.error('Failed to clear storage completely. Please try again.')
     }
   }, [])
 
@@ -1142,7 +1153,10 @@ function App() {
                   excludePhysical={excludePhysical ?? false}
                   setExcludePhysical={setExcludePhysical}
                   handleAddCompilationFilter={handleAddCompilationFilter}
+                  handleAddMultipleCompilationFilters={handleAddMultipleCompilationFilters}
                   handleRemoveCompilationFilter={handleRemoveCompilationFilter}
+                  detectedCompilationCandidates={detectedCandidates}
+                  availableReleases={availableReleases}
                   handleAddAlias={handleAddAlias}
                   handleRemoveAlias={handleRemoveAlias}
                   appDefaults={appDefaults ?? DEFAULT_APP_DEFAULTS}
