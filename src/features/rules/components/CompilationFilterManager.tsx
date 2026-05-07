@@ -245,7 +245,15 @@ export function CompilationFilterManager({
     [detectedCandidates, filters]
   )
 
-  /** Detects whether a filter was added via the keyword path by checking its label prefix. */
+  /**
+   * Detects whether a filter was added via the keyword path by checking its label prefix.
+   *
+   * We use a label prefix convention ('Keyword: ') rather than adding a new field to
+   * `CompilationFilter` to stay backward-compatible: existing persisted filters, the
+   * `isCompilation` logic, and any serialised workspace backups are unaffected.
+   * The prefix is an intentional, stable part of the UI contract — it must remain
+   * exactly 'Keyword: ' (with a trailing space) as shown in handleAddKeyword.
+   */
   const isKeywordFilter = (filter: CompilationFilter) => filter.label.startsWith('Keyword: ')
 
   return (
@@ -429,7 +437,7 @@ export function CompilationFilterManager({
               const alreadyAdded = isDuplicate(filters, candidate.releaseTitle)
               return (
                 <Card
-                  key={`${candidate.upcEan || candidate.releaseTitle}`}
+                  key={`${candidate.upcEan || ''}-${candidate.catalogNumber || ''}-${candidate.releaseTitle}`}
                   className="p-3 flex items-start gap-3 bg-card/50"
                 >
                   <div className="flex-1 min-w-0">

@@ -38,7 +38,7 @@ import type {
   EmailConfig,
   ReleaseSplitOverride,
 } from '@/lib/types'
-import { detectCompilationCandidates } from '@/lib/compilation-heuristics'
+import { detectCompilationCandidates, buildHeuristicTransactions } from '@/lib/compilation-heuristics'
 import { toast } from 'sonner'
 import { APP_NAME, APP_LOGO, APP_CREDITS } from '@/config/softwareBranding'
 import type { CsvImportProfile } from '@/features/ingest/types'
@@ -296,14 +296,7 @@ function App() {
   const detectedCandidates = useMemo(
     () =>
       detectCompilationCandidates(
-        processedData.flatMap(d =>
-          d.releaseBreakdown.map(r => ({
-            release_title: r.releaseTitle,
-            upc_ean: r.upcEan,
-            catalog_number: r.catalogNumber,
-            main_artist: d.artist,
-          }))
-        ),
+        buildHeuristicTransactions(processedData),
         { artistMappings: stableArtistMappings }
       ),
     [processedData, stableArtistMappings]

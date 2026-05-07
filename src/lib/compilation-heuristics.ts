@@ -47,11 +47,20 @@ export interface HeuristicTransaction {
 /**
  * Resolves an artist name through the provided mappings (alias → primary).
  * Falls back to the original name when no mapping is found.
+ *
+ * Uses a pre-built Map for O(1) lookup to avoid quadratic complexity when
+ * iterating over many transactions.
  */
-function resolveArtist(name: string, mappings: ArtistMapping[]): string {
-  const lower = name.toLowerCase()
-  const match = mappings.find(m => m.featuringName.toLowerCase() === lower)
-  return match ? match.primaryArtist : name
+function buildMappingLookup(mappings: ArtistMapping[]): Map<string, string> {
+  const lookup = new Map<string, string>()
+  for (const m of mappings) {
+    lookup.set(m.featuringName.toLowerCase(), m.primaryArtist)
+  }
+  return lookup
+}
+
+function resolveArtist(name: string, lookup: Map<string, string>): string {
+  return lookup.get(name.toLowerCase()) ?? name
 }
 
 /**
@@ -85,7 +94,11 @@ export function detectCompilationCandidates(
     artistMappings = [],
   } = options
 
+  // Pre-build mapping lookup for O(1) alias resolution during transaction iteration.
+  const mappingLookup = buildMappingLookup(artistMappings)
+
   // Group transactions by a normalised release key (upc_ean > catalog_number > title).
+  // Transactions with all three fields empty are skipped (no meaningful key).
   type ReleaseAccumulator = {
     releaseTitle: string
     upcEan: string
@@ -100,7 +113,7 @@ export function detectCompilationCandidates(
     if (!key) continue
 
     const existing = releaseMap.get(key)
-    const resolvedArtist = resolveArtist(tx.main_artist, artistMappings)
+    const resolvedArtist = resolveArtist(tx.main_artist, mappingLookup)
 
     if (existing) {
       existing.artists.add(resolvedArtist)
@@ -168,4 +181,34 @@ export function detectCompilationCandidates(
     if (diff !== 0) return diff
     return a.releaseTitle.localeCompare(b.releaseTitle)
   })
+}
+
+/**
+ * Builds a flat list of `HeuristicTransaction` objects from the release
+ * breakdown of each processed artist.  This is the canonical input shape for
+ * `detectCompilationCandidates` when called from `App.tsx`.
+ *
+ * Separating this mapping from `App.tsx` keeps the data contract in one place
+ * and makes the transformation independently testable.
+ *
+ * @param processedData - Array of processed artist data from `useCSVProcessor`.
+ */
+export function buildHeuristicTransactions(
+  processedData: ReadonlyArray<{
+    artist: string
+    releaseBreakdown: ReadonlyArray<{
+      releaseTitle: string
+      upcEan: string
+      catalogNumber: string
+    }>
+  }>
+): HeuristicTransaction[] {
+  return processedData.flatMap(d =>
+    d.releaseBreakdown.map(r => ({
+      release_title: r.releaseTitle,
+      upc_ean: r.upcEan,
+      catalog_number: r.catalogNumber,
+      main_artist: d.artist,
+    }))
+  )
 }
