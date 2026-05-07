@@ -37,9 +37,15 @@ function parseDateValue(value: string): Date | undefined {
     return undefined
   }
 
-  const [year, month, day] = value.split("-").map(Number)
+  const dateParts = value.split("-")
 
-  if (!year || !month || !day) {
+  if (dateParts.length !== 3) {
+    return undefined
+  }
+
+  const [year, month, day] = dateParts.map(Number)
+
+  if (!year || year < 1000 || !month || !day) {
     return undefined
   }
 
@@ -122,7 +128,11 @@ export function DatePickerInput({
           selected={selectedDate}
           defaultMonth={selectedDate}
           onSelect={date => {
-            onChange(date ? formatDateValue(date) : "")
+            if (!date) {
+              return
+            }
+
+            onChange(formatDateValue(date))
             setOpen(false)
           }}
         />
