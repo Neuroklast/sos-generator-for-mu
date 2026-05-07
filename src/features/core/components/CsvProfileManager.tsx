@@ -63,6 +63,9 @@ const MASTER_DATA_FIELD_LABELS: Record<MasterDataFieldKey, string> = {
   vatNumber:     'VAT Number',
   isEuNonGerman: 'EU (non-DE)',
   notes:         'Notes',
+  accountHolder: 'Account Holder',
+  iban:          'IBAN',
+  bic:           'BIC',
 }
 
 const FINANCIAL_FIELDS = Object.keys(FINANCIAL_FIELD_LABELS) as FinancialFieldKey[]

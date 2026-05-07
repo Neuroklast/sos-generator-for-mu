@@ -106,7 +106,6 @@ const STORAGE_CLEAR_RELOAD_DELAY_MS = 1200
 
 function App() {
   const { t } = useTranslation()
-  const { NAV_ITEMS, STEP_ITEMS, SECONDARY_ITEMS } = useNavItems()
   const isMobile = useIsMobile()
   const [activeView, setActiveView] = useState<string>('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -196,8 +195,10 @@ function App() {
   const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
   const stableLabelArtists = useMemo(() => labelArtists ?? [], [labelArtists])
   const stableIgnoredEntries = useMemo(() => ignoredEntries ?? [], [ignoredEntries])
-  const safePeriodStart = VALID_DATE_RE.test(periodStart ?? '') ? periodStart : ''
-  const safePeriodEnd = VALID_DATE_RE.test(periodEnd ?? '') ? periodEnd : ''
+  const rawStart = periodStart ?? ''
+  const rawEnd = periodEnd ?? ''
+  const safePeriodStart = VALID_DATE_RE.test(rawStart) ? rawStart : ''
+  const safePeriodEnd = VALID_DATE_RE.test(rawEnd) ? rawEnd : ''
 
   const {
     uniqueArtists,
