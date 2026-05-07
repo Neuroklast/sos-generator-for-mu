@@ -97,7 +97,8 @@ export function useExports(
           labelInfo,
           periodStart || undefined,
           periodEnd || undefined,
-          compilationFilters
+          compilationFilters,
+          pdfSettings
         )
         downloadBlob(blob, `${createSafeFilename(artist)}_statement.xlsx`)
         toast.success(`Excel for "${artist}" downloaded`)

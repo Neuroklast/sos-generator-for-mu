@@ -106,7 +106,7 @@ function App() {
 
   const [compilationFilters, setCompilationFilters] = useKV<CompilationFilter[]>('compilation-filters', [])
   const [artistMappings, setArtistMappings] = useKV<ArtistMapping[]>('artist-mappings', [])
-  const [splitFees, setSplitFees] = useKV<SplitFee[]>('split-fees', [])
+  const [splitFees, setSplitFees, , splitFeesLoaded] = useKV<SplitFee[]>('split-fees', [])
   const [manualRevenues, setManualRevenues] = useKV<ManualRevenue[]>('manual-revenues', [])
   const [expenses, setExpenses] = useKV<ExpenseEntry[]>('expenses', [])
   const [labelInfo, setLabelInfo] = useKV<LabelInfo>('label-info', DEFAULT_LABEL_INFO)
@@ -119,7 +119,7 @@ function App() {
   const [periodEnd, setPeriodEnd, , periodEndLoaded] = useKV<string>('period-end', '')
   const [csvAliases, setCsvAliases] = useKV<CSVColumnAlias[]>('csv-aliases', [])
   const [guestPayoutRules, setGuestPayoutRules] = useKV<GuestPayoutRule[]>('guest-payout-rules', [])
-  const [appDefaults, setAppDefaults] = useKV<AppDefaults>('app-defaults', DEFAULT_APP_DEFAULTS)
+  const [appDefaults, setAppDefaults, , appDefaultsLoaded] = useKV<AppDefaults>('app-defaults', DEFAULT_APP_DEFAULTS)
   const [pdfExportSettings, setPdfExportSettings] = useKV<PdfExportSettings>('pdf-export-settings', DEFAULT_PDF_EXPORT_SETTINGS)
   const [emailConfig, setEmailConfig] = useKV<EmailConfig>('email-config', DEFAULT_EMAIL_CONFIG)
   // CSV Import Profiles — pre-seeded with system defaults on first load.
@@ -257,7 +257,13 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detectedPeriodStart, detectedPeriodEnd, periodStartLoaded, periodEndLoaded])
 
-  useSplitFeeSync(uniqueArtists, stableSplitFees, setSplitFees, appDefaults?.defaultSplitPercentage ?? 100)
+  useSplitFeeSync(
+    uniqueArtists,
+    stableSplitFees,
+    setSplitFees,
+    appDefaults?.defaultSplitPercentage ?? DEFAULT_APP_DEFAULTS.defaultSplitPercentage,
+    appDefaultsLoaded && splitFeesLoaded
+  )
 
   // Build a map of artist → sorted release titles from processed data.
   // Used by the per-release split override UI to offer a dropdown instead of free-text.

@@ -487,10 +487,9 @@ function buildPDF(
 
   // ── Release breakdown ─────────────────────────────────────────────────────
   if (settings.includeReleaseBreakdown && artistData.releaseBreakdown.length > 0) {
-    // Compilations are always excluded from the statement.
-    const releaseBreakdown = artistData.releaseBreakdown.filter(
-      rel => !isCompilationRelease(rel, compilationFilters)
-    )
+    const releaseBreakdown = settings.hideCompilationsInStatement
+      ? artistData.releaseBreakdown.filter(rel => !isCompilationRelease(rel, compilationFilters))
+      : artistData.releaseBreakdown
     if (releaseBreakdown.length > 0) {
       renderSectionHeading('Revenue by Release')
       autoTable(doc, {
@@ -730,10 +729,11 @@ export function generateExcel(
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string,
-  compilationFilters: CompilationFilter[] = []
+  compilationFilters: CompilationFilter[] = [],
+  settings?: Partial<PdfExportSettings>
 ): Blob {
   try {
-    return buildExcel(artistData, labelInfo, periodStart, periodEnd, compilationFilters)
+    return buildExcel(artistData, labelInfo, periodStart, periodEnd, compilationFilters, settings)
   } catch (err) {
     throw new Error(
       `Excel generation failed for "${artistData.artist}": ${err instanceof Error ? err.message : String(err)}`
@@ -746,7 +746,8 @@ function buildExcel(
   labelInfo: LabelInfo,
   periodStart?: string,
   periodEnd?: string,
-  compilationFilters: CompilationFilter[] = []
+  compilationFilters: CompilationFilter[] = [],
+  settings?: Partial<PdfExportSettings>
 ): Blob {
   const workbook = XLSX.utils.book_new()
 
@@ -783,9 +784,10 @@ function buildExcel(
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
 
   // Release breakdown sheet (aggregated, memory-efficient alternative to raw rows)
-  const releaseBreakdown = artistData.releaseBreakdown.filter(
-    rel => !isCompilationRelease(rel, compilationFilters)
-  )
+  const shouldHideCompilations = settings?.hideCompilationsInStatement ?? DEFAULT_PDF_SETTINGS.hideCompilationsInStatement
+  const releaseBreakdown = shouldHideCompilations
+    ? artistData.releaseBreakdown.filter(rel => !isCompilationRelease(rel, compilationFilters))
+    : artistData.releaseBreakdown
   if (releaseBreakdown.length > 0) {
     const releaseHeaders = [
       'Release Title', 'UPC/EAN', 'Catalog Number', 'Revenue', 'Quantity', 'Type',
@@ -914,7 +916,7 @@ export async function generateZipOfAllStatements(
     }
 
     if (format === 'excel' || format === 'both') {
-      const excelBlob = generateExcel(artistData, labelInfo, periodStart, periodEnd, compilationFilters)
+      const excelBlob = generateExcel(artistData, labelInfo, periodStart, periodEnd, compilationFilters, pdfSettings)
       zip.file(`${safeArtistName}_statement.xlsx`, excelBlob)
     }
 
