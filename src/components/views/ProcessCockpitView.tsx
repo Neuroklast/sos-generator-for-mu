@@ -139,6 +139,9 @@ export function ProcessCockpitView({
   isProcessing,
   navigate,
 }: ProcessCockpitViewProps) {
+  const totalPayout = revenues.reduce((sum, rev) => sum + rev.finalAmount, 0)
+  const rosterGross = revenues.reduce((sum, rev) => sum + rev.totalRevenue, 0)
+
   return (
     <div className="flex flex-col min-h-full -mx-6 md:-mx-8 lg:-mx-12 -my-8 md:-my-10">
       {/* Title */}
@@ -164,7 +167,7 @@ export function ProcessCockpitView({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <StatCard
               label="Files Loaded"
               value={String(totalFiles)}
@@ -181,14 +184,14 @@ export function ProcessCockpitView({
             />
             <StatCard
               label="Total Payout"
-              value={fmtCurrencyEur(revenues.reduce((sum, rev) => sum + rev.finalAmount, 0))}
+              value={fmtCurrencyEur(totalPayout)}
               icon={TrendingUp}
               gradient="from-emerald-500 to-teal-500"
               delay={0.1}
             />
             <StatCard
               label="Roster Gross"
-              value={fmtCurrencyEur(revenues.reduce((sum, rev) => sum + rev.totalRevenue, 0))}
+              value={fmtCurrencyEur(rosterGross)}
               sub="before split deductions"
               icon={Banknote}
               gradient="from-amber-500 to-orange-500"
