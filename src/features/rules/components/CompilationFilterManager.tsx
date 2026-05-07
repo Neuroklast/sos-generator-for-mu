@@ -236,8 +236,10 @@ export function CompilationFilterManager({
   )
 
   const handleAddAllHighConfidence = useCallback(() => {
+    // Build a Set of existing identifiers for O(n+m) duplicate checking
+    const existingIds = new Set(filters.map(f => f.identifier.toLowerCase()))
     const toAdd = detectedCandidates
-      .filter(c => c.confidence === 'high' && !isDuplicate(filters, c.releaseTitle))
+      .filter(c => c.confidence === 'high' && !existingIds.has(c.releaseTitle.toLowerCase()))
       .map(c => ({ identifier: c.releaseTitle, type: 'title' as const, label: c.releaseTitle }))
     if (toAdd.length === 0) return
     if (onAddMultipleFilters) {

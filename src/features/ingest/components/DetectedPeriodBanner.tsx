@@ -23,10 +23,15 @@ export function DetectedPeriodBanner({
   const fmt = (value: string) => {
     if (!value) return ''
     // Handle both YYYY-MM-DD (new) and YYYY-MM (legacy) formats.
-    // Append a day if needed so Date.parse produces a valid date in local time.
-    const normalized = value.length === 7 ? `${value}-01` : value
-    const d = new Date(normalized)
-    if (isNaN(d.getTime())) return value
+    // Parse the parts explicitly to avoid timezone-shift issues that arise when
+    // Date.parse treats a bare date string as UTC midnight (off-by-one in
+    // negative-UTC-offset locales).
+    const parts = value.split('-').map(Number)
+    const year = parts[0]
+    const month = parts[1]
+    const day = parts[2] ?? 1
+    if (!year || !month) return value
+    const d = new Date(year, month - 1, day)
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
