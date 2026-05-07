@@ -20,6 +20,18 @@ interface DatePickerInputProps {
 
 const ISO_DATE_VALUE_RE = /^\d{4}-\d{2}-\d{2}$/
 
+/**
+ * Parses the persisted `YYYY-MM-DD` form value into a local calendar date.
+ *
+ * We intentionally split the string into date parts instead of passing the raw
+ * ISO date into the `Date` constructor because bare ISO dates are interpreted
+ * as UTC in many environments. That causes off-by-one rendering bugs in
+ * negative UTC offsets, which is unacceptable for statement periods.
+ *
+ * Invalid or impossible dates such as `2024-02-30` return `undefined` so the
+ * picker can fall back to its placeholder state rather than rendering a wrong
+ * day.
+ */
 function parseDateValue(value: string): Date | undefined {
   if (!ISO_DATE_VALUE_RE.test(value)) {
     return undefined
@@ -44,6 +56,14 @@ function parseDateValue(value: string): Date | undefined {
   return parsedDate
 }
 
+/**
+ * Serialises a selected local calendar date back into the canonical
+ * `YYYY-MM-DD` string stored in application state.
+ *
+ * The value is composed from local date parts to preserve the exact day the
+ * user picked in the calendar and to avoid timezone shifts when the value is
+ * later rehydrated.
+ */
 function formatDateValue(date: Date): string {
   const year = String(date.getFullYear()).padStart(4, "0")
   const month = String(date.getMonth() + 1).padStart(2, "0")
@@ -52,6 +72,15 @@ function formatDateValue(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * Styled single-date picker that keeps external state in the repository's
+ * existing `YYYY-MM-DD` string format.
+ *
+ * This wraps the shared `Calendar` inside a `Popover` so period inputs match
+ * the app's UI instead of relying on inconsistent native browser date pickers.
+ * Parsing and formatting are handled explicitly to keep reporting periods
+ * stable across timezones.
+ */
 export function DatePickerInput({
   id,
   value,
