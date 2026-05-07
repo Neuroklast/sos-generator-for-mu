@@ -391,28 +391,29 @@ function buildPDF(
   //   Gross Revenue → –Fee → × Split% → +Manual Revenue → –Recoupable Expenses → Net Payout
   const physicalReleasesRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
 
-  // Digital revenue broken into streams / downloads / unclassified
-  const digitalOtherRevenue = Math.max(
-    0,
-    artistData.totalDigitalRevenue - artistData.totalStreamRevenue - artistData.totalDownloadRevenue
-  )
-  const hasStreamDownloadDetail =
-    artistData.totalStreamRevenue > 0 || artistData.totalDownloadRevenue > 0
+  // Digital revenue broken into streams / downloads / unclassified.
+  // Guard against undefined/NaN coming from older cached data by normalising to 0.
+  const safeStreamRevenue = isFinite(artistData.totalStreamRevenue) ? artistData.totalStreamRevenue : 0
+  const safeDownloadRevenue = isFinite(artistData.totalDownloadRevenue) ? artistData.totalDownloadRevenue : 0
+  const safeDigitalRevenue = isFinite(artistData.totalDigitalRevenue) ? artistData.totalDigitalRevenue : 0
+
+  const digitalOtherRevenue = Math.max(0, safeDigitalRevenue - safeStreamRevenue - safeDownloadRevenue)
+  const hasStreamDownloadDetail = safeStreamRevenue > 0 || safeDownloadRevenue > 0
 
   const waterfallRows: string[][] = []
 
   if (hasStreamDownloadDetail) {
-    if (artistData.totalStreamRevenue > 0) {
-      waterfallRows.push(['Streaming Revenue', formatCurrency(artistData.totalStreamRevenue)])
+    if (safeStreamRevenue > 0) {
+      waterfallRows.push(['Streaming Revenue', formatCurrency(safeStreamRevenue)])
     }
-    if (artistData.totalDownloadRevenue > 0) {
-      waterfallRows.push(['Download Revenue', formatCurrency(artistData.totalDownloadRevenue)])
+    if (safeDownloadRevenue > 0) {
+      waterfallRows.push(['Download Revenue', formatCurrency(safeDownloadRevenue)])
     }
     if (digitalOtherRevenue > 0) {
       waterfallRows.push(['Digital Revenue (other)', formatCurrency(digitalOtherRevenue)])
     }
-  } else if (artistData.totalDigitalRevenue > 0) {
-    waterfallRows.push(['Digital Revenue', formatCurrency(artistData.totalDigitalRevenue)])
+  } else if (safeDigitalRevenue > 0) {
+    waterfallRows.push(['Digital Revenue', formatCurrency(safeDigitalRevenue)])
   }
 
   if (physicalReleasesRevenue !== 0) {
@@ -441,8 +442,10 @@ function buildPDF(
     waterfallRows.push(['= Split Basis', formatCurrency(splitBasis)])
   }
 
-  const splitBeforeManualAndExpenses = artistData.finalPayout - artistData.manualRevenue + artistData.totalExpenses
-  waterfallRows.push([`× Split ${artistData.splitPercentage}%`, formatCurrency(splitBeforeManualAndExpenses)])
+  // Artist share after applying the split % — manual revenue and expense adjustments
+  // are applied after this step: finalPayout = artistShare + manualRevenue - totalExpenses.
+  const artistShare = artistData.finalPayout - artistData.manualRevenue + artistData.totalExpenses
+  waterfallRows.push([`× Split ${artistData.splitPercentage}%`, formatCurrency(artistShare)])
 
   if (artistData.manualRevenue !== 0) {
     waterfallRows.push(['+ Manual Revenue (post-split)', formatCurrency(artistData.manualRevenue)])
@@ -497,7 +500,7 @@ function buildPDF(
           rel.releaseTitle || '-',
           formatCurrency(rel.revenue),
           String(rel.quantity),
-          rel.isPhysical ? 'Physical' : 'Streams / Downloads',
+          rel.isPhysical ? 'Physical' : 'Digital',
         ]),
         theme: 'striped',
         styles: { fontSize: 8, cellPadding: 2 },
@@ -793,7 +796,7 @@ function buildExcel(
       r.catalogNumber || '',
       r.revenue,
       r.quantity,
-      r.isPhysical ? 'Physical' : 'Streams / Downloads',
+      r.isPhysical ? 'Physical' : 'Digital',
     ])
     const releaseSheet = XLSX.utils.aoa_to_sheet([releaseHeaders, ...releaseRows])
     releaseSheet['!cols'] = [

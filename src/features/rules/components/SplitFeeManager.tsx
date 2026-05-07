@@ -238,7 +238,7 @@ function ReleaseOverrideList({
               <PercentInput
                 id={`release-override-physical-${artist}-${i}`}
                 value={o.physicalPercentage}
-                placeholder="phys = digital"
+                placeholder="Same as digital"
                 onChange={val => handleChangePhysicalPercent(i, val)}
               />
               <button
@@ -317,7 +317,7 @@ function ReleaseOverrideList({
                 min="0"
                 max="100"
                 step="0.1"
-                placeholder="phys optional"
+                placeholder="Physical % (optional)"
                 value={newPhysicalPct}
                 onChange={e => { setNewPhysicalPct(e.target.value); setPhysicalPctError('') }}
                 className={`w-28 text-right font-mono text-xs ${physicalPctError ? 'border-destructive' : ''}`}

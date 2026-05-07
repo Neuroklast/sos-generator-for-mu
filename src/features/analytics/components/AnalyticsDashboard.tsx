@@ -188,17 +188,22 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
     ].filter(item => item.value > 0)
   }, [filteredRevenues])
 
+  /** Sums digital revenue from the release breakdown (non-physical rows). */
+  const sumDigitalFromBreakdown = (revenues: typeof filteredRevenues): number =>
+    revenues.reduce(
+      (sum, r) => sum + r.releaseBreakdown.filter(rel => !rel.isPhysical).reduce((s, rel) => s + rel.revenue, 0),
+      0
+    )
+
   const releaseTypeData = useMemo(() => {
     let streams = 0
     let downloads = 0
     let physical = 0
 
     filteredRevenues.forEach(r => {
-      streams += r.totalStreamRevenue
-      downloads += r.totalDownloadRevenue
-      // physical = totalRevenue (gross) minus digital minus manual minus darkmerch
-      // Use releaseBreakdown as a fallback for physical (for any revenue that doesn't
-      // have stream/download info, e.g. Bandcamp physical)
+      // Guard against undefined/NaN from partially-cached data
+      streams += isFinite(r.totalStreamRevenue) ? r.totalStreamRevenue : 0
+      downloads += isFinite(r.totalDownloadRevenue) ? r.totalDownloadRevenue : 0
       r.releaseBreakdown.forEach(rel => {
         if (rel.isPhysical) {
           physical += rel.revenue
@@ -208,9 +213,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
 
     // "digital other" = digital revenue that is neither a stream nor a download
     // (e.g. unclassified Believe rows where is_download is undefined)
-    const totalDigitalFromBreakdown = filteredRevenues.reduce((sum, r) =>
-      sum + r.releaseBreakdown.filter(rel => !rel.isPhysical).reduce((s, rel) => s + rel.revenue, 0), 0
-    )
+    const totalDigitalFromBreakdown = sumDigitalFromBreakdown(filteredRevenues)
     const digitalOther = Math.max(0, totalDigitalFromBreakdown - streams - downloads)
 
     return [
@@ -219,6 +222,7 @@ export function AnalyticsDashboard({ revenues }: AnalyticsDashboardProps) {
       { name: 'Physical', value: parseFloat(physical.toFixed(2)) },
       ...(digitalOther > 0 ? [{ name: 'Digital (other)', value: parseFloat(digitalOther.toFixed(2)) }] : []),
     ].filter(item => item.value > 0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredRevenues])
 
   const formatCurrency = (value: number) => `€${value.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
