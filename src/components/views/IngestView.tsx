@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, CalendarDays, Sparkles, RefreshCw } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -77,6 +78,7 @@ export function IngestView({
   onImportLabelArtistsCSV,
   csvImportProfiles = [],
 }: IngestViewProps) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-8">
       {/* Detected period banner */}
@@ -89,7 +91,7 @@ export function IngestView({
           onApply={() => {
             setPeriodStart(detectedPeriodStart)
             setPeriodEnd(detectedPeriodEnd)
-            toast.success('Period applied from CSV data')
+            toast.success(t('ingest.periodApplied'))
           }}
         />
       </AnimatePresence>
@@ -98,17 +100,17 @@ export function IngestView({
       <div>
         <div className="flex items-center gap-2.5 mb-4">
           <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">1</span>
-          <h2 className="text-base font-semibold">Upload CSV Files</h2>
+          <h2 className="text-base font-semibold">{t('ingest.uploadCSVFiles')}</h2>
           {refreshExchangeRates && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
                 refreshExchangeRates()
-                toast.info('Updating exchange rates…')
+                toast.info(t('ingest.updatingExchangeRates'))
               }}
               disabled={exchangeRatesLoading}
-              title="Refresh exchange rates"
+              title={t('ingest.refreshExchangeRates')}
               className="ml-auto h-8 w-8 p-0"
             >
               <RefreshCw size={15} className={exchangeRatesLoading ? 'animate-spin' : ''} />
@@ -128,7 +130,7 @@ export function IngestView({
                   size="sm"
                   onClick={() => {
                     refreshExchangeRates()
-                    toast.info('Updating exchange rates…')
+                    toast.info(t('ingest.updatingExchangeRates'))
                   }}
                   className="mt-1 text-xs"
                 >
@@ -192,7 +194,7 @@ export function IngestView({
       <div>
         <div className="flex items-center gap-2.5 mb-4">
           <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">2</span>
-          <h2 className="text-base font-semibold">Configure Statement Period</h2>
+          <h2 className="text-base font-semibold">{t('ingest.configureStatementPeriod')}</h2>
         </div>
 
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
@@ -203,7 +205,7 @@ export function IngestView({
             <div className="flex-1 space-y-1.5">
               <Label htmlFor="period-start" className="text-xs font-medium flex items-center gap-1.5">
                 <CalendarDays size={12} className="text-muted-foreground" />
-                Period Start
+                {t('ingest.periodStart')}
               </Label>
               <Input
                 id="period-start"
@@ -216,7 +218,7 @@ export function IngestView({
             <div className="flex-1 space-y-1.5">
               <Label htmlFor="period-end" className="text-xs font-medium flex items-center gap-1.5">
                 <CalendarDays size={12} className="text-muted-foreground" />
-                Period End
+                {t('ingest.periodEnd')}
               </Label>
               <Input
                 id="period-end"
