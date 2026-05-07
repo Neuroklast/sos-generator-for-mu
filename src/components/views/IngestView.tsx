@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, CalendarDays, Sparkles, RefreshCw } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { UniversalFileUploadZone, type FileManagerCallbacks, type EcommerceManagerCallbacks } from '@/features/ingest/components/UniversalFileUploadZone'
 import { ManualRevenueManager } from '@/features/rules/components/ManualRevenueManager'
 import { ExpenseManager } from '@/features/rules/components/ExpenseManager'
@@ -207,12 +207,11 @@ export function IngestView({
                 <CalendarDays size={12} className="text-muted-foreground" />
                 {t('ingest.periodStart')}
               </Label>
-              <Input
+              <DatePickerInput
                 id="period-start"
-                type="date"
                 value={periodStart}
-                onChange={e => setPeriodStart(e.target.value)}
-                className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
+                onChange={setPeriodStart}
+                placeholder={t('ingest.periodStart')}
               />
             </div>
             <div className="flex-1 space-y-1.5">
@@ -220,12 +219,11 @@ export function IngestView({
                 <CalendarDays size={12} className="text-muted-foreground" />
                 {t('ingest.periodEnd')}
               </Label>
-              <Input
+              <DatePickerInput
                 id="period-end"
-                type="date"
                 value={periodEnd}
-                onChange={e => setPeriodEnd(e.target.value)}
-                className="border border-border/60 bg-background/50 focus:border-primary/60 h-10"
+                onChange={setPeriodEnd}
+                placeholder={t('ingest.periodEnd')}
               />
             </div>
           </div>
