@@ -141,6 +141,11 @@ const MAX_BREAKDOWN_ROWS = 500
  */
 const MIN_SPACE_FOR_SECTION_HEADING_MM = 60
 
+/** Font size (pt) for table footnotes (e.g. "N more countries not shown"). */
+const FOOTNOTE_FONT_SIZE_PT = 7
+/** RGB colour applied to table footnote text. */
+const FOOTNOTE_TEXT_COLOR_RGB: [number, number, number] = [120, 120, 140]
+
 /**
  * Placeholder string that is substituted by jsPDF's `putTotalPages()` call at the
  * very end of `buildPDF`, after every page has been generated. Using this two-pass
@@ -640,9 +645,9 @@ function buildPDF(
     })
     yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
     if (remainingCountries > 0) {
-      doc.setFontSize(7)
+      doc.setFontSize(FOOTNOTE_FONT_SIZE_PT)
       doc.setFont('helvetica', 'italic')
-      doc.setTextColor(120, 120, 140)
+      doc.setTextColor(...FOOTNOTE_TEXT_COLOR_RGB)
       doc.text(`(+ ${remainingCountries} more ${remainingCountries === 1 ? 'country' : 'countries'} not shown)`, margin, yPos)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(0, 0, 0)

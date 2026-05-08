@@ -241,15 +241,13 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                   value={defaults.sourceSplits?.[key] ?? ''}
                   onChange={e => {
                     const raw = e.target.value
-                    const next = raw === ''
-                      ? undefined
-                      : clampPct(parseFloat(raw))
-                    patch({
-                      sourceSplits: {
-                        ...defaults.sourceSplits,
-                        [key]: Number.isNaN(next) ? undefined : next,
-                      },
-                    })
+                    if (raw === '') {
+                      patch({ sourceSplits: { ...defaults.sourceSplits, [key]: undefined } })
+                      return
+                    }
+                    const parsed = parseFloat(raw)
+                    if (Number.isNaN(parsed)) return
+                    patch({ sourceSplits: { ...defaults.sourceSplits, [key]: clampPct(parsed) } })
                   }}
                   placeholder="Empty = global rate"
                   className="max-w-full"

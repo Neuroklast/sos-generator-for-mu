@@ -106,7 +106,7 @@ export function PdfExportSettingsPanel({ settings, onUpdate }: PdfExportSettings
                   value={settings.topCountriesCount ?? 15}
                   onChange={e => {
                     const val = parseInt(e.target.value, 10)
-                    if (!Number.isNaN(val) && val >= 1) patch({ topCountriesCount: val })
+                    if (!Number.isNaN(val) && val >= 1 && val <= 200) patch({ topCountriesCount: val })
                   }}
                   className="w-20 h-7 text-xs"
                 />
