@@ -680,12 +680,25 @@ The **Workspace Manager** allows you to save and restore different billing state
 
 | Column | Required | Description |
 |--------|----------|-------------|
-| date | ✅ | Sale date |
+| date | ✅ | Sale date (M/D/YY format as exported by Bandcamp) |
 | artist | ✅ | Artist name |
-| album title | ❌ | Album name |
-| item title | ✅ | Track or album title |
-| net revenue | ✅ | Net revenue after Bandcamp fees |
+| item name | ✅ | Album or track title |
+| **net amount** | ✅ | **Net revenue per transaction** (the label's payout after Bandcamp fees — this is the column used for all financial calculations) |
 | currency | ❌ | Default: EUR |
+| package | ✅ | Product identifier used for physical/digital classification (see below) |
+
+#### Physical vs. Digital Classification (Bandcamp)
+
+The `package` column determines whether a Bandcamp transaction is a digital download or a physical product:
+
+| `package` value | Classification | Split bucket |
+|----------------|----------------|--------------|
+| Contains the word **"digital"** (e.g. `digital download`, `digital bundle`) | Digital download | Digital split |
+| Any other value (e.g. `Limited Digipac CD`, `BLACKBOOK Confession T-Shirt`, `Jewelcase 2CDs`) | **Physical product** | Physical split (same as Believe Physical) |
+
+> **Note:** The "balance of revenue share (EUR)" column is the collection-society running
+> balance — it is **not** the per-transaction revenue and is ignored during processing.
+> Always use the standard Bandcamp CSV export which includes the `net amount` column.
 
 ### Shopify Format
 

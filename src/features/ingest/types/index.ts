@@ -37,6 +37,8 @@ export type FinancialFieldKey =
   | 'catalogNumber'
   | 'releaseType'
   | 'balanceEur'
+  /** Bandcamp-specific: the "package" column that identifies digital vs physical products. */
+  | 'bandcampPackage'
 
 /**
  * Canonical internal field keys for master-data (artist roster) CSVs.

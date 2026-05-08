@@ -171,3 +171,52 @@ label-wide type policy.
 - The bucket split system (`sourceSplits.*`) is unaffected; it is a completely independent path.
 - Five new regression tests added to `data-processor.test.ts` covering the exact bug scenario and
   the cases where explicit per-artist type overrides still win.
+
+---
+
+## ADR-005 · Bandcamp Physical/Digital Detection: "package" Column as Primary Signal
+
+**Date:** 2026-05-08
+
+### Context
+
+Bandcamp CSVs include two columns relevant to product classification:
+- `item type` — Bandcamp's internal category (`album`, `track`, `package`, `payout`, …)
+- `package` — the product title the customer purchased (e.g. `digital download`,
+  `digital bundle`, `Limited Digipac CD`, `BLACKBOOK Confession T-Shirt`)
+
+The previous implementation used `item type === "package"` to flag physical products.
+This was brittle because it relied on a Bandcamp-internal category name rather than the
+explicit product description.
+
+Additionally, the previous code preferred the "balance of revenue share (EUR)" column
+for Bandcamp revenue.  That column is the collection-society running balance (per-session
+total), NOT the per-transaction net revenue received by the label.  The correct column is
+"net amount".
+
+### Decision
+
+1. **Physical/digital detection** is now driven exclusively by the `package` column:
+   - Contains the word "digital" (case-insensitive) → digital download (`is_physical = false`)
+   - Any other non-empty value → physical product (`is_physical = true`, physical-split bucket)
+   - Empty package column → fallback to old `release_type` keyword matching for compatibility
+     with non-standard or custom CSV formats
+
+2. **Revenue column** for Bandcamp is now explicitly `net amount` (`mappedData.net_revenue`).
+   The `balance_eur` field is retained in the semantic dictionary and `FinancialFieldKey` for
+   backward compatibility with user-defined profiles, but it is no longer used for revenue.
+
+3. A new semantic-dictionary field `bandcamp_package` (synonym: `"package"`) and a new
+   `FinancialFieldKey` `bandcampPackage` are introduced.  The `BANDCAMP_STANDARD` system
+   profile maps `bandcampPackage → 'package'`.
+
+### Consequences
+
+- Physical Bandcamp items (CDs, vinyl, T-shirts, bundles) are now correctly counted in the
+  physical-split bucket (same as physical Believe transactions) instead of being treated as
+  digital revenue.
+- Bandcamp revenue figures are now accurate: the label's actual net payout per sale is used
+  rather than the collection-society running balance.
+- The `balance of revenue share (EUR)` column is no longer mapped in the `BANDCAMP_STANDARD`
+  profile; existing user-defined profiles that mapped `balanceEur` are unaffected (the field
+  remains valid but has no effect on financial calculations).
