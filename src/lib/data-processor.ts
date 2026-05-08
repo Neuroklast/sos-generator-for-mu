@@ -249,27 +249,32 @@ function resolveSplitPercentage(
  * Resolves the effective artist split percentage for a transaction source.
  *
  * Resolution priority (highest → lowest):
- *   1. Per-source override         (`splitFee.sourceOverrides` for this source)
- *   2. Per-type override           (`splitFee.digitalPercentage` / `splitFee.physicalPercentage`)
- *   3. Global per-source split     (`sourceSplits` / `aggregatedGlobalSplit`) — label-wide
- *                                  per-source policy; overrides per-artist base rate so that
- *                                  labels can enforce source-specific rates (e.g. `'darkmerch'` at
- *                                  100 %, `'physical'` at 15 %) for all artists, even those with a
- *                                  per-artist base entry.
- *   4. Per-artist base             (`splitFee.percentage`)
- *   5. Label-wide type default     (`defaultTypeOverride`)
- *   6. Label-wide base default     (`defaultBase`)
+ *   1. Per-source override    (`splitFee.sourceOverrides` for this source)
+ *   2. Per-type override      (`splitFee.digitalPercentage` / `splitFee.physicalPercentage`)
+ *   3. Per-artist base        (`splitFee.percentage`)
+ *   4. Global source split    (`sourceSplits` in DataProcessorConfig for this source)
+ *                             — only reached when the artist has NO per-artist SplitFee entry.
+ *   5. Label-wide type default (`defaultTypeOverride`) — callers merge `sourceSplits` for
+ *                             aggregated buckets (digital/physical) into this parameter so
+ *                             that `sourceSplits.physical` / `sourceSplits.believe` act as
+ *                             fallbacks below the per-artist level.
+ *   6. Label-wide base default (`defaultBase`)
+ *
+ * Per-artist settings always win over label-wide defaults (steps 4–6). Global source
+ * splits (step 4/5) only apply when no per-artist SplitFee exists for the artist.
  *
  * @param splitFee - The artist's SplitFee entry, or `undefined` when none configured.
- * @param source - Transaction source to check for a source override, or `null` for
- *   aggregated buckets (digital total, physical-releases total).
+ * @param source - Transaction source to check for a named source override (`'darkmerch'`,
+ *   `'bandcamp'`, …), or `null` for aggregated buckets (digital total, physical total).
+ *   When `null` the caller is responsible for merging the relevant `sourceSplits` value
+ *   into `defaultTypeOverride`.
  * @param isPhysical - Whether to use the physical or digital type-override chain.
- * @param defaultBase - Label-wide default split percentage (0–100).
- * @param defaultTypeOverride - Label-wide type-specific default (0–100).
- * @param globalSourceSplits - Label-wide per-source split defaults (0–100).
- * @param aggregatedGlobalSplit - Pre-resolved global split for aggregated buckets where
- *   `source` is `null` (e.g. `sourceSplits.physical` for the physical-releases bucket,
- *   `sourceSplits.believe` for the digital bucket). Applied at priority 3.
+ * @param defaultBase - Label-wide base default split percentage (0–100).
+ * @param defaultTypeOverride - Effective label-wide type-specific default (0–100).
+ *   Callers should pre-compute this as `sourceSplits.{type} ?? defaultSplitPercentage{Type}`
+ *   so that source-specific label defaults are honoured for artists without per-artist splits.
+ * @param globalSourceSplits - Label-wide per-source split defaults (0–100). Only consulted
+ *   when `source` is a named source AND `splitFee` is `undefined`.
  */
 function resolveSplitPercentageWithSourceOverride(
   splitFee: SplitFee | undefined,
@@ -277,34 +282,27 @@ function resolveSplitPercentageWithSourceOverride(
   isPhysical: boolean,
   defaultBase: number,
   defaultTypeOverride?: number,
-  globalSourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number },
-  aggregatedGlobalSplit?: number
+  globalSourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
 ): number {
   // 1. Per-artist source override (highest priority)
   if (source != null && splitFee?.sourceOverrides != null) {
     const sourceOverride = splitFee.sourceOverrides.find(o => o.source === source)
     if (sourceOverride != null) return clampSplitPercentage(sourceOverride.percentage)
   }
-  // 2. Per-artist type override (digital/physical specific percentage)
+  // 2–3. Per-artist type override then base — per-artist always beats label-wide defaults
   if (splitFee != null) {
-    const perArtistTypeOverride = isPhysical ? splitFee.physicalPercentage : splitFee.digitalPercentage
-    if (perArtistTypeOverride != null) return clampSplitPercentage(perArtistTypeOverride)
+    return resolveSplitPercentage(splitFee, isPhysical ? 'physical' : 'digital', defaultBase, defaultTypeOverride)
   }
-  // 3. Global per-source split — applies even when a per-artist base entry exists so that
-  //    label-wide source policies (e.g. `'darkmerch'` at 100 %, `'physical'` at 15 %) take
-  //    effect for all artists, not only those with no SplitFee entry at all.
-  const globalPct: number | undefined =
-    source != null && globalSourceSplits != null
-      ? source === 'believe'   ? globalSourceSplits.believe
-      : source === 'bandcamp'  ? globalSourceSplits.bandcamp
-      : source === 'darkmerch' ? globalSourceSplits.darkmerch
-      : (source === 'shopify' || source === 'printful') ? globalSourceSplits.physical
-      : undefined
-      : aggregatedGlobalSplit  // source === null: caller passes the pre-resolved value
-  if (globalPct != null) return clampSplitPercentage(globalPct)
-  // 4. Per-artist base percentage
-  if (splitFee != null) return clampSplitPercentage(splitFee.percentage)
-  // 5–6. Label-wide type / base defaults
+  // 4. Global per-source split (only when artist has no SplitFee entry at all)
+  if (source != null && globalSourceSplits != null) {
+    let globalPct: number | undefined
+    if (source === 'believe') globalPct = globalSourceSplits.believe
+    else if (source === 'bandcamp') globalPct = globalSourceSplits.bandcamp
+    else if (source === 'darkmerch') globalPct = globalSourceSplits.darkmerch
+    else if (source === 'shopify' || source === 'printful') globalPct = globalSourceSplits.physical
+    if (globalPct != null) return clampSplitPercentage(globalPct)
+  }
+  // 5–6. Label-wide type / base defaults (callers pre-merge sourceSplits for source=null buckets)
   const effectiveDefault = defaultTypeOverride ?? defaultBase
   return clampSplitPercentage(effectiveDefault)
 }
@@ -655,20 +653,22 @@ export function processTransactionsWithCompilations(
     const defaultBase = config.defaultSplitPercentage ?? 100
     const splitFee = config.splitFees.find(sf => sf.artist.toLowerCase() === lowerKey)
 
-    // Resolve per-bucket split percentages (source overrides have highest priority)
+    // Resolve per-bucket split percentages.
+    // For aggregated source=null buckets (digital, physical) the relevant sourceSplits entry
+    // is merged into the effective type default so that it applies as a fallback for artists
+    // without a per-artist SplitFee entry. Priority: globalSource > globalTypeDefault > globalBase.
+    const effectiveDigitalDefault =
+      config.sourceSplits?.believe ?? config.sourceSplits?.bandcamp ?? config.defaultSplitPercentageDigital
+    const effectivePhysicalDefault =
+      config.sourceSplits?.physical ?? config.defaultSplitPercentagePhysical
     const digitalSplitPct = resolveSplitPercentageWithSourceOverride(
-      splitFee, null, false, defaultBase, config.defaultSplitPercentageDigital, config.sourceSplits,
-      // Believe is the primary digital streaming source; use its global split as the
-      // aggregate digital-bucket default, falling back to Bandcamp when Believe is unset.
-      config.sourceSplits?.believe ?? config.sourceSplits?.bandcamp
+      splitFee, null, false, defaultBase, effectiveDigitalDefault, config.sourceSplits
     )
     const physicalSplitPct = resolveSplitPercentageWithSourceOverride(
-      splitFee, null, true, defaultBase, config.defaultSplitPercentagePhysical, config.sourceSplits,
-      // Physical releases (Shopify / Printful) use the global physical source split.
-      config.sourceSplits?.physical
+      splitFee, null, true, defaultBase, effectivePhysicalDefault, config.sourceSplits
     )
     const darkmerchSplitPct = resolveSplitPercentageWithSourceOverride(
-      splitFee, 'darkmerch', true, defaultBase, config.defaultSplitPercentagePhysical, config.sourceSplits
+      splitFee, 'darkmerch', true, defaultBase, effectivePhysicalDefault, config.sourceSplits
     )
 
     // splitPercentage for backward-compat display: use digitalSplitPct when no physical revenue
