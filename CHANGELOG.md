@@ -7,7 +7,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Fixed
+### Changed
+- **Bandcamp digital sales now classified as downloads in the platform breakdown.**
+  Previously, non-physical Bandcamp transactions received no `is_download` flag, causing
+  them to appear as unclassified in the "Revenue by Platform" table (Downloads column showed 0).
+  Bandcamp is a purchase/download platform, so all non-physical transactions (albums, tracks)
+  are now marked `is_download = true` by default. Physical items (`package`, CD, vinyl, etc.)
+  are unaffected. Explicitly stream-typed rows (`release_type` contains "stream") remain
+  classified as streams.
+- **Deductible expenses listed individually in PDF statements.**
+  The waterfall table previously showed a single aggregated "– Deductible Costs / Advances" line.
+  Each expense entry (with its description and date) is now shown as its own row, matching the
+  per-item breakdown already provided for manual revenue entries.
+- **Negative final payout now rendered in red bold in PDF statements.**
+  When expenses or advances exceed the artist share, the resulting negative payout is displayed
+  as a red bold amount (e.g. "- 3.210,49 €") instead of being clamped to 0 €. SEPA batch
+  export continues to exclude artists with a zero or negative payout.
+- **`finalPayout` no longer clamped to zero.**
+  Previously `Math.max(0, …)` was applied to the computed net payout in the data processor,
+  silently hiding an unrecouped balance. The raw signed value is now returned so the UI and
+  PDF correctly reflect outstanding advances.
 
 - **`defaultSplitPercentagePhysical` / `defaultSplitPercentageDigital` (global type defaults) now
   correctly override per-artist base rates in the main split chain.**

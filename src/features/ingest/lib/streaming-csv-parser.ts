@@ -217,11 +217,20 @@ function processChunk(
         : /physical|cd|vinyl|cassette|tape/i.test(releaseType)
 
       // ── Download vs stream detection ───────────────────────────────────────
-      // When the release_type column is available, classify non-physical
-      // transactions as downloads or streams. Undefined means no info.
+      // Bandcamp is a purchase/download platform: all non-physical Bandcamp
+      // transactions default to `is_download = true`. If `release_type` explicitly
+      // contains "stream" the row is classified as a stream (`is_download = false`);
+      // otherwise (empty or any other value) it is treated as a download.
+      // For Believe and other sources, `is_download` is set only when `release_type`
+      // is present; undefined means no type info is available.
       let isDownload: boolean | undefined
-      if (!isPhysical && releaseType) {
-        isDownload = /download/i.test(releaseType)
+      if (!isPhysical) {
+        if (source === 'bandcamp') {
+          // `true` for all non-physical Bandcamp rows unless release_type is "stream".
+          isDownload = !releaseType || !/stream/i.test(releaseType)
+        } else if (releaseType) {
+          isDownload = /download/i.test(releaseType)
+        }
       }
 
       // Skip rows with no artist and no revenue (Bandcamp transfer rows)

@@ -42,6 +42,8 @@ export interface ProcessedArtistData {
   totalQuantity: number
   /** Total recoupable expenses deducted from artist payout after split. */
   totalExpenses: number
+  /** Individual expense entries that make up totalExpenses. */
+  expenseEntries: Array<{ description: string; amount: number; date: string }>
   /** Label distribution fee (EUR) deducted from streaming/physical revenue before the split. */
   distributionFeeDeducted: number
   platformBreakdown: PlatformRevenue[]
@@ -627,9 +629,9 @@ export function processTransactionsWithCompilations(
     const manualRevenueEntries = artistManualRevenues.map(mr => ({ description: mr.description, amount: mr.amount }))
 
     // Recoupable expenses: deducted from streaming/physical revenue before split.
-    const totalExpenses = (config.expenses ?? [])
-      .filter(e => e.artist.toLowerCase() === lowerKey)
-      .reduce((sum, e) => sum + e.amount, 0)
+    const artistExpenses = (config.expenses ?? []).filter(e => e.artist.toLowerCase() === lowerKey)
+    const totalExpenses = artistExpenses.reduce((sum, e) => sum + e.amount, 0)
+    const expenseEntries = artistExpenses.map(e => ({ description: e.description, amount: e.amount, date: e.date }))
 
     // Distribution fee: a percentage of streaming/physical revenue retained by
     // the label before the artist's split is calculated.
@@ -776,17 +778,15 @@ export function processTransactionsWithCompilations(
           releaseDarkmerchAfterFee * (effectiveDarkmerchPct / 100)
       }
 
-      finalPayout = Math.max(0, perReleasePayout - totalExpenses + manualRevenue)
+      finalPayout = perReleasePayout - totalExpenses + manualRevenue
     } else {
       // Standard path (no release overrides)
-      finalPayout = Math.max(
-        0,
+      finalPayout =
         digitalAfterFee * (digitalSplitPct / 100) +
           physicalReleasesAfterFee * (physicalSplitPct / 100) +
           darkmerchAfterFee * (darkmerchSplitPct / 100) -
           totalExpenses +
           manualRevenue
-      )
     }
 
     artistData.push({
@@ -806,6 +806,7 @@ export function processTransactionsWithCompilations(
       finalPayout,
       totalQuantity,
       totalExpenses,
+      expenseEntries,
       distributionFeeDeducted,
       physicalReleasesRevenue,
       digitalRevenueAfterFee: digitalAfterFee,
