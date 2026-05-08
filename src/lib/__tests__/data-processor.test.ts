@@ -736,8 +736,11 @@ describe('per-source split overrides', () => {
   })
 
   // ── Global source-split regression tests ───────────────────────────────────
-  // Priority (lowest → highest): globalBase → globalTypeDefault → globalSource
-  //   → perArtistBase → perArtistTypeOverride → perArtistSourceOverride → perRelease
+  // Priority for digital / physical (lowest → highest):
+  //   globalBase → globalTypeDefault → globalSource → perArtistBase → perArtistTypeOverride
+  //   → perArtistSourceOverride → perRelease
+  // Priority for darkmerch (lowest → highest) — distinct category, per-artist base/type ignored:
+  //   globalBase → sourceSplits.darkmerch → perArtistSourceOverride('darkmerch') → perRelease
 
   it('applies globalSourceSplits.darkmerch when artist has NO per-artist SplitFee', () => {
     const txs = [
@@ -791,7 +794,7 @@ describe('per-source split overrides', () => {
     expect(result[0].physicalSplitPercentage).toBe(15)
   })
 
-  it('per-artist base overrides globalSourceSplits (per-artist always wins over global)', () => {
+  it('per-artist base does NOT override sourceSplits.darkmerch (darkmerch is a separate category)', () => {
     const txs = [
       makeTx({ original_artist: 'BLACKBOOK', net_revenue: 514, is_physical: true, source: 'darkmerch' }),
     ]
@@ -801,11 +804,12 @@ describe('per-source split overrides', () => {
       splitFees,
       sourceSplits: { darkmerch: 100 },
     })
-    // per-artist 50% wins over global darkmerch 100%
-    expect(result[0].darkmerchSplitPercentage).toBe(50)
+    // per-artist base (50) does NOT win over global darkmerch (100) — darkmerch is separate
+    expect(result[0].darkmerchSplitPercentage).toBe(100)
+    expect(result[0].finalPayout).toBeCloseTo(514)
   })
 
-  it('per-artist type override still beats globalSourceSplits', () => {
+  it('per-artist physicalPercentage does NOT override sourceSplits.darkmerch', () => {
     const txs = [
       makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'darkmerch' }),
     ]
@@ -815,8 +819,8 @@ describe('per-source split overrides', () => {
       splitFees,
       sourceSplits: { darkmerch: 100 },
     })
-    // per-artist physicalPercentage (70) beats global darkmerch (100)
-    expect(result[0].darkmerchSplitPercentage).toBe(70)
+    // per-artist physicalPercentage (70) does NOT override global darkmerch (100)
+    expect(result[0].darkmerchSplitPercentage).toBe(100)
   })
 
   it('per-artist source override still beats globalSourceSplits', () => {

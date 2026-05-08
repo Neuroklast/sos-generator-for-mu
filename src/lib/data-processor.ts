@@ -654,9 +654,10 @@ export function processTransactionsWithCompilations(
     const splitFee = config.splitFees.find(sf => sf.artist.toLowerCase() === lowerKey)
 
     // Resolve per-bucket split percentages.
-    // For aggregated source=null buckets (digital, physical) the relevant sourceSplits entry
-    // is merged into the effective type default so that it applies as a fallback for artists
-    // without a per-artist SplitFee entry. Priority: globalSource > globalTypeDefault > globalBase.
+    // Digital / Physical: per-artist base + type overrides take precedence over global source splits.
+    // For aggregated source=null buckets the relevant sourceSplits entry is merged into the
+    // effective type default so it applies when the artist has no per-artist SplitFee entry.
+    // Priority: perArtist > globalSource > globalTypeDefault > globalBase.
     const effectiveDigitalDefault =
       config.sourceSplits?.believe ?? config.sourceSplits?.bandcamp ?? config.defaultSplitPercentageDigital
     const effectivePhysicalDefault =
@@ -667,8 +668,16 @@ export function processTransactionsWithCompilations(
     const physicalSplitPct = resolveSplitPercentageWithSourceOverride(
       splitFee, null, true, defaultBase, effectivePhysicalDefault, config.sourceSplits
     )
-    const darkmerchSplitPct = resolveSplitPercentageWithSourceOverride(
-      splitFee, 'darkmerch', true, defaultBase, effectivePhysicalDefault, config.sourceSplits
+    // Darkmerch is a distinct category — separate from digital and physical.
+    // Per-artist base and type overrides (digitalPercentage / physicalPercentage / percentage)
+    // do NOT apply to darkmerch revenue. Only an explicit per-artist source override for
+    // 'darkmerch' can override the label-wide darkmerch rate, preventing a general
+    // "50% for everything" per-artist entry from silently overriding a label policy such as
+    // "artists keep 100% of merch revenue".
+    // Priority: perArtistSourceOverride('darkmerch') > sourceSplits.darkmerch > globalBase.
+    const darkmerchPerArtistOverride = splitFee?.sourceOverrides?.find(o => o.source === 'darkmerch')
+    const darkmerchSplitPct = clampSplitPercentage(
+      darkmerchPerArtistOverride?.percentage ?? config.sourceSplits?.darkmerch ?? defaultBase
     )
 
     // splitPercentage for backward-compat display: use digitalSplitPct when no physical revenue
