@@ -882,6 +882,95 @@ describe('per-source split overrides', () => {
     expect(result[0].physicalSplitPercentage).toBe(30)
   })
 
+  // ── Bug regression: defaultSplitPercentagePhysical/Digital with per-artist base ──
+  // Previously, an auto-created per-artist entry (percentage = 50) silently overrode the
+  // label-wide type default (e.g. defaultSplitPercentagePhysical = 15), showing 50% in the
+  // PDF instead of 15%. The label-wide type default now beats the per-artist base so that
+  // policies like "all physical = 15%" are respected for all artists.
+
+  it('globalTypeDefault for physical overrides per-artist base when no per-artist physicalPercentage is set', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'believe' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      defaultSplitPercentage: 50,
+      defaultSplitPercentagePhysical: 15,
+      splitFees: [{ artist: 'BLACKBOOK', percentage: 50 }], // auto-created by useSplitFeeSync
+      // no sourceSplits.physical
+    })
+    // globalPhysical (15) should override per-artist base (50) — the core bug fix
+    expect(result[0].physicalSplitPercentage).toBe(15)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.15)
+  })
+
+  it('per-artist physicalPercentage still overrides globalTypeDefault for physical', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'believe' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      defaultSplitPercentage: 50,
+      defaultSplitPercentagePhysical: 15,
+      splitFees: [{ artist: 'BLACKBOOK', percentage: 50, physicalPercentage: 70 }],
+      // no sourceSplits.physical
+    })
+    // Explicit physicalPercentage (70) beats globalPhysical (15)
+    expect(result[0].physicalSplitPercentage).toBe(70)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.70)
+  })
+
+  it('globalTypeDefault for digital overrides per-artist base when no per-artist digitalPercentage is set', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: false, source: 'believe' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      defaultSplitPercentage: 80,
+      defaultSplitPercentageDigital: 40,
+      splitFees: [{ artist: 'BLACKBOOK', percentage: 80 }], // auto-created by useSplitFeeSync
+      // no sourceSplits.believe
+    })
+    // globalDigital (40) should override per-artist base (80)
+    expect(result[0].digitalSplitPercentage).toBe(40)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.40)
+  })
+
+  it('per-artist digitalPercentage still overrides globalTypeDefault for digital', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: false, source: 'believe' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      defaultSplitPercentage: 80,
+      defaultSplitPercentageDigital: 40,
+      splitFees: [{ artist: 'BLACKBOOK', percentage: 80, digitalPercentage: 60 }],
+      // no sourceSplits.believe
+    })
+    // Explicit digitalPercentage (60) beats globalDigital (40)
+    expect(result[0].digitalSplitPercentage).toBe(60)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.60)
+  })
+
+  it('globalTypeDefault physical + globalTypeDefault digital both apply to artist with only base rate', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 200, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'believe' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      defaultSplitPercentage: 50,
+      defaultSplitPercentageDigital: 50,
+      defaultSplitPercentagePhysical: 15,
+      splitFees: [{ artist: 'BLACKBOOK', percentage: 50 }], // mirrors the screenshot scenario
+    })
+    // PDF screenshot bug: both showed 50%, physical should be 15%
+    expect(result[0].digitalSplitPercentage).toBe(50)
+    expect(result[0].physicalSplitPercentage).toBe(15)
+    // digital: 200 × 50% = 100; physical: 100 × 15% = 15; total = 115
+    expect(result[0].finalPayout).toBeCloseTo(115)
+  })
+
   it('applies source override for darkmerch in release-override path', () => {
     const txs = [
       makeTx({ original_artist: 'Omnimar', release_title: 'Some Release', net_revenue: 100, is_physical: true, source: 'darkmerch' }),

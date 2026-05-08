@@ -131,3 +131,43 @@ cross the worker boundary.
   contract: worker consumers must never assume `transactions[]` is available.
 - Worker must be re-instantiated when column alias configuration changes
   (handled by `useCSVProcessor` reset logic).
+
+---
+
+## ADR-004 · resolveSplitPercentage Priority: Label Type Default Above Per-Artist Base
+
+**Date:** 2026-05-08
+
+### Context
+
+`defaultSplitPercentagePhysical` and `defaultSplitPercentageDigital` are explicit label-wide
+policies intended to set a single split rate for all physical (or digital) revenue across every
+artist. However, `useSplitFeeSync` auto-creates a per-artist `SplitFee` entry for every newly
+discovered artist using `percentage = defaultSplitPercentage` (the base). The old priority chain
+in `resolveSplitPercentage` placed `splitFee.percentage` (per-artist base, step 2) above
+`defaultTypeOverride` (label-wide type default, step 3). As a result, the auto-created base rate
+of 50 % silently overrode a configured `defaultSplitPercentagePhysical` of 15 %, causing the PDF
+to display "× Physical Split (50 %)" instead of 15 %.
+
+### Decision
+
+Reorder the fallback chain in `resolveSplitPercentage` so that the label-wide type default
+(`defaultTypeOverride`) ranks **above** the per-artist base percentage (`splitFee.percentage`):
+
+1. Per-artist type override (`physicalPercentage` / `digitalPercentage`) — highest priority
+2. **Label-wide type default** (`defaultSplitPercentagePhysical` / `defaultSplitPercentageDigital`)
+3. Per-artist base (`percentage`)
+4. Label-wide base default (`defaultSplitPercentage`) — lowest priority
+
+Only an explicit per-artist `physicalPercentage` / `digitalPercentage` can override a configured
+label-wide type policy.
+
+### Consequences
+
+- `defaultSplitPercentagePhysical = 15 %` now correctly applies to ALL artists (including those
+  with an auto-assigned or manually set base rate) unless they have an explicit `physicalPercentage`.
+- Artists with a manually configured base percentage that ALSO want a different physical rate
+  must set `physicalPercentage` explicitly — the base alone no longer overrides the label policy.
+- The bucket split system (`sourceSplits.*`) is unaffected; it is a completely independent path.
+- Five new regression tests added to `data-processor.test.ts` covering the exact bug scenario and
+  the cases where explicit per-artist type overrides still win.
