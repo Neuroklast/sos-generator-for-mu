@@ -145,6 +145,8 @@ const MIN_SPACE_FOR_SECTION_HEADING_MM = 60
 const FOOTNOTE_FONT_SIZE_PT = 7
 /** RGB colour applied to table footnote text. */
 const FOOTNOTE_TEXT_COLOR_RGB: [number, number, number] = [120, 120, 140]
+/** RGB colour applied to negative payout rows in the waterfall table. */
+const NEGATIVE_PAYOUT_COLOR_RGB: [number, number, number] = [200, 0, 0]
 
 /**
  * Placeholder string that is substituted by jsPDF's `putTotalPages()` call at the
@@ -467,12 +469,19 @@ function buildPDF(
     waterfallRows.push([entryLabel, formatCurrency(entry.amount)])
   }
 
-  // ── Post-split: deductible expenses ───────────────────────────────────────
-  if (artistData.totalExpenses > 0) {
-    waterfallRows.push(['– Deductible Costs / Advances', `- ${formatCurrency(artistData.totalExpenses)}`])
+  // ── Post-split: individual deductible expense entries ─────────────────────
+  for (const entry of artistData.expenseEntries) {
+    const entryLabel = entry.description ? `– ${entry.description}` : '– Deductible Cost / Advance'
+    const dateLabel = entry.date ? ` (${entry.date})` : ''
+    waterfallRows.push([`${entryLabel}${dateLabel}`, `- ${formatCurrency(entry.amount)}`])
   }
 
-  waterfallRows.push(['= Net Payout (Artist Share)', formatCurrency(artistData.finalPayout)])
+  const isNegativePayout = artistData.finalPayout < 0
+  const payoutRowIndex = waterfallRows.length
+  const payoutDisplay = isNegativePayout
+    ? `- ${formatCurrency(Math.abs(artistData.finalPayout))}`
+    : formatCurrency(artistData.finalPayout)
+  waterfallRows.push(['= Net Payout (Artist Share)', payoutDisplay])
 
   autoTable(doc, {
     startY: yPos,
@@ -484,6 +493,12 @@ function buildPDF(
     alternateRowStyles: { fillColor: [245, 245, 250] },
     columnStyles: { 1: { halign: 'right' } },
     margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
+    didParseCell: (data) => {
+      if (isNegativePayout && data.section === 'body' && data.row.index === payoutRowIndex) {
+        data.cell.styles.textColor = NEGATIVE_PAYOUT_COLOR_RGB
+        data.cell.styles.fontStyle = 'bold'
+      }
+    },
   })
   yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
 

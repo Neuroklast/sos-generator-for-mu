@@ -611,6 +611,8 @@ export interface SafeProcessedArtistData {
   totalQuantity: number
   /** Total recoupable expenses deducted from gross revenue before split. */
   totalExpenses: number
+  /** Individual expense entries that make up totalExpenses. */
+  expenseEntries: Array<{ description: string; amount: number; date: string }>
   /** Label distribution fee (EUR) deducted from streaming/physical revenue before split. */
   distributionFeeDeducted: number
   platformBreakdown: PlatformRevenue[]
