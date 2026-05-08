@@ -7,7 +7,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Bandcamp: revenue now correctly uses the "net amount" column.**
+  Previously the parser used the "balance of revenue share (EUR)" column which
+  is the collection-society running balance, not the per-transaction revenue.
+  The correct column is "net amount" (the label's net payout per sale).  This
+  bug caused significantly under-reported Bandcamp revenue (e.g. 0.15 € instead
+  of 1.06 €).
+
 ### Changed
+- **Bandcamp physical vs. digital detection now driven by the "package" column.**
+  Previously the parser used `item type = "package"` (a Bandcamp internal
+  category) to flag physical products.  Detection is now based on the "package"
+  column: if the value contains the word "digital" (e.g. "digital download",
+  "digital bundle") the transaction is a digital download; any other value (e.g.
+  "Limited Digipac CD", "BLACKBOOK Confession T-Shirt", "Jewelcase 2CDs") is
+  treated as a physical product and counted in the physical-split bucket — the
+  same way physical Believe transactions are handled.
+  A new semantic-dictionary entry (`bandcamp_package`) and `FinancialFieldKey`
+  (`bandcampPackage`) are introduced to map this column through the profile system.
+
 - **Bandcamp digital sales now classified as downloads in the platform breakdown.**
   Previously, non-physical Bandcamp transactions received no `is_download` flag, causing
   them to appear as unclassified in the "Revenue by Platform" table (Downloads column showed 0).

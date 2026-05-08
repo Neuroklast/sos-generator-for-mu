@@ -680,12 +680,26 @@ Der **Workspace Manager** ermöglicht es, verschiedene Abrechnungszustände zu s
 
 | Spalte | Pflicht | Beschreibung |
 |--------|---------|--------------|
-| date | ✅ | Verkaufsdatum |
+| date | ✅ | Verkaufsdatum (Format M/D/YY wie Bandcamp exportiert) |
 | artist | ✅ | Künstlername |
-| album title | ❌ | Albumname |
-| item title | ✅ | Track oder Album-Titel |
-| net revenue | ✅ | Nettoeinnahme nach Bandcamp-Gebühren |
+| item name | ✅ | Album- oder Track-Titel |
+| **net amount** | ✅ | **Nettoeinnahme pro Transaktion** (die Auszahlung des Labels nach Bandcamp-Gebühren — diese Spalte wird für alle Berechnungen verwendet) |
 | currency | ❌ | Standard: EUR |
+| package | ✅ | Produkt-Bezeichner für die Physisch/Digital-Klassifizierung (s. u.) |
+
+#### Physisch vs. Digital (Bandcamp)
+
+Die Spalte `package` bestimmt, ob eine Bandcamp-Transaktion ein digitaler Download oder ein physisches Produkt ist:
+
+| Wert in `package` | Klassifizierung | Split-Bucket |
+|------------------|-----------------|--------------|
+| Enthält das Wort **„digital"** (z. B. `digital download`, `digital bundle`) | Digitaler Download | Digital-Split |
+| Jeder andere Wert (z. B. `Limited Digipac CD`, `BLACKBOOK Confession T-Shirt`, `Jewelcase 2CDs`) | **Physisches Produkt** | Physisch-Split (wie Believe Physical) |
+
+> **Hinweis:** Die Spalte „balance of revenue share (EUR)" ist der kumulierte Laufendsaldo der
+> Verwertungsgesellschaft — sie ist **nicht** die Transaktion-Nettoeinnahme und wird bei der
+> Verarbeitung ignoriert. Bitte immer den Standard-Bandcamp-CSV-Export verwenden, der die
+> Spalte `net amount` enthält.
 
 ### Shopify-Format
 

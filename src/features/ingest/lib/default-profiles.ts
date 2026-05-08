@@ -30,20 +30,22 @@ export const SYSTEM_LABEL_ARTISTS_PROFILE_ID = 'system-label-artists'
  * financial field must be added here.
  */
 export const FINANCIAL_KEY_TO_INTERNAL: Readonly<Record<FinancialFieldKey, string>> = {
-  artistName:    'original_artist',
-  releaseTitle:  'release_title',
-  trackTitle:    'track_title',
-  quantity:      'quantity',
-  netRevenue:    'net_revenue',
-  currency:      'currency',
-  salesMonth:    'sales_month',
-  platform:      'platform',
-  country:       'country',
-  upcEan:        'upc_ean',
-  isrc:          'isrc',
-  catalogNumber: 'catalog_number',
-  releaseType:   'release_type',
-  balanceEur:    'balance_eur',
+  artistName:      'original_artist',
+  releaseTitle:    'release_title',
+  trackTitle:      'track_title',
+  quantity:        'quantity',
+  netRevenue:      'net_revenue',
+  currency:        'currency',
+  salesMonth:      'sales_month',
+  platform:        'platform',
+  country:         'country',
+  upcEan:          'upc_ean',
+  isrc:            'isrc',
+  catalogNumber:   'catalog_number',
+  releaseType:     'release_type',
+  balanceEur:      'balance_eur',
+  /** Maps the "package" CSV column to the internal bandcamp_package field. */
+  bandcampPackage: 'bandcamp_package',
 }
 
 // ── System default profiles ───────────────────────────────────────────────────
@@ -74,15 +76,21 @@ const BANDCAMP_STANDARD: CsvImportProfile = {
   delimiter: ',',
   autoDetectHeaders: ['date', 'paid to', 'item type', 'item name', 'artist'],
   columnMapping: {
-    salesMonth:    'date',
-    artistName:    'artist',
-    releaseTitle:  'item name',
-    netRevenue:    'net amount',
-    releaseType:   'item type',
-    catalogNumber: 'catalog number',
-    balanceEur:    'balance of revenue share (EUR)',
-    currency:      'currency',
-    country:       'country',
+    salesMonth:      'date',
+    artistName:      'artist',
+    releaseTitle:    'item name',
+    // Revenue: "net amount" is the per-transaction label payout after Bandcamp fees.
+    // "balance of revenue share (EUR)" (balanceEur) is the collection-society running
+    // balance — NOT per-transaction revenue — and is therefore intentionally excluded
+    // from this profile. The balanceEur FinancialFieldKey is retained for backward
+    // compatibility with user-defined profiles that may reference it.
+    netRevenue:      'net amount',
+    releaseType:     'item type',
+    catalogNumber:   'catalog number',
+    currency:        'currency',
+    country:         'country',
+    /** "package" column: identifies digital downloads vs physical products. */
+    bandcampPackage: 'package',
   },
   isSystemDefault: true,
 }

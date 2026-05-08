@@ -185,36 +185,37 @@ function processChunk(
       if (source === 'bandcamp' && releaseType === 'payout') continue
 
       // ── Revenue resolution ─────────────────────────────────────────────────
-      // For Bandcamp: prefer the pre-converted EUR balance column when present.
-      // This avoids currency mixing (USD/GBP/PLN blindly summed in EUR fields).
-      let netRevenue: number
-      let currency: string
-      if (source === 'bandcamp') {
-        const eurBalance = parseRevenue(mappedData.balance_eur ?? '')
-        if (eurBalance !== 0) {
-          // Pre-converted EUR value is available — use it directly.
-          netRevenue = eurBalance
-          currency = 'EUR'
-        } else {
-          // No pre-converted balance; keep the raw amount + currency for
-          // later conversion in the data-processor (exchange rates are applied
-          // at process time when the full config including rates is available).
-          netRevenue = parseRevenue(mappedData.net_revenue ?? '')
-          currency = (mappedData.currency ?? 'EUR').trim() || 'EUR'
-        }
-      } else {
-        netRevenue = parseRevenue(mappedData.net_revenue ?? '')
-        currency = (mappedData.currency ?? 'EUR').trim() || 'EUR'
-      }
+      // Universal rule: use the "net amount" / "Net Revenue" column (net_revenue)
+      // and the currency column for all sources.
+      //
+      // Bandcamp-specific rationale: "balance of revenue share (EUR)" is the
+      // collection-society running balance (per-session cumulative), not the
+      // per-transaction payout received by the label.  The correct column is
+      // "net amount".  Earlier code incorrectly preferred balance_eur, which
+      // also suffered from fuzzy-matching contamination by the GBP/PLN/USD
+      // balance columns (all four map to balance_eur and the last write wins).
+      const netRevenue = parseRevenue(mappedData.net_revenue ?? '')
+      const currency = (mappedData.currency ?? 'EUR').trim() || 'EUR'
 
       const quantity = parseQuantity(mappedData.quantity ?? '')
 
       // ── Physical product detection ─────────────────────────────────────────
-      // Bandcamp uses item type "package" for physical merch/vinyl/CD orders,
-      // but may also include other physical identifiers; combine both checks.
-      const isPhysical = source === 'bandcamp'
-        ? releaseType === 'package' || /physical|cd|vinyl|cassette|tape/i.test(releaseType)
-        : /physical|cd|vinyl|cassette|tape/i.test(releaseType)
+      // Bandcamp: use the "package" column — if it contains the word "digital"
+      // (e.g. "digital download", "digital bundle") the row is a digital
+      // download; any other non-empty value (e.g. "Limited Digipac CD",
+      // "BLACKBOOK Confession T-Shirt") is a physical product that counts
+      // toward the physical-split bucket.
+      // Fallback to release_type keywords when the package column is absent.
+      // For all other sources: rely on the release_type column keywords only.
+      let isPhysical: boolean
+      if (source === 'bandcamp') {
+        const bcPackage = (mappedData.bandcamp_package ?? '').trim()
+        isPhysical = bcPackage.length > 0
+          ? !/digital/i.test(bcPackage)
+          : /physical|cd|vinyl|cassette|tape/i.test(releaseType)
+      } else {
+        isPhysical = /physical|cd|vinyl|cassette|tape/i.test(releaseType)
+      }
 
       // ── Download vs stream detection ───────────────────────────────────────
       // Bandcamp is a purchase/download platform: all non-physical Bandcamp

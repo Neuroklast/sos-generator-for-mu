@@ -84,6 +84,13 @@ export const semanticDictionary: Record<string, string[]> = {
   release_type: ["Release Type", "Sales Type", "Format", "Product Type", "Physical", "Medium", "Type", "item type"],
   /** Bandcamp-specific column: pre-converted EUR balance for this transaction row. */
   balance_eur: ["balance of revenue share (EUR)", "balance (EUR)", "revenue share (EUR)", "eur balance", "EUR Balance"],
+  /**
+   * Bandcamp-specific column that identifies the product purchased.
+   * Values like "digital download" or "digital bundle" indicate a digital
+   * download; any other value (e.g. "Limited Digipac CD", "Bundle 1") means
+   * a physical product to be counted under the physical-split bucket.
+   */
+  bandcamp_package: ["package"],
 }
 
 function levenshteinDistance(a: string, b: string): number {
@@ -224,18 +231,29 @@ export function parseCSVContent(
         continue // Ignoriere Label-Auszahlungen komplett!
       }
 
-      const isPhysical = /physical|cd|vinyl|cassette|tape|package/i.test(releaseType)
-
-      let finalRevenueStr = mappedData.net_revenue || '0'
-      let finalCurrency = mappedData.currency || 'EUR'
-
+      // ── Physical product detection ─────────────────────────────────────────
+      // Bandcamp: use the "package" column — if it contains the word "digital"
+      // (e.g. "digital download", "digital bundle") it is a download; any other
+      // non-empty value (e.g. "Limited Digipac CD") is a physical product.
+      // For all other sources: rely on the release_type column keywords.
+      let isPhysical: boolean
       if (source === 'bandcamp') {
-        const balanceEurStr = mappedData.balance_eur || ''
-        if (balanceEurStr && parseFloat(balanceEurStr.replace(/[^0-9.-]/g, '')) !== 0) {
-          finalRevenueStr = balanceEurStr
-          finalCurrency = 'EUR' // Wenn wir die Balance nutzen, ist es zwingend Euro
-        }
+        const bcPackage = (mappedData.bandcamp_package || '').trim()
+        isPhysical = bcPackage.length > 0
+          ? !/digital/i.test(bcPackage)
+          : /physical|cd|vinyl|cassette|tape/i.test(releaseType)
+      } else {
+        isPhysical = /physical|cd|vinyl|cassette|tape/i.test(releaseType)
       }
+
+      // ── Revenue resolution ─────────────────────────────────────────────────
+      // All sources: use the "net amount" / "Net Revenue" column (mapped to
+      // net_revenue) and the currency column directly.
+      // Note for Bandcamp: "balance of revenue share (EUR)" is the collection-
+      // society running balance, NOT the per-transaction net revenue, and must
+      // not be used here — the correct column is "net amount".
+      const finalRevenueStr = mappedData.net_revenue || '0'
+      const finalCurrency = mappedData.currency || 'EUR'
       const netRevenue = parseFloat(finalRevenueStr.replace(/[^0-9.-]/g, '')) || 0
 
       const originalArtist = mappedData.original_artist || ''
