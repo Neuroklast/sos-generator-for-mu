@@ -911,7 +911,7 @@ export function UniversalFileUploadZone({
 
           <div className="text-center">
             <p className="text-base font-semibold mb-1">
-              {isAnyProcessing ? 'Processing files…' : 'Upload CSV files'}
+              {isAnyProcessing ? 'Processing files…' : 'Upload CSV / XLSX files'}
             </p>
             <p className="text-sm text-muted-foreground">
               {isAnyProcessing
