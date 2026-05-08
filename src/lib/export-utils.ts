@@ -388,10 +388,8 @@ function buildPDF(
 
   // ── Financial waterfall summary ───────────────────────────────────────────
   // Visualises the revenue flow:
-  //   Gross Revenue → –Fee → × Split% (per bucket) → +Manual Revenue → –Expenses → Net Payout
-  // Backward-compat: physicalReleasesRevenue may not exist on older cached data.
-  const physicalReleasesRevenue = artistData.physicalReleasesRevenue
-    ?? (artistData.totalPhysicalRevenue - artistData.darkmerchRevenue)
+  //   Gross Revenue → –Fee → × Split% → +Manual Revenue → –Recoupable Expenses → Net Payout
+  const physicalReleasesRevenue = artistData.totalPhysicalRevenue - artistData.darkmerchRevenue
 
   // Digital revenue broken into streams / downloads / unclassified.
   // Guard against undefined/NaN coming from older cached data by normalising to 0.
@@ -402,19 +400,8 @@ function buildPDF(
   const digitalOtherRevenue = Math.max(0, safeDigitalRevenue - safeStreamRevenue - safeDownloadRevenue)
   const hasStreamDownloadDetail = safeStreamRevenue > 0 || safeDownloadRevenue > 0
 
-  // Backward-compat: new split percentage fields may be absent on older cached data.
-  const effectiveDigitalSplitPct = artistData.digitalSplitPercentage ?? artistData.splitPercentage
-  const effectivePhysicalSplitPct = artistData.physicalSplitPercentage ?? artistData.splitPercentage
-  const effectiveDarkmerchSplitPct = artistData.darkmerchSplitPercentage ?? artistData.splitPercentage
-
-  // After-fee amounts for each bucket (with backward-compat fallback).
-  const digitalAfterFeeDisplay = artistData.digitalRevenueAfterFee ?? artistData.totalDigitalRevenue
-  const physRelAfterFeeDisplay = artistData.physicalReleasesRevenueAfterFee ?? physicalReleasesRevenue
-  const darkmerchAfterFeeDisplay = artistData.darkmerchRevenueAfterFee ?? artistData.darkmerchRevenue
-
   const waterfallRows: string[][] = []
 
-  // ── Revenue buckets (gross) ──────────────────────────────────────────────
   if (hasStreamDownloadDetail) {
     if (safeStreamRevenue > 0) {
       waterfallRows.push(['Streaming Revenue', formatCurrency(safeStreamRevenue)])
@@ -429,72 +416,42 @@ function buildPDF(
     waterfallRows.push(['Digital Revenue', formatCurrency(safeDigitalRevenue)])
   }
 
-  if (physicalReleasesRevenue > 0) {
+  if (physicalReleasesRevenue !== 0) {
     waterfallRows.push(['Physical Releases', formatCurrency(physicalReleasesRevenue)])
   }
-  if (artistData.darkmerchRevenue > 0) {
+  if (artistData.darkmerchRevenue !== 0) {
     waterfallRows.push(['Darkmerch / Merchandise', formatCurrency(artistData.darkmerchRevenue)])
   }
 
   // Show each manual revenue entry individually with its description
   for (const entry of artistData.manualRevenueEntries) {
-    const entryLabel = entry.description ? `Manual Revenue: ${entry.description}` : 'Manual Revenue'
-    waterfallRows.push([entryLabel, formatCurrency(entry.amount)])
+    const label = entry.description ? `Manual: ${entry.description}` : 'Manual Revenue'
+    waterfallRows.push([label, formatCurrency(entry.amount)])
   }
 
-  waterfallRows.push(['= Gross Revenue', formatCurrency(artistData.grossRevenue)])
+  waterfallRows.push(
+    ['= Gross Revenue', formatCurrency(artistData.grossRevenue)],
+  )
 
-  // ── Distribution fee ─────────────────────────────────────────────────────
   if (artistData.distributionFeeDeducted > 0) {
     waterfallRows.push(['– Label Distribution Fee', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
   }
 
-  // ── Split application per bucket ─────────────────────────────────────────
-  // Show each bucket with its effective split percentage applied.
-  // When all buckets share the same rate, collapse to a single line for clarity.
-  const digitalShare = digitalAfterFeeDisplay * (effectiveDigitalSplitPct / 100)
-  const physRelShare = physRelAfterFeeDisplay * (effectivePhysicalSplitPct / 100)
-  const darkmerchShare = darkmerchAfterFeeDisplay * (effectiveDarkmerchSplitPct / 100)
-
-  const hasMultipleSplitRates =
-    (digitalAfterFeeDisplay > 0 && physRelAfterFeeDisplay > 0 && effectiveDigitalSplitPct !== effectivePhysicalSplitPct) ||
-    (darkmerchAfterFeeDisplay > 0 && effectiveDarkmerchSplitPct !== effectivePhysicalSplitPct) ||
-    (darkmerchAfterFeeDisplay > 0 && digitalAfterFeeDisplay > 0 && effectiveDarkmerchSplitPct !== effectiveDigitalSplitPct)
-
-  if (hasMultipleSplitRates) {
-    if (digitalAfterFeeDisplay > 0) {
-      waterfallRows.push([
-        `× Digital Split (${effectiveDigitalSplitPct}%)`,
-        formatCurrency(digitalShare),
-      ])
-    }
-    if (physRelAfterFeeDisplay > 0) {
-      waterfallRows.push([
-        `× Physical Releases Split (${effectivePhysicalSplitPct}%)`,
-        formatCurrency(physRelShare),
-      ])
-    }
-    if (darkmerchAfterFeeDisplay > 0) {
-      waterfallRows.push([
-        `× Merchandise Split (${effectiveDarkmerchSplitPct}%)`,
-        formatCurrency(darkmerchShare),
-      ])
-    }
-  } else {
-    // All buckets have the same split — show a single line (cleaner for simple cases)
-    const combinedBasis = digitalAfterFeeDisplay + physRelAfterFeeDisplay + darkmerchAfterFeeDisplay
-    const combinedShare = digitalShare + physRelShare + darkmerchShare
-    if (combinedBasis > 0) {
-      waterfallRows.push([`× Artist Split (${effectiveDigitalSplitPct}%)`, formatCurrency(combinedShare)])
-    }
+  if (artistData.distributionFeeDeducted > 0) {
+    const splitBasis = artistData.grossRevenue - artistData.distributionFeeDeducted
+    waterfallRows.push(['= Split Basis', formatCurrency(splitBasis)])
   }
 
-  // ── Post-split adjustments ───────────────────────────────────────────────
+  // Artist share after applying the split % — manual revenue and expense adjustments
+  // are applied after this step: finalPayout = artistShare + manualRevenue - totalExpenses.
+  const artistShare = artistData.finalPayout - artistData.manualRevenue + artistData.totalExpenses
+  waterfallRows.push([`× Split ${artistData.splitPercentage}%`, formatCurrency(artistShare)])
+
   if (artistData.manualRevenue !== 0) {
-    waterfallRows.push(['+ Manual Revenue (post-split, no split applied)', formatCurrency(artistData.manualRevenue)])
+    waterfallRows.push(['+ Manual Revenue (post-split)', formatCurrency(artistData.manualRevenue)])
   }
   if (artistData.totalExpenses > 0) {
-    waterfallRows.push(['– Deductible Costs / Advances', `- ${formatCurrency(artistData.totalExpenses)}`])
+    waterfallRows.push(['– Deductible Costs / Advances (post-split)', `- ${formatCurrency(artistData.totalExpenses)}`])
   }
   waterfallRows.push(['= Net Payout (Artist Share)', formatCurrency(artistData.finalPayout)])
 
@@ -823,9 +780,7 @@ function buildExcel(
     ['Physical Revenue', artistData.totalPhysicalRevenue],
     ['Manual Revenue', artistData.manualRevenue],
     ['Gross Revenue', artistData.grossRevenue],
-    ['Artist Split (Digital %)', artistData.digitalSplitPercentage ?? artistData.splitPercentage],
-    ['Artist Split (Physical %)', artistData.physicalSplitPercentage ?? artistData.splitPercentage],
-    ['Artist Split (Merch/Darkmerch %)', artistData.darkmerchSplitPercentage ?? artistData.splitPercentage],
+    ['Split Percentage', artistData.splitPercentage / 100],
     ['Final Payout', artistData.finalPayout],
   ]
 

@@ -12,7 +12,6 @@ import type {
   LabelArtist,
   SplitFee,
   ReleaseSplitOverride,
-  SourceSplitOverride,
 } from '@/lib/types'
 
 interface ArtistsViewProps {
@@ -41,7 +40,6 @@ interface ArtistsViewProps {
   onBulkUpdateSplitFee: (artists: string[], percentage: number) => void
   onUpdateSplitFeeTypeOverride?: (artist: string, digitalPercentage: number | undefined, physicalPercentage: number | undefined) => void
   onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
-  onUpdateSourceOverrides?: (artist: string, overrides: SourceSplitOverride[]) => void
   /** Map of artist name → sorted release titles, used for the per-release split override dropdown. */
   releaseTitlesByArtist?: Record<string, string[]>
 }
@@ -65,7 +63,6 @@ export function ArtistsView({
   onBulkUpdateSplitFee,
   onUpdateSplitFeeTypeOverride,
   onUpdateReleaseOverrides,
-  onUpdateSourceOverrides,
   releaseTitlesByArtist,
 }: ArtistsViewProps) {
   const activeArtistSet = useMemo(
@@ -110,7 +107,6 @@ export function ArtistsView({
             onBulkUpdateSplitFee={onBulkUpdateSplitFee}
             onUpdateSplitFeeTypeOverride={onUpdateSplitFeeTypeOverride}
             onUpdateReleaseOverrides={onUpdateReleaseOverrides}
-            onUpdateSourceOverrides={onUpdateSourceOverrides}
             releaseTitlesByArtist={releaseTitlesByArtist}
           />
         </Card>

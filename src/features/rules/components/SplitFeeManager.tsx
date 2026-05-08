@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { SplitFee, ReleaseSplitOverride, SourceSplitOverride, TransactionSource } from '@/lib/types'
+import type { SplitFee, ReleaseSplitOverride } from '@/lib/types'
 
 interface SplitFeeManagerProps {
   splitFees: SplitFee[]
@@ -18,7 +18,6 @@ interface SplitFeeManagerProps {
     physicalPercentage: number | undefined
   ) => void
   onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
-  onUpdateSourceOverrides?: (artist: string, overrides: SourceSplitOverride[]) => void
   /** Map of artist name → sorted release titles for the per-release override dropdown. */
   releaseTitlesByArtist?: Record<string, string[]>
 }
@@ -341,139 +340,6 @@ function ReleaseOverrideList({
   )
 }
 
-// ── SourceOverrideList ────────────────────────────────────────────────────────
-
-const AVAILABLE_SOURCES: { value: TransactionSource; label: string }[] = [
-  { value: 'believe', label: 'Believe (Streaming/Download)' },
-  { value: 'bandcamp', label: 'Bandcamp' },
-  { value: 'darkmerch', label: 'Darkmerch / Merchandise' },
-  { value: 'shopify', label: 'Shopify' },
-  { value: 'printful', label: 'Printful' },
-]
-
-/**
- * Displays and manages per-source split percentage overrides for a single artist.
- * Source overrides have the highest resolution priority (above type and base overrides).
- */
-function SourceOverrideList({
-  artist,
-  overrides,
-  onUpdate,
-}: {
-  artist: string
-  overrides: SourceSplitOverride[]
-  onUpdate: (artist: string, overrides: SourceSplitOverride[]) => void
-}) {
-  const [newSource, setNewSource] = useState<TransactionSource | ''>('')
-  const [newPct, setNewPct] = useState('')
-  const [sourceError, setSourceError] = useState('')
-  const [pctError, setPctError] = useState('')
-
-  const usedSources = new Set(overrides.map(o => o.source))
-  const availableSources = AVAILABLE_SOURCES.filter(s => !usedSources.has(s.value))
-
-  const handleAdd = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    let valid = true
-    if (!newSource) {
-      setSourceError('Select a source')
-      valid = false
-    } else {
-      setSourceError('')
-    }
-    const pctResult = parsePercentInput(newPct, true)
-    if (!pctResult.ok) {
-      setPctError(pctResult.error)
-      valid = false
-    } else {
-      setPctError('')
-    }
-    if (!valid || !newSource || !pctResult.ok || pctResult.value == null) return
-    onUpdate(artist, [...overrides, { source: newSource, percentage: pctResult.value }])
-    setNewSource('')
-    setNewPct('')
-  }, [artist, overrides, onUpdate, newSource, newPct])
-
-  const handleRemove = useCallback((source: TransactionSource, e: React.MouseEvent) => {
-    e.stopPropagation()
-    onUpdate(artist, overrides.filter(o => o.source !== source))
-  }, [artist, overrides, onUpdate])
-
-  const handleChangePercent = useCallback((source: TransactionSource, value: number | undefined) => {
-    if (value == null) return
-    onUpdate(artist, overrides.map(o => o.source === source ? { ...o, percentage: value } : o))
-  }, [artist, overrides, onUpdate])
-
-  return (
-    <div className="mt-3 pt-3 border-t border-white/10 space-y-3" onClick={e => e.stopPropagation()}>
-      <Label className="text-xs text-muted-foreground block">Per-source overrides</Label>
-      <p className="text-[10px] text-muted-foreground/60">
-        Highest priority — overrides digital/physical type overrides for that source.
-        Use 100% for Darkmerch to pass through all merch revenue to the artist.
-      </p>
-
-      {overrides.length > 0 && (
-        <div className="space-y-2">
-          {overrides.map(o => {
-            const sourceLabel = AVAILABLE_SOURCES.find(s => s.value === o.source)?.label ?? o.source
-            return (
-              <div key={o.source} className="flex items-center gap-2">
-                <span className="flex-1 text-xs truncate font-mono text-foreground/80">{sourceLabel}</span>
-                <PercentInput
-                  id={`source-override-${artist}-${o.source}`}
-                  value={o.percentage}
-                  onChange={val => handleChangePercent(o.source, val)}
-                />
-                <button
-                  type="button"
-                  onClick={e => handleRemove(o.source, e)}
-                  aria-label={`Remove override for ${o.source}`}
-                  className="text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {availableSources.length > 0 && (
-        <div className="flex items-start gap-2">
-          <Select
-            value={newSource}
-            onValueChange={val => { setNewSource(val as TransactionSource); setSourceError('') }}
-          >
-            <SelectTrigger className={`flex-1 text-xs ${sourceError ? 'border-destructive' : ''}`}>
-              <SelectValue placeholder="Select a source…" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableSources.map(s => (
-                <SelectItem key={s.value} value={s.value} className="text-xs">{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex flex-col gap-1 items-end">
-            <div className="flex items-center gap-1">
-              <Input
-                type="number" min="0" max="100" step="0.1"
-                placeholder="e.g. 100"
-                value={newPct}
-                onChange={e => { setNewPct(e.target.value); setPctError('') }}
-                className={`w-20 text-right font-mono text-xs ${pctError ? 'border-destructive' : ''}`}
-              />
-              <span className="text-xs text-muted-foreground">%</span>
-            </div>
-            {pctError && <p className="text-xs text-destructive">{pctError}</p>}
-          </div>
-          <Button size="sm" variant="outline" onClick={handleAdd} className="text-xs shrink-0">Add</Button>
-        </div>
-      )}
-      {sourceError && <p className="text-xs text-destructive">{sourceError}</p>}
-    </div>
-  )
-}
-
 // ── SplitFeeRow ───────────────────────────────────────────────────────────────
 
 function SplitFeeRow({
@@ -483,7 +349,6 @@ function SplitFeeRow({
   onUpdate,
   onUpdateTypeOverride,
   onUpdateReleaseOverrides,
-  onUpdateSourceOverrides,
   availableReleases,
 }: {
   split: SplitFee
@@ -492,7 +357,6 @@ function SplitFeeRow({
   onUpdate: (artist: string, percentage: number) => void
   onUpdateTypeOverride?: (artist: string, digital: number | undefined, physical: number | undefined) => void
   onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
-  onUpdateSourceOverrides?: (artist: string, overrides: SourceSplitOverride[]) => void
   availableReleases?: string[]
 }) {
   const [draft, setDraft] = useState(String(split.percentage))
@@ -502,9 +366,6 @@ function SplitFeeRow({
   )
   const [showReleaseOverrides, setShowReleaseOverrides] = useState(
     split.releaseOverrides != null && split.releaseOverrides.length > 0
-  )
-  const [showSourceOverrides, setShowSourceOverrides] = useState(
-    split.sourceOverrides != null && split.sourceOverrides.length > 0
   )
 
   // Sync base draft with external changes (undo / reset).
@@ -583,17 +444,6 @@ function SplitFeeRow({
               {showReleaseOverrides ? 'Hide release overrides' : 'Set per-release override…'}
             </button>
           )}
-
-          {/* Toggle for per-source overrides */}
-          {onUpdateSourceOverrides && (
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); setShowSourceOverrides(v => !v) }}
-              className="text-xs text-primary/70 hover:text-primary underline underline-offset-2 mt-1"
-            >
-              {showSourceOverrides ? 'Hide source overrides' : 'Set per-source override…'}
-            </button>
-          )}
         </div>
       </div>
 
@@ -639,22 +489,13 @@ function SplitFeeRow({
           onUpdate={onUpdateReleaseOverrides}
         />
       )}
-
-      {/* Per-source override list */}
-      {showSourceOverrides && onUpdateSourceOverrides && (
-        <SourceOverrideList
-          artist={split.artist}
-          overrides={split.sourceOverrides ?? []}
-          onUpdate={onUpdateSourceOverrides}
-        />
-      )}
     </Card>
   )
 }
 
 // ── SplitFeeManager ───────────────────────────────────────────────────────────
 
-export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride, onUpdateReleaseOverrides, onUpdateSourceOverrides, releaseTitlesByArtist }: SplitFeeManagerProps) {
+export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride, onUpdateReleaseOverrides, releaseTitlesByArtist }: SplitFeeManagerProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [bulkDraft, setBulkDraft] = useState('')
   const [bulkError, setBulkError] = useState('')
@@ -798,7 +639,6 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
               onUpdate={onUpdateSplitFee}
               onUpdateTypeOverride={onUpdateSplitFeeTypeOverride}
               onUpdateReleaseOverrides={onUpdateReleaseOverrides}
-              onUpdateSourceOverrides={onUpdateSourceOverrides}
               availableReleases={releaseTitlesByArtist?.[split.artist]}
             />
           ))}

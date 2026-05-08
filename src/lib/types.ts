@@ -141,25 +141,6 @@ export interface ReleaseSplitOverride {
   physicalPercentage?: number
 }
 
-/** Canonical data source identifier for SalesTransaction.source. */
-export type TransactionSource = 'believe' | 'bandcamp' | 'darkmerch' | 'shopify' | 'printful'
-
-/**
- * A per-source split override that takes highest priority in the resolution chain.
- *
- * Use cases:
- * - Darkmerch: set 100% so the artist keeps all merchandise revenue.
- * - Shopify/Printful: set a dedicated merch rate distinct from pressed CDs.
- * - Believe: can still use digitalPercentage/physicalPercentage since Believe
- *   transactions are already split by is_physical.
- */
-export interface SourceSplitOverride {
-  /** The data source this override applies to. */
-  source: TransactionSource
-  /** Split percentage (0–100) applied to all transactions from this source. */
-  percentage: number
-}
-
 export interface SplitFee {
   artist: string
   /** Default split percentage (0–100) applied to all revenue types. */
@@ -184,19 +165,6 @@ export interface SplitFee {
    * take the highest precedence.
    */
   releaseOverrides?: ReleaseSplitOverride[]
-  /**
-   * Optional per-source split overrides. Evaluated with HIGHEST priority —
-   * before digitalPercentage/physicalPercentage type overrides and before
-   * release overrides when a release override is NOT also matched.
-   *
-   * Resolution priority (highest → lowest):
-   *   1. Release override (when matched)
-   *   2. Per-source override (sourceOverrides)
-   *   3. Per-type override (digitalPercentage / physicalPercentage)
-   *   4. Per-artist base (percentage)
-   *   5. Label-wide defaults
-   */
-  sourceOverrides?: SourceSplitOverride[]
 }
 
 export interface ManualRevenue {
@@ -422,14 +390,6 @@ export interface ArtistRevenue {
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]
   releaseBreakdown: ReleaseRevenue[]
-  /** Revenue from physical releases (Believe physical, Bandcamp physical) — excludes Darkmerch. */
-  physicalReleasesRevenue: number
-  /** Split percentage (0–100) actually applied to digital (streaming/download) revenue. */
-  digitalSplitPercentage: number
-  /** Split percentage (0–100) actually applied to physical releases revenue. */
-  physicalSplitPercentage: number
-  /** Split percentage (0–100) actually applied to Darkmerch/merchandise revenue. */
-  darkmerchSplitPercentage: number
 }
 
 // ── History ────────────────────────────────────────────────────────────────────
@@ -586,18 +546,4 @@ export interface SafeProcessedArtistData {
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]
   releaseBreakdown: ReleaseRevenue[]
-  /** Revenue from physical releases (excl. Darkmerch). */
-  physicalReleasesRevenue: number
-  /** Digital revenue after label distribution fee deduction (split basis for digital). */
-  digitalRevenueAfterFee: number
-  /** Physical releases revenue after label distribution fee deduction. */
-  physicalReleasesRevenueAfterFee: number
-  /** Darkmerch revenue after label distribution fee deduction. */
-  darkmerchRevenueAfterFee: number
-  /** Split percentage (0–100) actually applied to digital (streaming/download) revenue. */
-  digitalSplitPercentage: number
-  /** Split percentage (0–100) actually applied to physical releases revenue. */
-  physicalSplitPercentage: number
-  /** Split percentage (0–100) actually applied to Darkmerch/merchandise revenue. */
-  darkmerchSplitPercentage: number
 }

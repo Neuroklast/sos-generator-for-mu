@@ -38,7 +38,6 @@ import type {
   PdfExportSettings,
   EmailConfig,
   ReleaseSplitOverride,
-  SourceSplitOverride,
 } from '@/lib/types'
 import { detectCompilationCandidates, buildHeuristicTransactions } from '@/lib/compilation-heuristics'
 import { toast } from 'sonner'
@@ -443,22 +442,6 @@ function App() {
       })
       pushUndo({
         description: `Edit release overrides for ${artist}`,
-        undo: () => setSplitFees(snapshot),
-      })
-    },
-    [splitFees, setSplitFees, pushUndo]
-  )
-  const handleUpdateSplitFeeSourceOverrides = useCallback(
-    (artist: string, overrides: SourceSplitOverride[]) => {
-      const snapshot = splitFees ?? []
-      setSplitFees(current => {
-        const fees = current ?? []
-        return fees.map(sf =>
-          sf.artist === artist ? { ...sf, sourceOverrides: overrides } : sf
-        )
-      })
-      pushUndo({
-        description: `Edit source overrides for ${artist}`,
         undo: () => setSplitFees(snapshot),
       })
     },
@@ -1079,7 +1062,6 @@ function App() {
                   onBulkUpdateSplitFee={handleBulkUpdateSplitFee}
                   onUpdateSplitFeeTypeOverride={handleUpdateSplitFeeTypeOverride}
                   onUpdateReleaseOverrides={handleUpdateSplitFeeReleaseOverrides}
-                  onUpdateSourceOverrides={handleUpdateSplitFeeSourceOverrides}
                   releaseTitlesByArtist={releaseTitlesByArtist}
                 />
               )}
