@@ -21,6 +21,8 @@ interface SplitFeeManagerProps {
   onUpdateSourceOverrides?: (artist: string, overrides: SourceSplitOverride[]) => void
   /** Map of artist name → sorted release titles for the per-release override dropdown. */
   releaseTitlesByArtist?: Record<string, string[]>
+  /** Label-wide per-source split defaults, used to display "(Global: X%)" hints. */
+  globalSourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
 }
 
 // ── Shared validation ─────────────────────────────────────────────────────────
@@ -359,10 +361,12 @@ function SourceOverrideList({
   artist,
   overrides,
   onUpdate,
+  globalSourceSplits,
 }: {
   artist: string
   overrides: SourceSplitOverride[]
   onUpdate: (artist: string, overrides: SourceSplitOverride[]) => void
+  globalSourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
 }) {
   const [newSource, setNewSource] = useState<TransactionSource | ''>('')
   const [newPct, setNewPct] = useState('')
@@ -416,9 +420,20 @@ function SourceOverrideList({
         <div className="space-y-2">
           {overrides.map(o => {
             const sourceLabel = AVAILABLE_SOURCES.find(s => s.value === o.source)?.label ?? o.source
+            // Compute global hint for this source
+            let globalHint: number | undefined
+            if (globalSourceSplits) {
+              if (o.source === 'believe') globalHint = globalSourceSplits.believe
+              else if (o.source === 'bandcamp') globalHint = globalSourceSplits.bandcamp
+              else if (o.source === 'darkmerch') globalHint = globalSourceSplits.darkmerch
+              else if (o.source === 'shopify' || o.source === 'printful') globalHint = globalSourceSplits.physical
+            }
             return (
               <div key={o.source} className="flex items-center gap-2">
                 <span className="flex-1 text-xs truncate font-mono text-foreground/80">{sourceLabel}</span>
+                {globalHint != null && (
+                  <span className="text-[10px] text-muted-foreground/60 shrink-0">(Global: {globalHint}%)</span>
+                )}
                 <PercentInput
                   id={`source-override-${artist}-${o.source}`}
                   value={o.percentage}
@@ -485,6 +500,7 @@ function SplitFeeRow({
   onUpdateReleaseOverrides,
   onUpdateSourceOverrides,
   availableReleases,
+  globalSourceSplits,
 }: {
   split: SplitFee
   selected: boolean
@@ -494,6 +510,7 @@ function SplitFeeRow({
   onUpdateReleaseOverrides?: (artist: string, overrides: ReleaseSplitOverride[]) => void
   onUpdateSourceOverrides?: (artist: string, overrides: SourceSplitOverride[]) => void
   availableReleases?: string[]
+  globalSourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
 }) {
   const [draft, setDraft] = useState(String(split.percentage))
   const [error, setError] = useState('')
@@ -646,6 +663,7 @@ function SplitFeeRow({
           artist={split.artist}
           overrides={split.sourceOverrides ?? []}
           onUpdate={onUpdateSourceOverrides}
+          globalSourceSplits={globalSourceSplits}
         />
       )}
     </Card>
@@ -654,7 +672,7 @@ function SplitFeeRow({
 
 // ── SplitFeeManager ───────────────────────────────────────────────────────────
 
-export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride, onUpdateReleaseOverrides, onUpdateSourceOverrides, releaseTitlesByArtist }: SplitFeeManagerProps) {
+export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplitFee, onUpdateSplitFeeTypeOverride, onUpdateReleaseOverrides, onUpdateSourceOverrides, releaseTitlesByArtist, globalSourceSplits }: SplitFeeManagerProps) {
   const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set())
   const [bulkDraft, setBulkDraft] = useState('')
   const [bulkError, setBulkError] = useState('')
@@ -800,6 +818,7 @@ export function SplitFeeManager({ splitFees, onUpdateSplitFee, onBulkUpdateSplit
               onUpdateReleaseOverrides={onUpdateReleaseOverrides}
               onUpdateSourceOverrides={onUpdateSourceOverrides}
               availableReleases={releaseTitlesByArtist?.[split.artist]}
+              globalSourceSplits={globalSourceSplits}
             />
           ))}
         </div>

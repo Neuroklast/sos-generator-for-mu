@@ -301,6 +301,25 @@ export interface AppDefaults {
    * physical revenue. When omitted, `distributionFeePercentage` is used.
    */
   distributionFeePhysical?: number
+  /**
+   * Global per-source split percentages (0–100). Provide a per-source default
+   * that overrides the generic `defaultSplitPercentage` for each named data
+   * source. Artists that have their own `splitFee` or `sourceOverrides` always
+   * take precedence over these label-wide values.
+   *
+   * - `believe`  – Believe digital streaming / download revenue
+   * - `bandcamp` – Bandcamp sales
+   * - `darkmerch`– Darkmerch merchandise revenue
+   * - `physical` – Physical releases (Shopify / Printful)
+   *
+   * Leave a field absent / undefined to fall through to `defaultSplitPercentage`.
+   */
+  sourceSplits?: {
+    believe?: number
+    bandcamp?: number
+    darkmerch?: number
+    physical?: number
+  }
 }
 
 /**
@@ -330,6 +349,13 @@ export interface PdfExportSettings {
    * category's share of the total gross revenue.
    */
   includePieChart?: boolean
+  /**
+   * Maximum number of countries to show in the country breakdown table.
+   * Countries are sorted by revenue descending; only the top N are shown.
+   * When more countries exist, a footnote "(+ N more countries not shown)" is
+   * appended to the table. Defaults to 15.
+   */
+  topCountriesCount?: number
 }
 
 /**

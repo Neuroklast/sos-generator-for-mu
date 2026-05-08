@@ -44,6 +44,8 @@ interface ArtistsViewProps {
   onUpdateSourceOverrides?: (artist: string, overrides: SourceSplitOverride[]) => void
   /** Map of artist name → sorted release titles, used for the per-release split override dropdown. */
   releaseTitlesByArtist?: Record<string, string[]>
+  /** Label-wide per-source split defaults for "(Global: X%)" hints in source overrides. */
+  globalSourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
 }
 
 export function ArtistsView({
@@ -67,6 +69,7 @@ export function ArtistsView({
   onUpdateReleaseOverrides,
   onUpdateSourceOverrides,
   releaseTitlesByArtist,
+  globalSourceSplits,
 }: ArtistsViewProps) {
   const activeArtistSet = useMemo(
     () => new Set(uniqueArtists.map(a => a.toLowerCase())),
@@ -112,6 +115,7 @@ export function ArtistsView({
             onUpdateReleaseOverrides={onUpdateReleaseOverrides}
             onUpdateSourceOverrides={onUpdateSourceOverrides}
             releaseTitlesByArtist={releaseTitlesByArtist}
+            globalSourceSplits={globalSourceSplits}
           />
         </Card>
       </TabsContent>
