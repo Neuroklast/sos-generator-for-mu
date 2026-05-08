@@ -658,3 +658,96 @@ describe('per-release split overrides', () => {
     expect(result[0].finalPayout).toBeCloseTo(60)
   })
 })
+
+// ── Per-source split overrides ─────────────────────────────────────────────────
+
+describe('per-source split overrides', () => {
+  it('applies source override for darkmerch transactions', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: true, source: 'darkmerch' }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 60,
+      sourceOverrides: [{ source: 'darkmerch', percentage: 100 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // Darkmerch at 100% → artist keeps full amount
+    expect(result[0].finalPayout).toBeCloseTo(100)
+  })
+
+  it('source override takes priority over physicalPercentage for darkmerch', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 200, is_physical: true, source: 'darkmerch' }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 60,
+      physicalPercentage: 40,
+      sourceOverrides: [{ source: 'darkmerch', percentage: 100 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // Source override (100%) wins over physicalPercentage (40%) for darkmerch
+    expect(result[0].finalPayout).toBeCloseTo(200)
+  })
+
+  it('non-darkmerch physical still uses physicalPercentage when darkmerch source override is set', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: true, source: 'believe' }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: true, source: 'darkmerch' }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 60,
+      physicalPercentage: 40,
+      sourceOverrides: [{ source: 'darkmerch', percentage: 100 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // Believe physical at 40%, darkmerch at 100%: 40 + 100 = 140
+    expect(result[0].finalPayout).toBeCloseTo(140)
+  })
+
+  it('separates darkmerch from totalPhysicalRevenue in physicalReleasesRevenue', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: true, source: 'believe' }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 50, is_physical: true, source: 'darkmerch' }),
+    ]
+    const result = processTransactions(txs, { ...emptyConfig })
+    expect(result[0].totalPhysicalRevenue).toBeCloseTo(150)
+    expect(result[0].physicalReleasesRevenue).toBeCloseTo(100)
+    expect(result[0].darkmerchRevenue).toBeCloseTo(50)
+  })
+
+  it('exposes digitalSplitPercentage, physicalSplitPercentage, darkmerchSplitPercentage on output', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: false }),
+      makeTx({ original_artist: 'Omnimar', net_revenue: 100, is_physical: true, source: 'darkmerch' }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 60,
+      digitalPercentage: 70,
+      sourceOverrides: [{ source: 'darkmerch', percentage: 100 }],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    expect(result[0].digitalSplitPercentage).toBe(70)
+    expect(result[0].physicalSplitPercentage).toBe(60)
+    expect(result[0].darkmerchSplitPercentage).toBe(100)
+  })
+
+  it('applies source override for darkmerch in release-override path', () => {
+    const txs = [
+      makeTx({ original_artist: 'Omnimar', release_title: 'Some Release', net_revenue: 100, is_physical: true, source: 'darkmerch' }),
+      makeTx({ original_artist: 'Omnimar', release_title: 'Some Release', net_revenue: 50, is_physical: false }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'Omnimar',
+      percentage: 60,
+      sourceOverrides: [{ source: 'darkmerch', percentage: 100 }],
+      releaseOverrides: [],
+    }]
+    const result = processTransactions(txs, { ...emptyConfig, splitFees })
+    // Digital 50 × 60% = 30; Darkmerch 100 × 100% = 100; total = 130
+    expect(result[0].finalPayout).toBeCloseTo(130)
+  })
+})

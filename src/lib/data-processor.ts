@@ -13,6 +13,7 @@ import type {
   LabelArtist,
   IgnoredEntry,
   ReleaseSplitOverride,
+  TransactionSource,
 } from './types'
 import { convertToEur } from './currency'
 import type { ExchangeRates } from './currency'
@@ -47,6 +48,20 @@ export interface ProcessedArtistData {
   countryBreakdown: CountryRevenue[]
   monthlyBreakdown: MonthlyRevenue[]
   releaseBreakdown: ReleaseRevenue[]
+  /** Revenue from physical releases (excl. Darkmerch). */
+  physicalReleasesRevenue: number
+  /** Digital revenue after label distribution fee deduction. */
+  digitalRevenueAfterFee: number
+  /** Physical releases revenue after label distribution fee deduction. */
+  physicalReleasesRevenueAfterFee: number
+  /** Darkmerch revenue after label distribution fee deduction. */
+  darkmerchRevenueAfterFee: number
+  /** Split percentage (0–100) actually applied to digital revenue. */
+  digitalSplitPercentage: number
+  /** Split percentage (0–100) actually applied to physical releases revenue. */
+  physicalSplitPercentage: number
+  /** Split percentage (0–100) actually applied to Darkmerch/merchandise revenue. */
+  darkmerchSplitPercentage: number
 }
 
 export interface DataProcessorConfig {
@@ -215,6 +230,43 @@ function resolveSplitPercentage(
     : splitFee?.physicalPercentage
   const effectiveDefault = defaultTypeOverride ?? defaultBase
   return clampSplitPercentage(perArtistTypeOverride ?? splitFee?.percentage ?? effectiveDefault)
+}
+
+/**
+ * Resolves the effective artist split percentage for a transaction source.
+ *
+ * Resolution priority (highest → lowest):
+ *   1. Per-source override         (`splitFee.sourceOverrides` for this source)
+ *   2. Per-type override           (`splitFee.digitalPercentage` / `splitFee.physicalPercentage`)
+ *   3. Per-artist base             (`splitFee.percentage`)
+ *   4. Label-wide type default     (`defaultTypeOverride`)
+ *   5. Label-wide base default     (`defaultBase`)
+ *
+ * @param splitFee - The artist's SplitFee entry, or `undefined` when none configured.
+ * @param source - Transaction source to check for a source override, or `null` to skip.
+ * @param isPhysical - Whether to use the physical or digital type-override chain.
+ * @param defaultBase - Label-wide default split percentage (0–100).
+ * @param defaultTypeOverride - Label-wide type-specific default (0–100).
+ */
+function resolveSplitPercentageWithSourceOverride(
+  splitFee: SplitFee | undefined,
+  source: TransactionSource | null,
+  isPhysical: boolean,
+  defaultBase: number,
+  defaultTypeOverride?: number
+): number {
+  // 1. Per-source override takes absolute priority
+  if (source != null && splitFee?.sourceOverrides != null) {
+    const sourceOverride = splitFee.sourceOverrides.find(o => o.source === source)
+    if (sourceOverride != null) return clampSplitPercentage(sourceOverride.percentage)
+  }
+  // 2–5. Fall back to existing type/base/label-default chain
+  return resolveSplitPercentage(
+    splitFee,
+    isPhysical ? 'physical' : 'digital',
+    defaultBase,
+    defaultTypeOverride
+  )
 }
 
 function aggregateBy<K extends string>(
@@ -540,25 +592,44 @@ export function processTransactionsWithCompilations(
     const digitalFeeRate = resolveDistributionFeeRate(config.distributionFeeDigital, globalFeeDefault)
     const physicalFeeRate = resolveDistributionFeeRate(config.distributionFeePhysical, globalFeeDefault)
 
-    const digitalFeeDeducted = digitalRevenue * digitalFeeRate
-    const physicalFeeDeducted = physicalRevenue * physicalFeeRate
-    const distributionFeeDeducted = digitalFeeDeducted + physicalFeeDeducted
+    // Separate Darkmerch from physical releases for independent split application.
+    // Darkmerch always has is_physical=true but may carry its own source override.
+    const darkmerchTxRevenue = eurTransactions
+      .filter(t => t.source === 'darkmerch')
+      .reduce((s, t) => s + t.net_revenue, 0)
+    const physicalReleasesRevenue = physicalRevenue - darkmerchTxRevenue
 
-    // Revenue after fee deduction per type
+    // Distribution fee per bucket (darkmerch uses same physicalFeeRate as physical releases)
+    const digitalFeeDeducted = digitalRevenue * digitalFeeRate
+    const physicalReleasesFeeDeducted = physicalReleasesRevenue * physicalFeeRate
+    const darkmerchFeeDeducted = darkmerchTxRevenue * physicalFeeRate
+    const distributionFeeDeducted = digitalFeeDeducted + physicalReleasesFeeDeducted + darkmerchFeeDeducted
+
+    // Revenue after fee deduction per bucket
     const digitalAfterFee = digitalRevenue - digitalFeeDeducted
-    const physicalAfterFee = physicalRevenue - physicalFeeDeducted
+    const physicalReleasesAfterFee = physicalReleasesRevenue - physicalReleasesFeeDeducted
+    const darkmerchAfterFee = darkmerchTxRevenue - darkmerchFeeDeducted
 
     const grossRevenue = digitalRevenue + physicalRevenue + manualRevenue
 
     const defaultBase = config.defaultSplitPercentage ?? 100
     const splitFee = config.splitFees.find(sf => sf.artist.toLowerCase() === lowerKey)
-    const splitPercentage = clampSplitPercentage(splitFee?.percentage ?? defaultBase)
 
-    // Per-type split overrides: when set on the SplitFee entry they override the
-    // base percentage for that specific revenue type. When no per-artist entry
-    // exists the label-wide type defaults are applied.
-    const digitalSplitPct = resolveSplitPercentage(splitFee, 'digital', defaultBase, config.defaultSplitPercentageDigital)
-    const physicalSplitPct = resolveSplitPercentage(splitFee, 'physical', defaultBase, config.defaultSplitPercentagePhysical)
+    // Resolve per-bucket split percentages (source overrides have highest priority)
+    const digitalSplitPct = resolveSplitPercentageWithSourceOverride(
+      splitFee, null, false, defaultBase, config.defaultSplitPercentageDigital
+    )
+    const physicalSplitPct = resolveSplitPercentageWithSourceOverride(
+      splitFee, null, true, defaultBase, config.defaultSplitPercentagePhysical
+    )
+    const darkmerchSplitPct = resolveSplitPercentageWithSourceOverride(
+      splitFee, 'darkmerch', true, defaultBase, config.defaultSplitPercentagePhysical
+    )
+
+    // splitPercentage for backward-compat display: use digitalSplitPct when no physical revenue
+    const splitPercentage = (physicalReleasesRevenue === 0 && darkmerchTxRevenue === 0)
+      ? digitalSplitPct
+      : clampSplitPercentage(splitFee?.percentage ?? defaultBase)
 
     // Distribution fee is deducted before split.
     // Recoupable expenses are deducted AFTER split.
@@ -587,21 +658,22 @@ export function processTransactionsWithCompilations(
       let perReleasePayout = 0
       for (const [releaseKey, releaseTxs] of releaseGroups.entries()) {
         let releaseDigital = 0
-        let releasePhysical = 0
+        let releasePhysicalReleases = 0
+        let releaseDarkmerch = 0
         for (const t of releaseTxs) {
-          if (t.is_physical) {
-            releasePhysical += t.net_revenue
+          if (t.source === 'darkmerch') {
+            releaseDarkmerch += t.net_revenue
+          } else if (t.is_physical) {
+            releasePhysicalReleases += t.net_revenue
           } else {
             releaseDigital += t.net_revenue
           }
         }
 
-        // Apply distribution fee per-type to this release's revenue.
         const releaseDigitalAfterFee = releaseDigital - releaseDigital * digitalFeeRate
-        const releasePhysicalAfterFee = releasePhysical - releasePhysical * physicalFeeRate
+        const releasePhysicalAfterFee = releasePhysicalReleases - releasePhysicalReleases * physicalFeeRate
+        const releaseDarkmerchAfterFee = releaseDarkmerch - releaseDarkmerch * physicalFeeRate
 
-        // Look up the first release override whose releaseTitle is a case-insensitive
-        // substring of this release's normalised title key.
         const matchedOverride = findReleaseOverride(releaseOverrides, releaseKey)
 
         const effectiveDigitalPct = matchedOverride != null
@@ -610,19 +682,27 @@ export function processTransactionsWithCompilations(
         const effectivePhysicalPct = matchedOverride != null
           ? clampSplitPercentage(matchedOverride.physicalPercentage ?? matchedOverride.percentage)
           : physicalSplitPct
+        // Release overrides use physicalPercentage for darkmerch too (they take precedence
+        // over source overrides). When no release override matches, darkmerch uses its own
+        // source-resolved split.
+        const effectiveDarkmerchPct = matchedOverride != null
+          ? clampSplitPercentage(matchedOverride.physicalPercentage ?? matchedOverride.percentage)
+          : darkmerchSplitPct
 
         perReleasePayout +=
           releaseDigitalAfterFee * (effectiveDigitalPct / 100) +
-          releasePhysicalAfterFee * (effectivePhysicalPct / 100)
+          releasePhysicalAfterFee * (effectivePhysicalPct / 100) +
+          releaseDarkmerchAfterFee * (effectiveDarkmerchPct / 100)
       }
 
       finalPayout = Math.max(0, perReleasePayout - totalExpenses + manualRevenue)
     } else {
-      // Standard path (no release overrides): identical to the original formula.
+      // Standard path (no release overrides)
       finalPayout = Math.max(
         0,
         digitalAfterFee * (digitalSplitPct / 100) +
-          physicalAfterFee * (physicalSplitPct / 100) -
+          physicalReleasesAfterFee * (physicalSplitPct / 100) +
+          darkmerchAfterFee * (darkmerchSplitPct / 100) -
           totalExpenses +
           manualRevenue
       )
@@ -646,6 +726,13 @@ export function processTransactionsWithCompilations(
       totalQuantity,
       totalExpenses,
       distributionFeeDeducted,
+      physicalReleasesRevenue,
+      digitalRevenueAfterFee: digitalAfterFee,
+      physicalReleasesRevenueAfterFee: physicalReleasesAfterFee,
+      darkmerchRevenueAfterFee: darkmerchAfterFee,
+      digitalSplitPercentage: digitalSplitPct,
+      physicalSplitPercentage: physicalSplitPct,
+      darkmerchSplitPercentage: darkmerchSplitPct,
       platformBreakdown: buildPlatformBreakdown(eurTransactions),
       countryBreakdown: buildCountryBreakdown(eurTransactions),
       monthlyBreakdown: buildMonthlyBreakdown(eurTransactions),

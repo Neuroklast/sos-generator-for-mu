@@ -347,6 +347,10 @@ export function useCSVProcessor(
         countryBreakdown: data.countryBreakdown,
         monthlyBreakdown: data.monthlyBreakdown,
         releaseBreakdown: data.releaseBreakdown,
+        physicalReleasesRevenue: data.physicalReleasesRevenue ?? (data.totalPhysicalRevenue - data.darkmerchRevenue),
+        digitalSplitPercentage: data.digitalSplitPercentage ?? data.splitPercentage,
+        physicalSplitPercentage: data.physicalSplitPercentage ?? data.splitPercentage,
+        darkmerchSplitPercentage: data.darkmerchSplitPercentage ?? data.splitPercentage,
       })),
     [workerResult.processedData]
   )
