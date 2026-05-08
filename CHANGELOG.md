@@ -9,7 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **Bucket split rates (sourceSplits) now apply correctly and independently.**
+- **`defaultSplitPercentagePhysical` / `defaultSplitPercentageDigital` (global type defaults) now
+  correctly override per-artist base rates in the main split chain.**
+  Previously, when `useSplitFeeSync` auto-created a per-artist `SplitFee` entry with `percentage = 50`
+  (the default base), that auto-assigned base silently overrode the label-wide type defaults
+  (e.g. `defaultSplitPercentagePhysical = 15 %`). The PDF would display "× Physical Split (50%)"
+  instead of the configured 15 %, because `splitFee.percentage` ranked above `defaultTypeOverride`
+  in `resolveSplitPercentage`.
+
+  The priority chain in `resolveSplitPercentage` is now:
+  1. Per-artist type override (`physicalPercentage` / `digitalPercentage`) — highest
+  2. **Label-wide type default (`defaultSplitPercentagePhysical` / `defaultSplitPercentageDigital`)**
+  3. Per-artist base (`percentage`)
+  4. Label-wide base default (`defaultSplitPercentage`) — lowest
+
+  Only an explicit per-artist `physicalPercentage` / `digitalPercentage` can override a configured
+  label-wide type policy. An auto-assigned or manually set artist base rate no longer suppresses it.
+
+
   Previously, `sourceSplits.darkmerch`, `sourceSplits.physical`, `sourceSplits.believe`, and
   `sourceSplits.bandcamp` were mixed into the per-artist main chain, allowing per-artist base
   percentages (auto-created by `useSplitFeeSync`) to silently override label-wide bucket

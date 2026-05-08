@@ -222,10 +222,16 @@ function resolveDistributionFeeRate(override: number | undefined, fallback: numb
  * Resolves the effective artist split percentage for a given revenue type.
  *
  * Fallback chain (highest → lowest priority):
- *   1. Per-artist type-specific override  (e.g. `splitFee.digitalPercentage`)
- *   2. Per-artist base percentage         (`splitFee.percentage`)
- *   3. Label-wide type-specific default   (e.g. `defaultDigital`)
+ *   1. Per-artist type-specific override  (e.g. `splitFee.digitalPercentage` / `splitFee.physicalPercentage`)
+ *   2. Label-wide type-specific default   (`defaultTypeOverride`, e.g. `defaultSplitPercentagePhysical`)
+ *   3. Per-artist base percentage         (`splitFee.percentage`)
  *   4. Label-wide base default            (`defaultBase`)
+ *
+ * The label-wide type-specific default (step 2) intentionally sits ABOVE the per-artist base (step 3).
+ * Rationale: `defaultSplitPercentageDigital` / `defaultSplitPercentagePhysical` are explicit label-wide
+ * policies for a revenue type. An auto-assigned per-artist base `percentage` (e.g. created by
+ * `useSplitFeeSync`) must not silently override a deliberately configured type-specific policy.
+ * Only an explicit per-artist `digitalPercentage` / `physicalPercentage` can override the label default.
  *
  * @param splitFee - The artist's split-fee entry from the config, or `undefined` when no rule is configured.
  * @param typeOverride - Revenue type determining which optional override field to read.
@@ -241,8 +247,13 @@ function resolveSplitPercentage(
   const perArtistTypeOverride = typeOverride === 'digital'
     ? splitFee?.digitalPercentage
     : splitFee?.physicalPercentage
-  const effectiveDefault = defaultTypeOverride ?? defaultBase
-  return clampSplitPercentage(perArtistTypeOverride ?? splitFee?.percentage ?? effectiveDefault)
+  // 1. Explicit per-artist type override wins unconditionally.
+  if (perArtistTypeOverride != null) return clampSplitPercentage(perArtistTypeOverride)
+  // 2. Label-wide type default beats the per-artist base so that a label policy such as
+  //    "all physical = 15%" applies even to artists with an auto-assigned base rate of 50%.
+  if (defaultTypeOverride != null) return clampSplitPercentage(defaultTypeOverride)
+  // 3 & 4. Per-artist base, then ultimate label-wide base.
+  return clampSplitPercentage(splitFee?.percentage ?? defaultBase)
 }
 
 /**
@@ -251,17 +262,14 @@ function resolveSplitPercentage(
  * Resolution priority (highest → lowest):
  *   1. Per-source override    (`splitFee.sourceOverrides` for this source)
  *   2. Per-type override      (`splitFee.digitalPercentage` / `splitFee.physicalPercentage`)
- *   3. Per-artist base        (`splitFee.percentage`)
- *   4. Global source split    (`sourceSplits` in DataProcessorConfig for this source)
+ *   3. Label-wide type default (`defaultTypeOverride`) — e.g. `defaultSplitPercentagePhysical`.
+ *                             Sits ABOVE the per-artist base so that an explicit label policy
+ *                             (e.g. "all physical = 15%") applies even to artists whose base
+ *                             percentage was auto-assigned. See `resolveSplitPercentage`.
+ *   4. Per-artist base        (`splitFee.percentage`)
+ *   5. Global source split    (`sourceSplits` in DataProcessorConfig for this source)
  *                             — only reached when the artist has NO per-artist SplitFee entry.
- *   5. Label-wide type default (`defaultTypeOverride`) — callers merge `sourceSplits` for
- *                             aggregated buckets (digital/physical) into this parameter so
- *                             that `sourceSplits.physical` / `sourceSplits.believe` act as
- *                             fallbacks below the per-artist level.
  *   6. Label-wide base default (`defaultBase`)
- *
- * Per-artist settings always win over label-wide defaults (steps 4–6). Global source
- * splits (step 4/5) only apply when no per-artist SplitFee exists for the artist.
  *
  * @param splitFee - The artist's SplitFee entry, or `undefined` when none configured.
  * @param source - Transaction source to check for a named source override (`'darkmerch'`,
@@ -289,11 +297,11 @@ function resolveSplitPercentageWithSourceOverride(
     const sourceOverride = splitFee.sourceOverrides.find(o => o.source === source)
     if (sourceOverride != null) return clampSplitPercentage(sourceOverride.percentage)
   }
-  // 2–3. Per-artist type override then base — per-artist always beats label-wide defaults
+  // 2–4. Per-artist type override → label-wide type default → per-artist base
   if (splitFee != null) {
     return resolveSplitPercentage(splitFee, isPhysical ? 'physical' : 'digital', defaultBase, defaultTypeOverride)
   }
-  // 4. Global per-source split (only when artist has no SplitFee entry at all)
+  // 5. Global per-source split (only when artist has no SplitFee entry at all)
   if (source != null && globalSourceSplits != null) {
     let globalPct: number | undefined
     if (source === 'believe') globalPct = globalSourceSplits.believe
@@ -663,8 +671,12 @@ export function processTransactionsWithCompilations(
     //    Priority: perArtistSourceOverride > sourceSplits.{bucket}
     //
     // B. MAIN CHAIN (when no bucket split is configured for the bucket):
-    //    globalBase → globalDigital/Physical → perArtistBase → perArtistType → perRelease
-    //    Per-artist settings always win over label-wide defaults.
+    //    Priority (highest → lowest):
+    //      perArtistTypeOverride → globalTypeDefault → perArtistBase → globalBase
+    //    Note: the label-wide type default (e.g. defaultSplitPercentagePhysical) intentionally
+    //    beats the per-artist base so that a label policy like "all physical = 15%" is respected
+    //    even for artists whose base was auto-assigned. Only an explicit per-artist
+    //    digitalPercentage / physicalPercentage field can override the label type policy.
 
     // Digital bucket
     const digitalBucketSplit = config.sourceSplits?.believe ?? config.sourceSplits?.bandcamp
