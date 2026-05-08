@@ -8,6 +8,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+
+- **Bucket split rates (sourceSplits) now apply correctly and independently.**
+  Previously, `sourceSplits.darkmerch`, `sourceSplits.physical`, `sourceSplits.believe`, and
+  `sourceSplits.bandcamp` were mixed into the per-artist main chain, allowing per-artist base
+  percentages (auto-created by `useSplitFeeSync`) to silently override label-wide bucket
+  policies (e.g. Darkmerch 100 %, Physical 15 %). The PDF would always show the per-artist
+  base rate instead of the configured bucket rate.
+
+  The split engine now runs two completely independent systems:
+  - **Main chain** (digital + physical, when no bucket split is set):
+    `globalBase → globalDigital/Physical → perArtistBase → perArtistType → perRelease`
+  - **Bucket splits** (parallel, when `sourceSplits.{bucket}` is explicitly set): bypasses the
+    main chain; the only override is an explicit per-artist source override for that source.
+
+  Bucket splits are **conditional**: they activate only when the value is explicitly configured.
+  When not set, the bucket falls through to the normal main chain as before.
+
+### Fixed
 - **PDF page number shows wrong total on pages 1 … N−1.**
   `drawPageFooter` was calling `doc.internal.getNumberOfPages()` inside the
   per-page `didDrawPage` callback, which only knows the number of pages created

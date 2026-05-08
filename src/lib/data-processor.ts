@@ -653,32 +653,47 @@ export function processTransactionsWithCompilations(
     const defaultBase = config.defaultSplitPercentage ?? 100
     const splitFee = config.splitFees.find(sf => sf.artist.toLowerCase() === lowerKey)
 
-    // Resolve per-bucket split percentages.
-    // Digital / Physical: per-artist base + type overrides take precedence over global source splits.
-    // For aggregated source=null buckets the relevant sourceSplits entry is merged into the
-    // effective type default so it applies when the artist has no per-artist SplitFee entry.
-    // Priority: perArtist > globalSource > globalTypeDefault > globalBase.
-    const effectiveDigitalDefault =
-      config.sourceSplits?.believe ?? config.sourceSplits?.bandcamp ?? config.defaultSplitPercentageDigital
-    const effectivePhysicalDefault =
-      config.sourceSplits?.physical ?? config.defaultSplitPercentagePhysical
-    const digitalSplitPct = resolveSplitPercentageWithSourceOverride(
-      splitFee, null, false, defaultBase, effectiveDigitalDefault, config.sourceSplits
+    // ─── Bucket split resolution ───────────────────────────────────────────
+    // Two completely independent systems — activated only when the bucket value IS set:
+    //
+    // A. BUCKET SPLIT (parallel, when sourceSplits.{bucket} IS configured):
+    //    The configured rate is used directly for that revenue bucket.
+    //    Per-artist base / type percentages do NOT apply.
+    //    The ONLY override is an explicit per-artist sourceOverride for that source.
+    //    Priority: perArtistSourceOverride > sourceSplits.{bucket}
+    //
+    // B. MAIN CHAIN (when no bucket split is configured for the bucket):
+    //    globalBase → globalDigital/Physical → perArtistBase → perArtistType → perRelease
+    //    Per-artist settings always win over label-wide defaults.
+
+    // Digital bucket
+    const digitalBucketSplit = config.sourceSplits?.believe ?? config.sourceSplits?.bandcamp
+    const digitalBucketPerArtistOverride = splitFee?.sourceOverrides?.find(
+      o => o.source === 'believe' || o.source === 'bandcamp'
     )
-    const physicalSplitPct = resolveSplitPercentageWithSourceOverride(
-      splitFee, null, true, defaultBase, effectivePhysicalDefault, config.sourceSplits
+    const digitalSplitPct = digitalBucketSplit != null
+      ? clampSplitPercentage(digitalBucketPerArtistOverride?.percentage ?? digitalBucketSplit)
+      : resolveSplitPercentageWithSourceOverride(
+          splitFee, null, false, defaultBase, config.defaultSplitPercentageDigital
+        )
+
+    // Physical releases bucket
+    const physicalBucketPerArtistOverride = splitFee?.sourceOverrides?.find(
+      o => o.source === 'shopify' || o.source === 'printful'
     )
-    // Darkmerch is a distinct category — separate from digital and physical.
-    // Per-artist base and type overrides (digitalPercentage / physicalPercentage / percentage)
-    // do NOT apply to darkmerch revenue. Only an explicit per-artist source override for
-    // 'darkmerch' can override the label-wide darkmerch rate, preventing a general
-    // "50% for everything" per-artist entry from silently overriding a label policy such as
-    // "artists keep 100% of merch revenue".
-    // Priority: perArtistSourceOverride('darkmerch') > sourceSplits.darkmerch > globalBase.
+    const physicalSplitPct = config.sourceSplits?.physical != null
+      ? clampSplitPercentage(physicalBucketPerArtistOverride?.percentage ?? config.sourceSplits.physical)
+      : resolveSplitPercentageWithSourceOverride(
+          splitFee, null, true, defaultBase, config.defaultSplitPercentagePhysical
+        )
+
+    // Darkmerch bucket
     const darkmerchPerArtistOverride = splitFee?.sourceOverrides?.find(o => o.source === 'darkmerch')
-    const darkmerchSplitPct = clampSplitPercentage(
-      darkmerchPerArtistOverride?.percentage ?? config.sourceSplits?.darkmerch ?? defaultBase
-    )
+    const darkmerchSplitPct = config.sourceSplits?.darkmerch != null
+      ? clampSplitPercentage(darkmerchPerArtistOverride?.percentage ?? config.sourceSplits.darkmerch)
+      : resolveSplitPercentageWithSourceOverride(
+          splitFee, 'darkmerch', true, defaultBase, config.defaultSplitPercentagePhysical, config.sourceSplits
+        )
 
     // splitPercentage for backward-compat display: use digitalSplitPct when no physical revenue
     const splitPercentage = (physicalReleasesRevenue === 0 && darkmerchTxRevenue === 0)
