@@ -185,11 +185,15 @@ function processChunk(
       if (source === 'bandcamp' && releaseType === 'payout') continue
 
       // ── Revenue resolution ─────────────────────────────────────────────────
-      // Use the "net amount" column directly for all sources.
-      // For Bandcamp: "net amount" is the per-transaction net revenue received
-      // by the label.  The "balance of revenue share (EUR)" column is the
-      // collection-society running balance — NOT the transaction net revenue —
-      // and must not be used for financial calculations.
+      // Universal rule: use the "net amount" / "Net Revenue" column (net_revenue)
+      // and the currency column for all sources.
+      //
+      // Bandcamp-specific rationale: "balance of revenue share (EUR)" is the
+      // collection-society running balance (per-session cumulative), not the
+      // per-transaction payout received by the label.  The correct column is
+      // "net amount".  Earlier code incorrectly preferred balance_eur, which
+      // also suffered from fuzzy-matching contamination by the GBP/PLN/USD
+      // balance columns (all four map to balance_eur and the last write wins).
       const netRevenue = parseRevenue(mappedData.net_revenue ?? '')
       const currency = (mappedData.currency ?? 'EUR').trim() || 'EUR'
 

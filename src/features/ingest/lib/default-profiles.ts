@@ -79,6 +79,11 @@ const BANDCAMP_STANDARD: CsvImportProfile = {
     salesMonth:      'date',
     artistName:      'artist',
     releaseTitle:    'item name',
+    // Revenue: "net amount" is the per-transaction label payout after Bandcamp fees.
+    // "balance of revenue share (EUR)" (balanceEur) is the collection-society running
+    // balance — NOT per-transaction revenue — and is therefore intentionally excluded
+    // from this profile. The balanceEur FinancialFieldKey is retained for backward
+    // compatibility with user-defined profiles that may reference it.
     netRevenue:      'net amount',
     releaseType:     'item type',
     catalogNumber:   'catalog number',

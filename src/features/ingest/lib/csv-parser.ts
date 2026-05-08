@@ -247,9 +247,11 @@ export function parseCSVContent(
       }
 
       // ── Revenue resolution ─────────────────────────────────────────────────
-      // For Bandcamp, use the "net amount" column directly.  The "balance of
-      // revenue share (EUR)" column is the collection-society running balance
-      // (not the per-transaction net revenue) and must not be used here.
+      // All sources: use the "net amount" / "Net Revenue" column (mapped to
+      // net_revenue) and the currency column directly.
+      // Note for Bandcamp: "balance of revenue share (EUR)" is the collection-
+      // society running balance, NOT the per-transaction net revenue, and must
+      // not be used here — the correct column is "net amount".
       const finalRevenueStr = mappedData.net_revenue || '0'
       const finalCurrency = mappedData.currency || 'EUR'
       const netRevenue = parseFloat(finalRevenueStr.replace(/[^0-9.-]/g, '')) || 0
