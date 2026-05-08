@@ -735,6 +735,110 @@ describe('per-source split overrides', () => {
     expect(result[0].darkmerchSplitPercentage).toBe(100)
   })
 
+  // ── Global source-split regression tests ───────────────────────────────────
+  // These tests verify the priority-3 fix: global sourceSplits apply even when
+  // the artist has a per-artist base SplitFee entry (as auto-created by useSplitFeeSync).
+
+  it('applies global sourceSplits.darkmerch even when artist has a per-artist base SplitFee', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 514, is_physical: true, source: 'darkmerch' }),
+    ]
+    const splitFees: SplitFee[] = [{ artist: 'BLACKBOOK', percentage: 50 }]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees,
+      sourceSplits: { darkmerch: 100 },
+    })
+    // sourceSplits.darkmerch = 100 should override per-artist base 50
+    expect(result[0].darkmerchSplitPercentage).toBe(100)
+    expect(result[0].finalPayout).toBeCloseTo(514)
+  })
+
+  it('applies global sourceSplits.physical even when artist has a per-artist base SplitFee', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 424, is_physical: true, source: 'believe' }),
+    ]
+    const splitFees: SplitFee[] = [{ artist: 'BLACKBOOK', percentage: 50 }]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees,
+      sourceSplits: { physical: 15 },
+    })
+    // sourceSplits.physical = 15 should override per-artist base 50
+    expect(result[0].physicalSplitPercentage).toBe(15)
+    expect(result[0].finalPayout).toBeCloseTo(424 * 0.15)
+  })
+
+  it('applies global sourceSplits.believe (digital aggregate) even when artist has per-artist base SplitFee', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 200, is_physical: false, source: 'believe' }),
+    ]
+    const splitFees: SplitFee[] = [{ artist: 'BLACKBOOK', percentage: 50 }]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees,
+      sourceSplits: { believe: 60 },
+    })
+    // sourceSplits.believe = 60 should override per-artist base 50
+    expect(result[0].digitalSplitPercentage).toBe(60)
+    expect(result[0].finalPayout).toBeCloseTo(200 * 0.6)
+  })
+
+  it('per-artist type override still beats global sourceSplits', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'darkmerch' }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'BLACKBOOK',
+      percentage: 50,
+      physicalPercentage: 70,
+    }]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees,
+      sourceSplits: { darkmerch: 100 },
+    })
+    // physicalPercentage (70) beats global darkmerch (100) since it's priority 2 vs 3
+    expect(result[0].darkmerchSplitPercentage).toBe(70)
+  })
+
+  it('per-artist source override still beats global sourceSplits', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'darkmerch' }),
+    ]
+    const splitFees: SplitFee[] = [{
+      artist: 'BLACKBOOK',
+      percentage: 50,
+      sourceOverrides: [{ source: 'darkmerch', percentage: 80 }],
+    }]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees,
+      sourceSplits: { darkmerch: 100 },
+    })
+    // per-artist sourceOverride (80) beats global darkmerch (100) since it's priority 1 vs 3
+    expect(result[0].darkmerchSplitPercentage).toBe(80)
+  })
+
+  it('applies source splits for all three buckets simultaneously', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 200, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 400, is_physical: true, source: 'believe' }),
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 500, is_physical: true, source: 'darkmerch' }),
+    ]
+    const splitFees: SplitFee[] = [{ artist: 'BLACKBOOK', percentage: 50 }]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees,
+      sourceSplits: { believe: 50, physical: 15, darkmerch: 100 },
+    })
+    expect(result[0].digitalSplitPercentage).toBe(50)
+    expect(result[0].physicalSplitPercentage).toBe(15)
+    expect(result[0].darkmerchSplitPercentage).toBe(100)
+    // finalPayout = 200*0.5 + 400*0.15 + 500*1.0 = 100 + 60 + 500 = 660
+    expect(result[0].finalPayout).toBeCloseTo(660)
+  })
+
   it('applies source override for darkmerch in release-override path', () => {
     const txs = [
       makeTx({ original_artist: 'Omnimar', release_title: 'Some Release', net_revenue: 100, is_physical: true, source: 'darkmerch' }),
