@@ -57,7 +57,53 @@ Refactor App.tsx to act as a pure **orchestration layer**:
 
 ---
 
-## ADR-002 · Web Worker for CSV Processing
+## ADR-003 · Split Rate Resolution: Two Independent Systems
+
+**Date:** 2026-05-08
+
+### Context
+
+The split fee engine must handle four overlapping configuration dimensions:
+1. Label-wide defaults (global base, global type-specific digital/physical)
+2. Per-artist configuration (base %, type-specific %, source-specific overrides)
+3. Per-release overrides
+4. Bucket-specific label policies (e.g. "artists keep 100 % of Darkmerch revenue", "Physical always at 15 %")
+
+The initial implementation mixed all four into a single linear priority chain, which caused
+bucket-specific label policies (`sourceSplits`) to be overridden by per-artist base rates
+(auto-created by `useSplitFeeSync`). This made it impossible to set a label-wide Darkmerch
+or Physical rate that applied regardless of individual artist contracts.
+
+### Decision
+
+Implement two fully independent systems that run in parallel:
+
+**System A — Main Chain** (digital and physical revenue when no bucket split is set):
+```
+globalBase → globalDigital/Physical → perArtistBase → perArtistType → perRelease
+```
+Per-artist settings always win over label-wide defaults. Per-release overrides win over everything.
+
+**System B — Bucket Splits** (`sourceSplits` — completely parallel to the main chain):
+- Each bucket (`darkmerch`, `physical`, `believe`, `bandcamp`) has an independent fixed rate.
+- A bucket split is **only active when explicitly set** (`!= null`). When absent, the bucket falls through to the normal main chain.
+- When active, the bucket split **bypasses the main chain entirely**.
+- The **only override** for an active bucket split is an explicit per-artist `sourceOverride` for that specific source. Per-artist base and type percentages do not apply.
+- Implementation: computed inline per bucket before the payout formula, not routed through `resolveSplitPercentageWithSourceOverride`.
+
+### Consequences
+
+**Positive:**
+- Label-wide policies ("Darkmerch 100 % to artist", "Physical 15 %") always apply regardless of per-artist general split entries.
+- `useSplitFeeSync` can auto-create per-artist entries without silently overriding bucket policies.
+- The two systems are independently understandable and testable.
+- Per-artist source overrides remain the correct escape hatch for individual exceptions to a bucket policy.
+
+**Negative / Trade-offs:**
+- `sourceSplits.believe` and `sourceSplits.bandcamp` currently apply to the aggregated digital bucket as a whole. If different rates per digital source are needed, the digital bucket computation must be split per source (future work).
+- Bucket split activation is binary (set / not set). There is no intermediate priority level between "global bucket" and "per-artist source override" for bucket-based revenue.
+
+---
 
 **Date:** pre-existing decision (documented for completeness)
 

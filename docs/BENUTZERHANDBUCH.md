@@ -196,16 +196,56 @@ Der eingebaute Parser handhabt:
 
 Split Fees legen fest, welchen Prozentsatz des **Nettoumsatzes** (nach Abzug von Vertriebsprovisionen und Ausgaben) ein Künstler erhält.
 
-**Einrichten:**
-1. Gehe zu **Settings → Split Fees**.
-2. Klicke auf **Künstler hinzufügen** oder wähle einen bestehenden.
-3. Trage den Prozentsatz ein (0–100).
-4. Speichere.
+Die Engine verwendet **zwei vollständig unabhängige Systeme**, die parallel laufen:
 
-**Berechnungsformel:**
+---
+
+#### System A — Hauptkette (Digital- & Physisch-Umsatz)
+
+Wird angewendet, wenn für den jeweiligen Umsatztyp **kein Bucket-Split** konfiguriert ist. Die folgende Prioritätskette wird von niedrigster bis höchster Priorität geprüft — der erste explizit gesetzte Wert gewinnt:
+
+| Priorität | Einstellung | Wo konfigurieren |
+|-----------|-------------|-----------------|
+| 1 (niedrigste) | **Standard-Splitrate** | Settings → Defaults → Default Split % |
+| 2 | **Digital-spezifischer Standard** | Settings → Defaults → Digital Split % |
+| 2 | **Physisch-spezifischer Standard** | Settings → Defaults → Physical Split % |
+| 3 | **Künstler-Basis-Prozentsatz** | Settings → Split Fees → Künstler-Basis |
+| 4 | **Künstler Digital / Physisch %** | Settings → Split Fees → Typ-Override |
+| 5 (höchste) | **Release-Override** | Settings → Split Fees → Release-Overrides |
+
+> **Beispiel:** Standard = 50 %, Digital-Standard = 60 %, Künstler-Basis = 70 %, Künstler-Digital = 80 %  
+> → Digitale Auszahlung: **80 %** (Künstler-Digital gewinnt).  
+> → Physische Auszahlung: **70 %** (Künstler-Basis, kein Physisch-Override gesetzt).
+
+---
+
+#### System B — Bucket Splits (parallel, unabhängig)
+
+Konfiguriert unter **Settings → Defaults → Source Split Rates**. Jeder Bucket-Split ist eine **Label-weite Festrate** für eine bestimmte Einnahmequelle. Er ist **vollständig unabhängig** von der Hauptkette und wird **nur aktiviert, wenn er explizit gesetzt ist**:
+
+| Bucket | Einstellungsschlüssel | Abgedeckte Einnahmen |
+|--------|-----------------------|----------------------|
+| `believe` | Believe Split % | Believe Streaming & Download |
+| `bandcamp` | Bandcamp Split % | Bandcamp-Verkäufe |
+| `physical` | Physical Split % | Physische Releases (Shopify / Printful) |
+| `darkmerch` | Darkmerch Split % | Darkmerch / Merchandise |
+
+**Regeln wenn ein Bucket-Split GESETZT ist:**
+- Die Hauptkette wird für diesen Bucket **vollständig umgangen**.
+- Künstler-Basis-% und Typ-% (Digital/Physisch) werden **nicht** angewendet.
+- Der einzige Weg, einen Bucket-Split für einen einzelnen Künstler zu überschreiben, ist ein **Künstler-spezifischer Source-Override** für genau diese Quelle.
+
+**Regeln wenn ein Bucket-Split NICHT gesetzt ist:**
+- Der Bucket verwendet die normale Hauptkette (System A) — Künstler-Einstellungen gelten wie gewohnt.
+
+> **Typischer Anwendungsfall:** Darkmerch auf 100 % setzen → Künstler behalten alle Merchandise-Einnahmen, unabhängig von ihrem allgemeinen Splitvertrag. Physical auf 15 % setzen → Label behält 85 % der physischen Verkäufe als Label-Richtlinie.
+
+---
+
+#### Berechnungsformel
 
 ```
-Netto-Auszahlung = (Bruttoumsatz − Vertriebsprovision − Ausgaben) × (Split% / 100)
+Netto-Auszahlung = (Bruttoumsatz − Vertriebsprovision − Ausgaben) × (Effektiver Split% / 100)
 ```
 
 **Beispiel:**
@@ -214,6 +254,19 @@ Netto-Auszahlung = (Bruttoumsatz − Vertriebsprovision − Ausgaben) × (Split%
 - Vorschuss: 200 €
 - Split: 70 %
 - → Netto-Auszahlung = (1.000 − 150 − 200) × 0,70 = **455 €**
+
+---
+
+**Künstler-Splits einrichten:**
+1. Gehe zu **Settings → Split Fees**.
+2. Klicke auf **Künstler hinzufügen** oder wähle einen bestehenden.
+3. Trage den Basis-Prozentsatz ein (0–100). Optional separate Digital- und Physisch-Prozentsätze setzen.
+4. Speichere.
+
+**Bucket-Splits einrichten:**
+1. Gehe zu **Settings → Defaults → Source Split Rates**.
+2. Trage die Rate für den relevanten Bucket ein (z. B. Darkmerch = 100).
+3. Lasse ein Feld leer, um für diesen Bucket auf die Hauptkette zurückzufallen.
 
 ---
 
@@ -280,13 +333,32 @@ Die App erkennt dann beide Bezeichnungen als dasselbe Feld.
 
 Unter **Settings → Defaults** kannst du anwendungsweite Standardwerte setzen:
 
+#### Split-Raten-Standards
+
+| Einstellung | Beschreibung |
+|-------------|--------------|
+| **Default Split %** | Basis-Splitrate für alle Künstler und alle Umsatztypen (0–100). Wird verwendet, wenn keine spezifischere Einstellung konfiguriert ist. |
+| **Digital Split %** | Override für digitale Einnahmen (Streaming, Downloads). Überschreibt Default Split %. Teil der Hauptkette. |
+| **Physical Split %** | Override für physische Release-Einnahmen. Überschreibt Default Split %. Teil der Hauptkette. |
+
+#### Bucket-Split-Raten (Source Split Rates)
+
+Diese sind **unabhängig** von der Hauptkette. Siehe [Abschnitt 6.1 — System B](#system-b--bucket-splits-parallel-unabhängig) für die vollständige Erklärung.
+
+| Einstellung | Beschreibung |
+|-------------|--------------|
+| **Believe Split %** | Festrate für alle Believe-Einnahmen. Leer lassen → Hauptkette gilt. |
+| **Bandcamp Split %** | Festrate für alle Bandcamp-Einnahmen. Leer lassen → Hauptkette gilt. |
+| **Physical Split %** | Festrate für physische Releases. Leer lassen → Hauptkette gilt. |
+| **Darkmerch Split %** | Festrate für Merchandise-Einnahmen. Leer lassen → Hauptkette gilt. |
+
+#### Sonstige Standards
+
 | Einstellung | Beschreibung |
 |-------------|--------------|
 | Finanz-E-Mail | E-Mail-Adresse für Auszahlungsanfragen |
 | Abrechnungs-Deadline | Standarddatum für Zahlungsfristen |
 | Spendenorganisation | Name einer Royalty-Spendenorganisation (für E-Mail-Vorlagen) |
-
-Diese Werte werden in E-Mail-Vorlagen als Platzhalter eingesetzt.
 
 ---
 
@@ -653,9 +725,30 @@ Der **Workspace Manager** ermöglicht es, verschiedene Abrechnungszustände zu s
 
 ### Split-Prozentsatz wird nicht angewendet
 
-**Ursache:** Der Künstlername im Split-Fee-Eintrag stimmt nicht genau mit dem verarbeiteten Namen überein.
+**Ursache 1:** Der Künstlername im Split-Fee-Eintrag stimmt nicht genau mit dem verarbeiteten Namen überein.
 
 **Lösung:** Stelle sicher, dass der Name im Split-Fee-Eintrag exakt dem Künstlernamen entspricht, der nach dem Artist Mapping angezeigt wird (Groß-/Kleinschreibung beachten).
+
+---
+
+### Das PDF zeigt eine Splitrate, die ich nicht erwartet habe
+
+**Die Split-Engine verwendet zwei unabhängige Systeme. Prüfe, welches für deinen Fall aktiv ist:**
+
+**Fall A — Bucket-Split ist gesetzt (z. B. Darkmerch 100 %, Physical 15 %):**
+- Gehe zu **Settings → Defaults → Source Split Rates**.
+- Wenn dort ein Wert für den entsprechenden Bucket (Darkmerch, Physical, Believe, Bandcamp) konfiguriert ist, gilt diese Rate direkt — die Hauptkette und Künstler-Einstellungen werden **umgangen**.
+- Um einen Bucket-Split für einen einzelnen Künstler zu überschreiben, füge einen **Source-Override** für diesen Künstler unter Settings → Split Fees hinzu (kein Basis-/Digital-/Physisch-Prozentsatz — diese wirken sich nicht auf Bucket-Splits aus).
+
+**Fall B — Kein Bucket-Split konfiguriert:**
+- Die Hauptkette gilt: Default Split % → Digital/Physisch Split % → Künstler-Basis → Künstler-Typ → Release.
+- Prüfe jede Ebene der Reihe nach. Der höchste explizit gesetzte Wert in der Kette gewinnt.
+
+**Schnell-Checkliste:**
+1. Ist ein Bucket-Split konfiguriert? (**Settings → Defaults → Source Split Rates**)
+2. Wenn ja: Hat der Künstler einen **Source-Override** für diesen Bucket? (Settings → Split Fees → Source-Overrides)
+3. Wenn kein Bucket-Split: Ist der Künstler-Split-Fee korrekt konfiguriert?
+4. Gibt es Ausgaben/Vorschüsse, die die Auszahlung reduzieren?
 
 ---
 

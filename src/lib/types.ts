@@ -302,17 +302,22 @@ export interface AppDefaults {
    */
   distributionFeePhysical?: number
   /**
-   * Global per-source split percentages (0–100). Provide a per-source default
-   * that overrides the generic `defaultSplitPercentage` for each named data
-   * source. Artists that have their own `splitFee` or `sourceOverrides` always
-   * take precedence over these label-wide values.
+   * Bucket-specific split rates (0–100) — a completely independent, parallel system to the
+   * main per-artist split chain.
    *
-   * - `believe`  – Believe digital streaming / download revenue
-   * - `bandcamp` – Bandcamp sales
-   * - `darkmerch`– Darkmerch merchandise revenue
-   * - `physical` – Physical releases (Shopify / Printful)
+   * A bucket split activates **only when the value is explicitly set** (`!= null`).
+   * When active, it bypasses the main chain entirely for that revenue bucket:
+   * the per-artist base percentage and digital/physical type percentages do NOT apply.
+   * The ONLY override for an active bucket split is an explicit per-artist `sourceOverrides`
+   * entry for that specific source.
    *
-   * Leave a field absent / undefined to fall through to `defaultSplitPercentage`.
+   * When a bucket split is **not** set (field absent / undefined), the bucket falls through
+   * to the normal main chain (globalBase → globalType → perArtistBase → perArtistType → perRelease).
+   *
+   * - `believe`   – Believe digital streaming / download revenue
+   * - `bandcamp`  – Bandcamp sales
+   * - `darkmerch` – Darkmerch merchandise revenue
+   * - `physical`  – Physical releases (Shopify / Printful)
    */
   sourceSplits?: {
     believe?: number
