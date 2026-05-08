@@ -389,9 +389,7 @@ function buildPDF(
   // ── Financial waterfall summary ───────────────────────────────────────────
   // Visualises the revenue flow:
   //   Gross Revenue → –Fee → × Split% (per bucket) → +Manual Revenue → –Expenses → Net Payout
-  // Backward-compat: physicalReleasesRevenue may not exist on older cached data.
   const physicalReleasesRevenue = artistData.physicalReleasesRevenue
-    ?? (artistData.totalPhysicalRevenue - artistData.darkmerchRevenue)
 
   // Digital revenue broken into streams / downloads / unclassified.
   // Guard against undefined/NaN coming from older cached data by normalising to 0.
@@ -402,15 +400,13 @@ function buildPDF(
   const digitalOtherRevenue = Math.max(0, safeDigitalRevenue - safeStreamRevenue - safeDownloadRevenue)
   const hasStreamDownloadDetail = safeStreamRevenue > 0 || safeDownloadRevenue > 0
 
-  // Backward-compat: new split percentage fields may be absent on older cached data.
-  const effectiveDigitalSplitPct = artistData.digitalSplitPercentage ?? artistData.splitPercentage
-  const effectivePhysicalSplitPct = artistData.physicalSplitPercentage ?? artistData.splitPercentage
-  const effectiveDarkmerchSplitPct = artistData.darkmerchSplitPercentage ?? artistData.splitPercentage
-
-  // After-fee amounts for each bucket (with backward-compat fallback).
-  const digitalAfterFeeDisplay = artistData.digitalRevenueAfterFee ?? artistData.totalDigitalRevenue
-  const physRelAfterFeeDisplay = artistData.physicalReleasesRevenueAfterFee ?? physicalReleasesRevenue
-  const darkmerchAfterFeeDisplay = artistData.darkmerchRevenueAfterFee ?? artistData.darkmerchRevenue
+  // ── Per-bucket split application ────────────────────────────────────────────
+  const digitalAfterFeeDisplay = artistData.digitalRevenueAfterFee
+  const physRelAfterFeeDisplay = artistData.physicalReleasesRevenueAfterFee
+  const darkmerchAfterFeeDisplay = artistData.darkmerchRevenueAfterFee
+  const digitalSplitPct = artistData.digitalSplitPercentage
+  const physSplitPct = artistData.physicalSplitPercentage
+  const darkmerchSplitPct = artistData.darkmerchSplitPercentage
 
   const waterfallRows: string[][] = []
 
@@ -449,49 +445,45 @@ function buildPDF(
     waterfallRows.push(['– Label Distribution Fee', `- ${formatCurrency(artistData.distributionFeeDeducted)}`])
   }
 
-  // ── Split application per bucket ─────────────────────────────────────────
-  // Show each bucket with its effective split percentage applied.
-  // When all buckets share the same rate, collapse to a single line for clarity.
-  const digitalShare = digitalAfterFeeDisplay * (effectiveDigitalSplitPct / 100)
-  const physRelShare = physRelAfterFeeDisplay * (effectivePhysicalSplitPct / 100)
-  const darkmerchShare = darkmerchAfterFeeDisplay * (effectiveDarkmerchSplitPct / 100)
+  const digitalShare = digitalAfterFeeDisplay * (digitalSplitPct / 100)
+  const physRelShare = physRelAfterFeeDisplay * (physSplitPct / 100)
+  const darkmerchShare = darkmerchAfterFeeDisplay * (darkmerchSplitPct / 100)
 
   const hasMultipleSplitRates =
-    (digitalAfterFeeDisplay > 0 && physRelAfterFeeDisplay > 0 && effectiveDigitalSplitPct !== effectivePhysicalSplitPct) ||
-    (darkmerchAfterFeeDisplay > 0 && effectiveDarkmerchSplitPct !== effectivePhysicalSplitPct) ||
-    (darkmerchAfterFeeDisplay > 0 && digitalAfterFeeDisplay > 0 && effectiveDarkmerchSplitPct !== effectiveDigitalSplitPct)
+    (digitalAfterFeeDisplay > 0 && physRelAfterFeeDisplay > 0 && digitalSplitPct !== physSplitPct) ||
+    (darkmerchAfterFeeDisplay > 0 && darkmerchSplitPct !== physSplitPct) ||
+    (digitalAfterFeeDisplay > 0 && darkmerchAfterFeeDisplay > 0 && darkmerchSplitPct !== digitalSplitPct)
 
   if (hasMultipleSplitRates) {
     if (digitalAfterFeeDisplay > 0) {
       waterfallRows.push([
-        `× Digital Split (${effectiveDigitalSplitPct}%)`,
+        `× Digital Split (${digitalSplitPct}%)`,
         formatCurrency(digitalShare),
       ])
     }
     if (physRelAfterFeeDisplay > 0) {
       waterfallRows.push([
-        `× Physical Releases Split (${effectivePhysicalSplitPct}%)`,
+        `× Physical Releases Split (${physSplitPct}%)`,
         formatCurrency(physRelShare),
       ])
     }
     if (darkmerchAfterFeeDisplay > 0) {
       waterfallRows.push([
-        `× Merchandise Split (${effectiveDarkmerchSplitPct}%)`,
+        `× Merchandise Split (${darkmerchSplitPct}%)`,
         formatCurrency(darkmerchShare),
       ])
     }
   } else {
-    // All buckets have the same split — show a single line (cleaner for simple cases)
     const combinedBasis = digitalAfterFeeDisplay + physRelAfterFeeDisplay + darkmerchAfterFeeDisplay
     const combinedShare = digitalShare + physRelShare + darkmerchShare
     if (combinedBasis > 0) {
-      waterfallRows.push([`× Artist Split (${effectiveDigitalSplitPct}%)`, formatCurrency(combinedShare)])
+      waterfallRows.push([`× Artist Split (${digitalSplitPct}%)`, formatCurrency(combinedShare)])
     }
   }
 
   // ── Post-split adjustments ───────────────────────────────────────────────
   if (artistData.manualRevenue !== 0) {
-    waterfallRows.push(['+ Manual Revenue (post-split, no split applied)', formatCurrency(artistData.manualRevenue)])
+    waterfallRows.push(['+ Manual Revenue (no split applied)', formatCurrency(artistData.manualRevenue)])
   }
   if (artistData.totalExpenses > 0) {
     waterfallRows.push(['– Deductible Costs / Advances', `- ${formatCurrency(artistData.totalExpenses)}`])
@@ -823,9 +815,9 @@ function buildExcel(
     ['Physical Revenue', artistData.totalPhysicalRevenue],
     ['Manual Revenue', artistData.manualRevenue],
     ['Gross Revenue', artistData.grossRevenue],
-    ['Artist Split (Digital %)', artistData.digitalSplitPercentage ?? artistData.splitPercentage],
-    ['Artist Split (Physical %)', artistData.physicalSplitPercentage ?? artistData.splitPercentage],
-    ['Artist Split (Merch/Darkmerch %)', artistData.darkmerchSplitPercentage ?? artistData.splitPercentage],
+    ['Artist Split – Digital (%)', artistData.digitalSplitPercentage],
+    ['Artist Split – Physical Releases (%)', artistData.physicalSplitPercentage],
+    ['Artist Split – Merchandise/Darkmerch (%)', artistData.darkmerchSplitPercentage],
     ['Final Payout', artistData.finalPayout],
   ]
 
