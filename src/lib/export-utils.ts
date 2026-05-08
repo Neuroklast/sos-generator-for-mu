@@ -437,8 +437,8 @@ function buildPDF(
     waterfallRows.push(['Digital Revenue', formatCurrency(safeDigitalRevenue)])
   }
 
-  // Show digital split once after all digital sub-buckets (omit when 100%)
-  if (safeDigitalRevenue > 0 && digitalSplitPct < 100) {
+  // Show digital split once after all digital sub-buckets (omit when 100% or no after-fee revenue)
+  if (digitalAfterFeeDisplay > 0 && digitalSplitPct < 100) {
     waterfallRows.push([`× Digital Split (${digitalSplitPct}%)`, formatCurrency(digitalShare)])
   }
 
