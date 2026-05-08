@@ -72,6 +72,19 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
         data = new TextDecoder('utf-8').decode(buffer)
       }
 
+      // For Darkmerch XLSX files the UTF-8 decode above produced garbled binary.
+      // Convert XLSX → CSV now so that fileDataMap and the worker both receive
+      // a valid CSV string instead of binary noise.
+      if (type === 'darkmerch' && rawFile.name.toLowerCase().endsWith('.xlsx')) {
+        const { darkmerchXLSXtoCSV } = await import('@/features/ingest/lib/darkmerch-parser')
+        const csvText = await darkmerchXLSXtoCSV(buffer)
+        if (csvText) {
+          data = csvText
+        } else {
+          toast.warning(`"${rawFile.name}" could not be converted from XLSX — file may be corrupted or unsupported.`)
+        }
+      }
+
       // Store raw CSV in memory immediately so re-parse with alias changes works.
       setFileDataMap(prev => ({ ...prev, [id]: data }))
 
@@ -94,13 +107,10 @@ export function useFileManager(type: FileType, callbacks?: FileEventCallbacks) {
         rowsSkipped = result.errors.length
         uniqueArtists = 0
       } else if (type === 'darkmerch') {
-        const { parseDarkmerchCSV, parseDarkmerchXLSX } = await import('@/features/ingest/lib/darkmerch-parser')
-        let result: Awaited<ReturnType<typeof parseDarkmerchCSV>>
-        if (rawFile.name.toLowerCase().endsWith('.xlsx')) {
-          result = await parseDarkmerchXLSX(buffer)
-        } else {
-          result = parseDarkmerchCSV(data)
-        }
+        // data is always valid CSV at this point: for XLSX files it was converted
+        // above; for CSV files it was decoded from UTF-8 directly.
+        const { parseDarkmerchCSV } = await import('@/features/ingest/lib/darkmerch-parser')
+        const result = parseDarkmerchCSV(data)
         rowsParsed = result.transactions.length
         rowsSkipped = result.errors.length
         uniqueArtists = new Set(result.transactions.map(t => t.original_artist).filter(Boolean)).size
