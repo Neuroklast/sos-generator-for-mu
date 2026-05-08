@@ -455,28 +455,31 @@ function buildPDF(
     (digitalAfterFeeDisplay > 0 && darkmerchAfterFeeDisplay > 0 && darkmerchSplitPct !== digitalSplitPct)
 
   if (hasMultipleSplitRates) {
-    if (digitalAfterFeeDisplay > 0) {
+    // Show each bucket separately; skip buckets where split is 100% (no deduction)
+    if (digitalAfterFeeDisplay > 0 && digitalSplitPct !== 100) {
       waterfallRows.push([
         `× Digital Split (${digitalSplitPct}%)`,
         formatCurrency(digitalShare),
       ])
     }
-    if (physRelAfterFeeDisplay > 0) {
+    if (physRelAfterFeeDisplay > 0 && physSplitPct !== 100) {
       waterfallRows.push([
         `× Physical Releases Split (${physSplitPct}%)`,
         formatCurrency(physRelShare),
       ])
     }
-    if (darkmerchAfterFeeDisplay > 0) {
+    if (darkmerchAfterFeeDisplay > 0 && darkmerchSplitPct !== 100) {
       waterfallRows.push([
         `× Merchandise Split (${darkmerchSplitPct}%)`,
         formatCurrency(darkmerchShare),
       ])
     }
   } else {
+    // Uniform split across all active buckets — show one combined line
+    // (or omit entirely when split is 100%, i.e. full pass-through)
     const combinedBasis = digitalAfterFeeDisplay + physRelAfterFeeDisplay + darkmerchAfterFeeDisplay
     const combinedShare = digitalShare + physRelShare + darkmerchShare
-    if (combinedBasis > 0) {
+    if (combinedBasis > 0 && digitalSplitPct !== 100) {
       waterfallRows.push([`× Artist Split (${digitalSplitPct}%)`, formatCurrency(combinedShare)])
     }
   }
@@ -614,10 +617,13 @@ function buildPDF(
   // ── Country breakdown ─────────────────────────────────────────────────────
   if (settings.includeCountryBreakdown && artistData.countryBreakdown.length > 0) {
     renderSectionHeading('Revenue by Country')
+    const topN = settings.topCountriesCount ?? 15
+    const shownCountries = artistData.countryBreakdown.slice(0, topN)
+    const remainingCountries = artistData.countryBreakdown.length - shownCountries.length
     autoTable(doc, {
       startY: yPos,
       head: [['Country', 'Revenue', 'Qty']],
-      body: artistData.countryBreakdown.slice(0, MAX_BREAKDOWN_ROWS).map(c => [
+      body: shownCountries.map(c => [
         c.country,
         formatCurrency(c.revenue),
         String(c.quantity),
@@ -632,7 +638,18 @@ function buildPDF(
       },
       margin: { left: margin, right: margin, bottom: FOOTER_RESERVED_MM },
     })
-    yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+    yPos = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
+    if (remainingCountries > 0) {
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(120, 120, 140)
+      doc.text(`(+ ${remainingCountries} more ${remainingCountries === 1 ? 'country' : 'countries'} not shown)`, margin, yPos)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0, 0, 0)
+      yPos += 7
+    } else {
+      yPos += 5
+    }
   }
 
   // ── Monthly breakdown ─────────────────────────────────────────────────────

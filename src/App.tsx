@@ -234,6 +234,7 @@ function App() {
       defaultSplitPercentage: appDefaults?.defaultSplitPercentage ?? 100,
       defaultSplitPercentageDigital: appDefaults?.defaultSplitPercentageDigital,
       defaultSplitPercentagePhysical: appDefaults?.defaultSplitPercentagePhysical,
+      sourceSplits: appDefaults?.sourceSplits,
     },
     shopifyManager.files,
     printfulManager.files,
@@ -1081,6 +1082,7 @@ function App() {
                   onUpdateReleaseOverrides={handleUpdateSplitFeeReleaseOverrides}
                   onUpdateSourceOverrides={handleUpdateSplitFeeSourceOverrides}
                   releaseTitlesByArtist={releaseTitlesByArtist}
+                  globalSourceSplits={appDefaults?.sourceSplits}
                 />
               )}
 

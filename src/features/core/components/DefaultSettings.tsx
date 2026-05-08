@@ -1,4 +1,4 @@
-import { SlidersHorizontal, EnvelopeSimple, CalendarBlank, Coins, Percent, ArrowClockwise, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { SlidersHorizontal, EnvelopeSimple, CalendarBlank, Coins, Percent, ArrowClockwise, Database, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -209,6 +209,53 @@ export function DefaultSettings({ defaults, onUpdate, onApplyDefaultSplitToAll }
                 Leave empty to use the global rate.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* ── Global Source Split Rates ─────────────── */}
+        <div className="space-y-4">
+          <SectionHeading icon={Database} title="Global Source Split Rates" />
+          <p className="text-xs text-muted-foreground">
+            Per-data-source default split percentages. These apply to ALL artists when no
+            artist-specific split or source override is configured. Leave a field empty to
+            fall back to the global split rate above.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {(
+              [
+                { id: 'source-split-believe',  key: 'believe',  label: 'Believe (Digital / Streaming)' },
+                { id: 'source-split-bandcamp',  key: 'bandcamp',  label: 'Bandcamp' },
+                { id: 'source-split-darkmerch', key: 'darkmerch', label: 'Darkmerch / Merchandise' },
+                { id: 'source-split-physical',  key: 'physical',  label: 'Physical Releases (Shopify / Printful)' },
+              ] as const
+            ).map(({ id, key, label }) => (
+              <div key={key} className="space-y-2">
+                <Label htmlFor={id}>{label} (%) – optional</Label>
+                <Input
+                  id={id}
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={defaults.sourceSplits?.[key] ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value
+                    const next = raw === ''
+                      ? undefined
+                      : clampPct(parseFloat(raw))
+                    patch({
+                      sourceSplits: {
+                        ...defaults.sourceSplits,
+                        [key]: Number.isNaN(next) ? undefined : next,
+                      },
+                    })
+                  }}
+                  placeholder="Empty = global rate"
+                  className="max-w-full"
+                />
+              </div>
+            ))}
           </div>
         </div>
 

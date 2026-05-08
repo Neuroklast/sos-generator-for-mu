@@ -2,6 +2,7 @@ import { FilePdf, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import type { PdfExportSettings } from '@/lib/types'
 
 interface PdfExportSettingsProps {
@@ -91,6 +92,27 @@ export function PdfExportSettingsPanel({ settings, onUpdate }: PdfExportSettings
               checked={settings.includeCountryBreakdown}
               onCheckedChange={v => patch({ includeCountryBreakdown: v })}
             />
+            {settings.includeCountryBreakdown && (
+              <div className="ml-4 flex items-center gap-3 py-2 px-4 rounded-xl bg-muted/10 border border-border/30">
+                <Label htmlFor="pdf-top-countries" className="text-xs text-muted-foreground whitespace-nowrap">
+                  Max. Länder anzeigen
+                </Label>
+                <Input
+                  id="pdf-top-countries"
+                  type="number"
+                  min={1}
+                  max={200}
+                  step={1}
+                  value={settings.topCountriesCount ?? 15}
+                  onChange={e => {
+                    const val = parseInt(e.target.value, 10)
+                    if (!Number.isNaN(val) && val >= 1) patch({ topCountriesCount: val })
+                  }}
+                  className="w-20 h-7 text-xs"
+                />
+                <span className="text-xs text-muted-foreground">(Default: 15)</span>
+              </div>
+            )}
             <ToggleRow
               id="pdf-monthly"
               label="Monatlicher Verlauf"

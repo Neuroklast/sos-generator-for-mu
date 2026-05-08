@@ -96,6 +96,8 @@ export interface WorkerProcessConfig {
   defaultSplitPercentageDigital?: number
   /** Default physical/merch split percentage (0–100); falls back to defaultSplitPercentage. */
   defaultSplitPercentagePhysical?: number
+  /** Global per-source split percentage overrides; see DataProcessorConfig.sourceSplits. */
+  sourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
 }
 
 export interface WorkerResult {

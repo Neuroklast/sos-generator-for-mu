@@ -48,6 +48,8 @@ interface CSVProcessorConfig {
   defaultSplitPercentageDigital?: number
   /** Default physical/merch split percentage (0–100); falls back to defaultSplitPercentage. */
   defaultSplitPercentagePhysical?: number
+  /** Global per-source split percentage overrides; see DataProcessorConfig.sourceSplits. */
+  sourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
 }
 
 const EMPTY_RESULT: WorkerResult = {
@@ -168,6 +170,7 @@ export function useCSVProcessor(
     String(config.defaultSplitPercentage ?? ''),
     String(config.defaultSplitPercentageDigital ?? ''),
     String(config.defaultSplitPercentagePhysical ?? ''),
+    JSON.stringify(config.sourceSplits ?? {}),
   ].join('|')
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -188,7 +191,8 @@ export function useCSVProcessor(
     defaultSplitPercentage: config.defaultSplitPercentage,
     defaultSplitPercentageDigital: config.defaultSplitPercentageDigital,
     defaultSplitPercentagePhysical: config.defaultSplitPercentagePhysical,
-  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical, config.defaultSplitPercentage, config.defaultSplitPercentageDigital, config.defaultSplitPercentagePhysical])
+    sourceSplits: config.sourceSplits,
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical, config.defaultSplitPercentage, config.defaultSplitPercentageDigital, config.defaultSplitPercentagePhysical, config.sourceSplits])
 
   const sendProcess = useCallback(() => {
     const cfg = latestConfigRef.current ?? buildConfig()
