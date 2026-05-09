@@ -379,6 +379,27 @@ export interface EmailConfig {
   subjectTemplate: string
 }
 
+/**
+ * A rule that assigns all revenue from a specific track/release to a single
+ * owner artist, regardless of the artist name stored in the CSV.
+ *
+ * Matching is a case-insensitive substring check against both `release_title`
+ * and `track_title` of every transaction.  When a match is found the
+ * transaction's `main_artist` is overwritten with `ownerArtist` before any
+ * roster filtering or grouping happens, so the revenue lands exclusively on
+ * that artist and does NOT appear in any other artist's statement.
+ */
+export interface TrackRevenueAssignment {
+  id: string
+  /**
+   * Substring of the release or track title to match (case-insensitive).
+   * The first matching rule wins.
+   */
+  trackTitle: string
+  /** Canonical artist name that exclusively receives the revenue. */
+  ownerArtist: string
+}
+
 /** Contractual payout share assigned to a guest / featured artist. */
 export interface GuestPayoutRule {
   primaryArtist: string

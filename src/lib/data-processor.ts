@@ -14,6 +14,7 @@ import type {
   IgnoredEntry,
   ReleaseSplitOverride,
   TransactionSource,
+  TrackRevenueAssignment,
 } from './types'
 import { convertToEur } from './currency'
 import type { ExchangeRates } from './currency'
