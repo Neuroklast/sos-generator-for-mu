@@ -22,6 +22,7 @@ A professional web application for music labels to process royalty reports from 
 | [Benutzerhandbuch](./docs/BENUTZERHANDBUCH.md) | 🇩🇪 Deutsch | Ausführliches Handbuch aller Funktionen |
 | [Architecture Decisions](./ARCHITECTURE.md) | 🇬🇧 English | ADR records for significant design decisions |
 | [Changelog](./CHANGELOG.md) | 🇬🇧 English | Version history |
+| [Agent Protocol](./agents.md) | 🇬🇧 English | Mandatory session-end checklist for AI agents |
 
 ---
 
@@ -31,6 +32,7 @@ A professional web application for music labels to process royalty reports from 
 - **Intelligent CSV Parsing** — Auto-detects delimiters, handles BOM, scientific notation revenue values, and quoted headers. Processed in a Web Worker so the UI stays responsive.
 - **Semantic Column Mapping** — Columns are matched by meaning. Add custom synonyms in Settings.
 - **Smart Artist Mapping** — Map featuring/alias names to the correct primary artist using Jaro-Winkler auto-suggestions. Persistent across sessions.
+- **Artist Roster CSV Import** — Import your complete artist roster (name, email, VAT number, EU status, notes) via a CSV file directly from the Ingest view alongside revenue data.
 - **Compilation Filter** — Exclude compilation revenue by EAN, catalog number, or title.
 - **Split Fee Engine** — Define per-artist revenue split percentages (0–100 %).
 - **Expense & Advance Recoupment** — Log recoupable costs (studio fees, advances, PR) per artist; deducted before the split is applied.
@@ -177,4 +179,4 @@ This architecture is ready for multi-user / multi-label SaaS features.
 
 ## License
 
-MIT
+Copyright (c) 2024–2026 Neuroklast. Released under the [MIT License](./LICENSE).

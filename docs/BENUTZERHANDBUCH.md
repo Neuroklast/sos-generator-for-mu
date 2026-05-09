@@ -160,6 +160,7 @@ Die Branding-Daten erscheinen auf allen exportierten PDFs und Excel-Dateien.
 | **Believe** | `.csv` | Mehrere Dateien gleichzeitig möglich (Jahres-Merge) |
 | **Bandcamp** | `.csv` | Fan-Merchandise und Musik-Verkäufe |
 | **Shopify** | `.csv` | Physische Merchandise-Verkäufe |
+| **Künstler-Roster** | `.csv` | Künstler-Stammdaten importieren (Name, E-Mail, MwSt. usw.) |
 
 ### Dateien hochladen
 
@@ -179,6 +180,22 @@ Believe exportiert Daten maximal für 6 Monate. Um einen vollständigen Jahresbe
 1. Lade Januar–Juni als eine Believe-CSV hoch.
 2. Lade Juli–Dezember als weitere Believe-CSV hoch.
 3. NeuroStat mergt alle Dateien automatisch zu einem Datensatz.
+
+### Künstler-Roster-CSV-Import
+
+Du kannst deine vollständigen Künstler-Stammdaten direkt aus der Ingest-Ansicht neben den Umsatz-CSVs importieren.
+
+**Erforderliches CSV-Format:**
+
+| Spalte | Pflicht | Beschreibung |
+|--------|---------|--------------|
+| `name` | ✅ | Künstlername |
+| `email` | ❌ | Kontakt-E-Mail |
+| `vatNumber` | ❌ | EU-Umsatzsteuer-ID |
+| `isEuNonGerman` | ❌ | `true` / `false` — EU-Künstler außerhalb Deutschlands |
+| `notes` | ❌ | Interne Vermerke |
+
+NeuroStat erkennt Künstler-Roster-CSVs automatisch anhand einer `name`-Spalte plus mindestens einem Begleitfeld (`email`, `vatNumber`, `isEuNonGerman`, `notes`). Solche Dateien werden direkt als Künstler-Stammdaten importiert — ohne zusätzlichen Dialog. Dateien, die nicht dem Muster entsprechen, werden wie gewohnt an den Spalten-Mapping-Dialog weitergeleitet.
 
 ### Technische Details zur CSV-Verarbeitung
 
@@ -287,9 +304,10 @@ Netto-Auszahlung = (Bruttoumsatz − Vertriebsprovision − Ausgaben) × (Effekt
 
 **Künstler-Splits einrichten:**
 1. Gehe zu **Settings → Split Fees**.
-2. Klicke auf **Künstler hinzufügen** oder wähle einen bestehenden.
-3. Trage den Basis-Prozentsatz ein (0–100). Optional separate Digital- und Physisch-Prozentsätze setzen.
-4. Speichere.
+2. Nutze die Checkbox **Alle Künstler auswählen** oben in der Liste, um alle Künstler auf einmal zu selektieren oder zu deselektieren, oder klicke einzelne Künstler an.
+3. Klicke auf **Künstler hinzufügen** oder wähle einen bestehenden.
+4. Trage den Basis-Prozentsatz ein (0–100). Optional separate Digital- und Physisch-Prozentsätze setzen.
+5. Speichere.
 
 **Bucket-Splits einrichten:**
 1. Gehe zu **Settings → Defaults → Source Split Rates**.
@@ -413,7 +431,10 @@ Die Vorlage wird als erste Seite des PDFs eingefügt, wenn die Option **E-Mail-A
 
 ## 7. Künstlerverwaltung (Artists)
 
-Die Artists-Seite bietet einen vollständigen Roster aller Künstler mit erweiterten Verwaltungsfunktionen.
+Die Artists-Seite bietet einen vollständigen Roster aller Künstler mit erweiterten Verwaltungsfunktionen. Die Seite ist in zwei Tabs unterteilt:
+
+- **Stammdaten** — Künstler-Roster (`ArtistTreeView` + `LabelArtistManager`): Name, E-Mail, USt-IdNr., EU-Status, Notizen und CSV-Import.
+- **Abrechnungsregeln** — Abrechnungsregeln (`SplitFeeManager` + `ArtistMappingManager`): Split-Anteile, Alias-/Gruppen-Mappings.
 
 ### Künstler-Roster
 
@@ -692,6 +713,10 @@ Das PDF enthält automatisch den Pflichttext nach deutschem Umsatzsteuergesetz:
 - **„Gutschrift im Sinne des Umsatzsteuergesetzes (§ 14 Abs. 2 UStG)"** — Pflichtausweis für Selbst-Abrechnungen (label-seitig ausgestellt)
 - **Reverse Charge:** Bei EU-Künstlern außerhalb Deutschlands wird der Hinweis „Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge, Art. 196 MwStSystRL)" eingefügt.
 - **MwSt.-Berechnung:** Wird nur angezeigt, wenn ein Steuersatz > 0 konfiguriert ist.
+
+### Negative Auszahlungen
+
+Wenn Ausgaben oder Vorschüsse den Umsatz-Anteil eines Künstlers übersteigen, wird die resultierende **negative Netto-Auszahlung** im Process Cockpit und im PDF-Statement **fett und rot** dargestellt (z. B. `– 3.210,49 €`). Dies spiegelt den offenen, nicht rekoupierten Betrag exakt wider. Künstler mit null oder negativer Auszahlung werden automatisch aus SEPA-Batch-Exporten ausgeschlossen.
 
 ---
 

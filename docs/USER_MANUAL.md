@@ -160,6 +160,7 @@ Branding data appears on all exported PDFs and Excel files.
 | **Believe** | `.csv` | Multiple files at once (annual merge) |
 | **Bandcamp** | `.csv` | Fan merchandise and music sales |
 | **Shopify** | `.csv` | Physical merchandise sales |
+| **Artist Roster** | `.csv` | Import artist master data (name, email, VAT, etc.) |
 
 ### Uploading Files
 
@@ -179,6 +180,22 @@ Believe exports data for a maximum of 6 months at a time. To create a full annua
 1. Upload January–June as one Believe CSV.
 2. Upload July–December as another Believe CSV.
 3. NeuroStat automatically merges all files into a single dataset.
+
+### Artist Roster CSV Import
+
+You can import your complete artist master data from the Ingest view alongside revenue CSVs.
+
+**Required CSV format:**
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| `name` | ✅ | Artist name |
+| `email` | ❌ | Contact email |
+| `vatNumber` | ❌ | EU VAT identification number |
+| `isEuNonGerman` | ❌ | `true` / `false` — EU artist outside Germany |
+| `notes` | ❌ | Internal remarks |
+
+NeuroStat auto-detects artist roster CSVs by checking for a `name` column plus at least one companion field (`email`, `vatNumber`, `isEuNonGerman`, `notes`). Files matching this pattern are imported as artist master data directly — no additional dialog required. Any file that does not match falls through to the standard column-mapping dialog.
 
 ### Technical Details on CSV Processing
 
@@ -284,9 +301,10 @@ Net Payout = (Gross Revenue − Distribution Fee − Expenses) × (Effective Spl
 
 **Setting up per-artist splits:**
 1. Go to **Settings → Split Fees**.
-2. Click **Add Artist** or select an existing one.
-3. Enter the base percentage (0–100). Optionally set separate digital and physical percentages.
-4. Save.
+2. Use the **Select all artists** checkbox at the top of the list to select or deselect all artists at once, or click individual artists.
+3. Click **Add Artist** or select an existing one.
+4. Enter the base percentage (0–100). Optionally set separate digital and physical percentages.
+5. Save.
 
 **Setting up bucket splits:**
 1. Go to **Settings → Defaults → Source Split Rates**.
@@ -410,7 +428,10 @@ The template is inserted as the first page of the PDF when the **Email Cover Let
 
 ## 7. Artist Management
 
-The Artists page provides a complete roster of all artists with advanced management functions.
+The Artists page provides a complete roster of all artists with advanced management functions. The page is organised in two tabs:
+
+- **Stammdaten** — Artist roster (`ArtistTreeView` + `LabelArtistManager`): name, email, VAT number, EU status, notes, and CSV import.
+- **Abrechnungsregeln** — Billing rules (`SplitFeeManager` + `ArtistMappingManager`): split percentages, alias/group mappings.
 
 ### Artist Roster
 
@@ -689,6 +710,10 @@ The PDF automatically includes mandatory text under German VAT law:
 - **"Gutschrift im Sinne des Umsatzsteuergesetzes (§ 14 Abs. 2 UStG)"** — Mandatory notice for self-billing (issued by the label)
 - **Reverse Charge:** For EU artists outside Germany, the notice "Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge, Art. 196 MwStSystRL)" is inserted.
 - **VAT calculation:** Only shown when a VAT rate > 0 is configured.
+
+### Negative Payouts
+
+When an artist's expenses or advances exceed their revenue share, the resulting **negative net payout** is displayed in **red bold** in both the Process Cockpit and the PDF statement (e.g. `– 3.210,49 €`). This accurately reflects the outstanding unrecouped balance. Artists with a zero or negative payout are automatically excluded from SEPA batch exports.
 
 ---
 
