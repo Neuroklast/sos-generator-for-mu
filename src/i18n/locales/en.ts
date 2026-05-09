@@ -258,6 +258,10 @@ export const en = {
     // Ignored entries
     entryIgnored: '"{{artist}}"{{release}} ignored',
     entryRemovedFromIgnoreList: 'Entry removed from ignore list',
+
+    // Track revenue assignments
+    trackRevenueAssignmentAdded: '"{{trackTitle}}" → {{ownerArtist}} assigned',
+    trackRevenueAssignmentRemoved: 'Track assignment removed',
     
     // Period detection
     periodAutoDetected: 'Statement period auto-detected from CSV data',
@@ -336,6 +340,20 @@ export const en = {
     artist: 'Artist',
     releaseTitle: 'Release Title (optional)',
     noIgnoredEntriesYet: 'No ignored entries yet',
+  },
+
+  // ── Track Revenue Assignment Manager ───────────────────────────────────────
+  trackRevenueAssignment: {
+    title: 'Track Revenue Assignments',
+    description: 'Route all revenue from a track exclusively to one artist — the track will not appear in any other artist\'s statement',
+    trackTitlePlaceholder: 'Track / release title (or substring)',
+    ownerArtistPlaceholder: 'Owner artist',
+    addEntry: 'Add Assignment',
+    noEntriesYet: 'No track assignments yet',
+    noEntriesHint: 'Revenue from matching tracks is re-attributed exclusively to the owner artist.',
+    hint: 'Case-insensitive substring match against release and track title. First matching rule wins.',
+    trackTitleRequired: 'Track title is required',
+    ownerArtistRequired: 'Owner artist is required',
   },
 
   // ── Label Artist Manager ────────────────────────────────────────────────────

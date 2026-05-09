@@ -24,6 +24,7 @@
    - 7.1 [Expenses & Advances](#71-expenses--advances)
    - 7.2 [Manual Revenue Entries](#72-manual-revenue-entries)
    - 7.3 [Ignored Entries](#73-ignored-entries)
+   - 7.4 [Track Revenue Assignments](#74-track-revenue-assignments)
 8. [Dashboard](#8-dashboard)
 9. [Process Cockpit](#9-process-cockpit)
 10. [Analytics](#10-analytics)
@@ -457,6 +458,29 @@ Individual artists or specific releases can be completely excluded from billing 
 4. Save.
 
 Ignored entries appear in a separate list under **Ignored Entries** and can be re-activated at any time.
+
+---
+
+### 7.4 Track Revenue Assignments
+
+**Track Revenue Assignments** let you route all revenue from a particular track or release exclusively to one artist. This is useful for collaboration tracks (e.g. a featured-artist track that should count entirely toward the primary artist) or for any release where the CSV lists a combined artist name that you want attributed to a single roster member.
+
+**How it works:**
+- You define a **track title substring** (case-insensitive) and the **owner artist**.
+- Every transaction whose `release_title` or `track_title` contains the substring is re-attributed to the owner artist before any roster filter or split calculation runs.
+- The track appears **only** in the owner artist's statement and PDF — it is completely invisible in every other artist's report.
+- The first matching rule wins when multiple rules could apply to the same transaction.
+
+**Adding an assignment:**
+1. Go to **Settings → Export & Rules**.
+2. Scroll to **Track Revenue Assignments**.
+3. In the **Track / release title** field, type or select a release from the dropdown. The dropdown is populated from all releases currently present in the loaded CSV data; you can also type any free-form substring.
+4. In the **Owner artist** field, type or select an artist from your roster.
+5. Click **Add Assignment**.
+
+**Removing an assignment:** Hover over a rule in the list and click the trash icon.
+
+> **Note:** This feature re-attributes revenue at the data-pipeline level. The PDF statement generated for the owner artist will show the full revenue from the assigned track; the PDF for any other artist will not include it.
 
 ---
 

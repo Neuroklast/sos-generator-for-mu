@@ -14,6 +14,7 @@ import type {
   LabelInfo,
   LabelArtist,
   IgnoredEntry,
+  TrackRevenueAssignment,
 } from '@/lib/types'
 
 /** Shape written to / read from the backup JSON file. */
@@ -29,6 +30,7 @@ export interface WorkspaceBackup {
   labelInfo: LabelInfo
   labelArtists: LabelArtist[]
   ignoredEntries: IgnoredEntry[]
+  trackRevenueAssignments: TrackRevenueAssignment[]
 }
 
 interface WorkspaceManagerProps {
@@ -40,6 +42,7 @@ interface WorkspaceManagerProps {
   labelInfo: LabelInfo
   labelArtists: LabelArtist[]
   ignoredEntries: IgnoredEntry[]
+  trackRevenueAssignments: TrackRevenueAssignment[]
   onImport: (backup: WorkspaceBackup) => void
 }
 
@@ -52,6 +55,7 @@ export function WorkspaceManager({
   labelInfo,
   labelArtists,
   ignoredEntries,
+  trackRevenueAssignments,
   onImport,
 }: WorkspaceManagerProps) {
   const { t } = useTranslation()
@@ -71,6 +75,7 @@ export function WorkspaceManager({
       labelInfo,
       labelArtists,
       ignoredEntries,
+      trackRevenueAssignments,
     }
 
     const json = JSON.stringify(backup, null, 2)
@@ -118,6 +123,7 @@ export function WorkspaceManager({
           (raw.csvAliases !== undefined && !isArrayOf(raw.csvAliases)) ||
           (raw.labelArtists !== undefined && !isArrayOf(raw.labelArtists)) ||
           (raw.ignoredEntries !== undefined && !isArrayOf(raw.ignoredEntries)) ||
+          (raw.trackRevenueAssignments !== undefined && !isArrayOf(raw.trackRevenueAssignments)) ||
           (raw.labelInfo !== null && raw.labelInfo !== undefined && typeof raw.labelInfo !== 'object')
         ) {
           toast.error(i18next.t('toast.invalidBackup'), {
@@ -137,6 +143,7 @@ export function WorkspaceManager({
           labelInfo: raw.labelInfo ?? { name: '', address: '' },
           labelArtists: Array.isArray(raw.labelArtists) ? raw.labelArtists : [],
           ignoredEntries: Array.isArray(raw.ignoredEntries) ? raw.ignoredEntries : [],
+          trackRevenueAssignments: Array.isArray(raw.trackRevenueAssignments) ? raw.trackRevenueAssignments : [],
         }
 
         onImport(backup)

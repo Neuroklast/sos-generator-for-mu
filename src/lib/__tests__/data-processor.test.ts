@@ -987,3 +987,77 @@ describe('per-source split overrides', () => {
     expect(result[0].finalPayout).toBeCloseTo(130)
   })
 })
+
+// ── trackRevenueAssignments ────────────────────────────────────────────────────
+
+describe('trackRevenueAssignments', () => {
+  it('re-attributes all revenue from a matching release to the owner artist', () => {
+    const txs = [
+      makeTx({ original_artist: 'ArtistA feat. ArtistB', release_title: 'Collab Album', net_revenue: 100 }),
+      makeTx({ original_artist: 'ArtistB', release_title: 'Solo Album', net_revenue: 50 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{ id: '1', trackTitle: 'Collab Album', ownerArtist: 'ArtistA' }],
+    })
+    const artistA = result.find(r => r.artist === 'ArtistA')
+    const artistB = result.find(r => r.artist === 'ArtistB')
+    expect(artistA?.grossRevenue).toBeCloseTo(100)
+    expect(artistB?.grossRevenue).toBeCloseTo(50)
+  })
+
+  it('does not affect artists when no rule matches', () => {
+    const txs = [
+      makeTx({ original_artist: 'ArtistA', release_title: 'Release X', net_revenue: 80 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{ id: '1', trackTitle: 'Release Y', ownerArtist: 'ArtistB' }],
+    })
+    const artistA = result.find(r => r.artist === 'ArtistA')
+    expect(artistA?.grossRevenue).toBeCloseTo(80)
+  })
+
+  it('is case-insensitive and matches substrings', () => {
+    const txs = [
+      makeTx({ original_artist: 'ArtistA', release_title: 'My Great Album Vol. 1', net_revenue: 60 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{ id: '1', trackTitle: 'great album', ownerArtist: 'ArtistB' }],
+    })
+    const artistB = result.find(r => r.artist === 'ArtistB')
+    const artistA = result.find(r => r.artist === 'ArtistA')
+    expect(artistB?.grossRevenue).toBeCloseTo(60)
+    expect(artistA).toBeUndefined()
+  })
+
+  it('first matching rule wins when multiple rules could match', () => {
+    const txs = [
+      makeTx({ original_artist: 'ArtistA', release_title: 'Shared Title', net_revenue: 40 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [
+        { id: '1', trackTitle: 'Shared Title', ownerArtist: 'Owner1' },
+        { id: '2', trackTitle: 'Shared', ownerArtist: 'Owner2' },
+      ],
+    })
+    const owner1 = result.find(r => r.artist === 'Owner1')
+    const owner2 = result.find(r => r.artist === 'Owner2')
+    expect(owner1?.grossRevenue).toBeCloseTo(40)
+    expect(owner2).toBeUndefined()
+  })
+
+  it('skips rules with empty trackTitle', () => {
+    const txs = [
+      makeTx({ original_artist: 'ArtistA', release_title: 'Some Release', net_revenue: 70 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{ id: '1', trackTitle: '', ownerArtist: 'ArtistB' }],
+    })
+    const artistA = result.find(r => r.artist === 'ArtistA')
+    expect(artistA?.grossRevenue).toBeCloseTo(70)
+  })
+})

@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { WorkspaceManager, type WorkspaceBackup } from '@/features/core/components/WorkspaceManager'
 import { LabelBranding } from '@/features/core/components/LabelBranding'
 import { IgnoredEntriesManager } from '@/features/rules/components/IgnoredEntriesManager'
+import { TrackRevenueAssignmentManager } from '@/features/rules/components/TrackRevenueAssignmentManager'
 import { CompilationFilterManager } from '@/features/rules/components/CompilationFilterManager'
 import { CSVColumnMapper } from '@/features/ingest/components/CSVColumnMapper'
 import { DefaultSettings } from '@/features/core/components/DefaultSettings'
@@ -17,6 +18,7 @@ import type {
   CompilationFilter,
   LabelArtist,
   IgnoredEntry,
+  TrackRevenueAssignment,
   ManualRevenue,
   ArtistMapping,
   SplitFee,
@@ -59,6 +61,9 @@ interface SettingsViewProps {
   uniqueArtists: string[]
   handleAddIgnoredEntry: (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => void
   handleRemoveIgnoredEntry: (id: string) => void
+  trackRevenueAssignments: TrackRevenueAssignment[]
+  handleAddTrackRevenueAssignment: (entry: Omit<TrackRevenueAssignment, 'id'>) => void
+  handleRemoveTrackRevenueAssignment: (id: string) => void
   excludePhysical: boolean
   setExcludePhysical: (checked: boolean) => void
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
@@ -108,6 +113,9 @@ export function SettingsView({
   uniqueArtists,
   handleAddIgnoredEntry,
   handleRemoveIgnoredEntry,
+  trackRevenueAssignments,
+  handleAddTrackRevenueAssignment,
+  handleRemoveTrackRevenueAssignment,
   excludePhysical,
   setExcludePhysical,
   handleAddCompilationFilter,
@@ -154,6 +162,7 @@ export function SettingsView({
           labelInfo={labelInfo}
           labelArtists={labelArtists}
           ignoredEntries={ignoredEntries}
+          trackRevenueAssignments={trackRevenueAssignments}
           onImport={onImport}
         />
 
@@ -303,6 +312,16 @@ export function SettingsView({
             artists={uniqueArtists}
             onAdd={handleAddIgnoredEntry}
             onRemove={handleRemoveIgnoredEntry}
+          />
+        </Card>
+
+        <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+          <TrackRevenueAssignmentManager
+            assignments={trackRevenueAssignments}
+            availableReleases={availableReleases}
+            artists={uniqueArtists}
+            onAdd={handleAddTrackRevenueAssignment}
+            onRemove={handleRemoveTrackRevenueAssignment}
           />
         </Card>
 

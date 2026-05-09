@@ -57,6 +57,7 @@ import type {
   ExpenseEntry,
   LabelArtist,
   IgnoredEntry,
+  TrackRevenueAssignment,
 } from '@/lib/types'
 import type { ExchangeRates } from '@/lib/currency'
 
@@ -98,6 +99,11 @@ export interface WorkerProcessConfig {
   defaultSplitPercentagePhysical?: number
   /** Global per-source split percentage overrides; see DataProcessorConfig.sourceSplits. */
   sourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
+  /**
+   * Rules that re-attribute all revenue from a matching track/release to a
+   * single owner artist.  Forwarded unchanged to the data-processor pipeline.
+   */
+  trackRevenueAssignments?: TrackRevenueAssignment[]
 }
 
 export interface WorkerResult {

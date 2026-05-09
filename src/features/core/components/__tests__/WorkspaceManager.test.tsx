@@ -38,6 +38,7 @@ describe('WorkspaceManager Export', () => {
       labelInfo: { name: 'Test Label', address: '123 Main St' },
       labelArtists: [{ id: '1', name: 'Artist A', email: 'test@test.com', isEuNonGerman: false }],
       ignoredEntries: [{ id: '1', artist: 'IGNORE', createdAt: '2023-01-01T00:00:00.000Z' }],
+      trackRevenueAssignments: [{ id: '1', trackTitle: 'My Track', ownerArtist: 'Artist A' }],
       onImport: vi.fn(),
     }
 
@@ -59,6 +60,7 @@ describe('WorkspaceManager Export', () => {
       labelInfo: mockData.labelInfo,
       labelArtists: mockData.labelArtists,
       ignoredEntries: mockData.ignoredEntries,
+      trackRevenueAssignments: mockData.trackRevenueAssignments,
     })
 
     stringifySpy.mockRestore()
@@ -75,6 +77,7 @@ describe('WorkspaceManager Import', () => {
     labelInfo: { name: 'Test Label', address: '' },
     labelArtists: [],
     ignoredEntries: [],
+    trackRevenueAssignments: [],
     onImport: vi.fn(),
   }
 
@@ -93,6 +96,7 @@ describe('WorkspaceManager Import', () => {
       labelInfo: { name: 'New Label', address: '456 Side St' },
       labelArtists: [{ id: '1', name: 'Artist A', email: 'test@test.com', isEuNonGerman: false }],
       ignoredEntries: [{ id: '1', artist: 'IGNORE', createdAt: '2023-01-01T00:00:00.000Z' }],
+      trackRevenueAssignments: [{ id: '1', trackTitle: 'My Track', ownerArtist: 'Artist A' }],
     }
 
     const file = new File([JSON.stringify(fullBackup)], 'backup.json', { type: 'application/json' })

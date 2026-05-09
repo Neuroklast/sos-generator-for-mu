@@ -90,6 +90,12 @@ export interface DataProcessorConfig {
    */
   ignoredEntries?: IgnoredEntry[]
   /**
+   * Rules that re-attribute all revenue from a matching track/release to a
+   * single owner artist.  Applied after artist-mapping but before the roster
+   * filter, so only the owner artist sees the track in their statement.
+   */
+  trackRevenueAssignments?: TrackRevenueAssignment[]
+  /**
    * Label distribution fee as a percentage (0–100) deducted from each artist's
    * streaming/physical gross revenue before the split percentage is applied.
    */
@@ -513,6 +519,26 @@ export function processTransactionsWithCompilations(
     main_artist: resolveMainArtist(t.original_artist, config.artistMappings),
   }))
 
+  // ── Track revenue assignment ───────────────────────────────────────────────
+  // Re-attribute transactions to a single owner artist when a rule matches the
+  // release_title or track_title (case-insensitive substring).  Runs after
+  // artist-mapping but before the roster filter so the ownerArtist absorbs the
+  // revenue exclusively and other artists never see the track in any statement.
+  const trackAssignments = config.trackRevenueAssignments ?? []
+  const assigned = trackAssignments.length === 0
+    ? resolved
+    : resolved.map(t => {
+        const relLower = (t.release_title ?? '').toLowerCase()
+        const trkLower = (t.track_title ?? '').toLowerCase()
+        const match = trackAssignments.find(
+          a => a.trackTitle.trim() !== '' && (
+            relLower.includes(a.trackTitle.toLowerCase()) ||
+            trkLower.includes(a.trackTitle.toLowerCase())
+          )
+        )
+        return match ? { ...t, main_artist: match.ownerArtist } : t
+      })
+
   // ── Label artist roster filter ─────────────────────────────────────────────
   // When the roster is non-empty, re-attribute transactions whose original
   // artist string contains a label artist (comma/ampersand/feat. separated)
@@ -523,7 +549,7 @@ export function processTransactionsWithCompilations(
       : null
 
   const rosterFiltered = rosterNames
-    ? resolved.flatMap(t => {
+    ? assigned.flatMap(t => {
         // Check if the resolved main artist itself is in the roster
         if (rosterNames.includes(t.main_artist.trim().toLowerCase())) {
           return [t]
@@ -542,7 +568,7 @@ export function processTransactionsWithCompilations(
           config.labelArtists?.find(la => la.name.trim().toLowerCase() === found)?.name ?? found
         return [{ ...t, main_artist: canonical }]
       })
-    : resolved
+    : assigned
 
   // ── Ignored entries filter ─────────────────────────────────────────────────
   const ignoredEntries = config.ignoredEntries ?? []
