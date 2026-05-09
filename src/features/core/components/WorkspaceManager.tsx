@@ -15,12 +15,23 @@ import type {
   LabelArtist,
   IgnoredEntry,
   TrackRevenueAssignment,
+  GuestPayoutRule,
+  AppDefaults,
+  PdfExportSettings,
+  EmailConfig,
 } from '@/lib/types'
+import type { CsvImportProfile } from '@/features/ingest/types'
+import {
+  DEFAULT_APP_DEFAULTS,
+  DEFAULT_PDF_EXPORT_SETTINGS,
+  DEFAULT_EMAIL_CONFIG,
+} from '@/lib/defaults'
+import { DEFAULT_CSV_PROFILES } from '@/features/ingest/lib/default-profiles'
 
 /** Shape written to / read from the backup JSON file. */
 export interface WorkspaceBackup {
   /** Semver-style schema version for forward-compat guards. */
-  schemaVersion: 1
+  schemaVersion: 1 | 2
   exportedAt: string
   compilationFilters: CompilationFilter[]
   artistMappings: ArtistMapping[]
@@ -31,6 +42,13 @@ export interface WorkspaceBackup {
   labelArtists: LabelArtist[]
   ignoredEntries: IgnoredEntry[]
   trackRevenueAssignments: TrackRevenueAssignment[]
+  // v2 fields (optional for backward-compatibility with v1 backups)
+  excludePhysical?: boolean
+  guestPayoutRules?: GuestPayoutRule[]
+  appDefaults?: AppDefaults
+  pdfExportSettings?: PdfExportSettings
+  emailConfig?: EmailConfig
+  csvImportProfiles?: CsvImportProfile[]
 }
 
 interface WorkspaceManagerProps {
@@ -43,6 +61,12 @@ interface WorkspaceManagerProps {
   labelArtists: LabelArtist[]
   ignoredEntries: IgnoredEntry[]
   trackRevenueAssignments: TrackRevenueAssignment[]
+  excludePhysical: boolean
+  guestPayoutRules: GuestPayoutRule[]
+  appDefaults: AppDefaults
+  pdfExportSettings: PdfExportSettings
+  emailConfig: EmailConfig
+  csvImportProfiles: CsvImportProfile[]
   onImport: (backup: WorkspaceBackup) => void
 }
 
@@ -56,6 +80,12 @@ export function WorkspaceManager({
   labelArtists,
   ignoredEntries,
   trackRevenueAssignments,
+  excludePhysical,
+  guestPayoutRules,
+  appDefaults,
+  pdfExportSettings,
+  emailConfig,
+  csvImportProfiles,
   onImport,
 }: WorkspaceManagerProps) {
   const { t } = useTranslation()
@@ -65,7 +95,7 @@ export function WorkspaceManager({
 
   const handleExport = () => {
     const backup: WorkspaceBackup = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       exportedAt: new Date().toISOString(),
       compilationFilters,
       artistMappings,
@@ -76,6 +106,12 @@ export function WorkspaceManager({
       labelArtists,
       ignoredEntries,
       trackRevenueAssignments,
+      excludePhysical,
+      guestPayoutRules,
+      appDefaults,
+      pdfExportSettings,
+      emailConfig,
+      csvImportProfiles,
     }
 
     const json = JSON.stringify(backup, null, 2)
@@ -105,9 +141,9 @@ export function WorkspaceManager({
       try {
         const raw = JSON.parse(event.target?.result as string) as Partial<WorkspaceBackup>
 
-        if (raw.schemaVersion !== 1) {
+        if (raw.schemaVersion !== 1 && raw.schemaVersion !== 2) {
           toast.error(i18next.t('toast.unknownBackupFormat'), {
-            description: `Expected schemaVersion 1, received: ${raw.schemaVersion ?? 'unknown'}.`,
+            description: `Expected schemaVersion 1 or 2, received: ${raw.schemaVersion ?? 'unknown'}.`,
           })
           return
         }
@@ -115,6 +151,11 @@ export function WorkspaceManager({
         // Validate that all array fields are actually arrays to prevent injecting
         // unexpected shapes from a malformed or malicious backup file.
         const isArrayOf = (v: unknown): v is unknown[] => Array.isArray(v)
+        const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+          v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v)
+        /** Returns `value` when it is a plain object, otherwise `defaultValue`. */
+        const coerceObject = <T,>(value: unknown, defaultValue: T): T =>
+          isPlainObject(value) ? (value as T) : defaultValue
         if (
           (raw.compilationFilters !== undefined && !isArrayOf(raw.compilationFilters)) ||
           (raw.artistMappings !== undefined && !isArrayOf(raw.artistMappings)) ||
@@ -124,7 +165,12 @@ export function WorkspaceManager({
           (raw.labelArtists !== undefined && !isArrayOf(raw.labelArtists)) ||
           (raw.ignoredEntries !== undefined && !isArrayOf(raw.ignoredEntries)) ||
           (raw.trackRevenueAssignments !== undefined && !isArrayOf(raw.trackRevenueAssignments)) ||
-          (raw.labelInfo !== null && raw.labelInfo !== undefined && typeof raw.labelInfo !== 'object')
+          (raw.labelInfo !== null && raw.labelInfo !== undefined && typeof raw.labelInfo !== 'object') ||
+          (raw.guestPayoutRules !== undefined && !isArrayOf(raw.guestPayoutRules)) ||
+          (raw.csvImportProfiles !== undefined && !isArrayOf(raw.csvImportProfiles)) ||
+          (raw.appDefaults !== undefined && !isPlainObject(raw.appDefaults)) ||
+          (raw.pdfExportSettings !== undefined && !isPlainObject(raw.pdfExportSettings)) ||
+          (raw.emailConfig !== undefined && !isPlainObject(raw.emailConfig))
         ) {
           toast.error(i18next.t('toast.invalidBackup'), {
             description: 'The backup file contains unexpected data types and cannot be imported.',
@@ -133,7 +179,7 @@ export function WorkspaceManager({
         }
 
         const backup: WorkspaceBackup = {
-          schemaVersion: 1,
+          schemaVersion: raw.schemaVersion,
           exportedAt: raw.exportedAt ?? new Date().toISOString(),
           compilationFilters: Array.isArray(raw.compilationFilters) ? raw.compilationFilters : [],
           artistMappings: Array.isArray(raw.artistMappings) ? raw.artistMappings : [],
@@ -144,6 +190,12 @@ export function WorkspaceManager({
           labelArtists: Array.isArray(raw.labelArtists) ? raw.labelArtists : [],
           ignoredEntries: Array.isArray(raw.ignoredEntries) ? raw.ignoredEntries : [],
           trackRevenueAssignments: Array.isArray(raw.trackRevenueAssignments) ? raw.trackRevenueAssignments : [],
+          excludePhysical: raw.excludePhysical ?? false,
+          guestPayoutRules: Array.isArray(raw.guestPayoutRules) ? raw.guestPayoutRules : [],
+          appDefaults: coerceObject(raw.appDefaults, DEFAULT_APP_DEFAULTS),
+          pdfExportSettings: coerceObject(raw.pdfExportSettings, DEFAULT_PDF_EXPORT_SETTINGS),
+          emailConfig: coerceObject(raw.emailConfig, DEFAULT_EMAIL_CONFIG),
+          csvImportProfiles: Array.isArray(raw.csvImportProfiles) ? raw.csvImportProfiles : DEFAULT_CSV_PROFILES,
         }
 
         onImport(backup)

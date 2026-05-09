@@ -741,14 +741,50 @@ Die History-Seite protokolliert alle hochgeladenen Dateien als vollständiges Au
 
 ## 13. Workspace-Verwaltung
 
-Der **Workspace Manager** ermöglicht es, verschiedene Abrechnungszustände zu speichern und wiederherzustellen.
+Der **Workspace Manager** ermöglicht es, alle Einstellungen als eine einzige JSON-Sicherungsdatei (`sos_workspace_backup.json`) zu exportieren und zu importieren.
 
-**Funktionen:**
-- **Workspace speichern:** Sichert alle aktuellen Einstellungen, Mappings und verarbeiteten Daten als benannten Snapshot.
-- **Workspace laden:** Stellt einen gespeicherten Zustand vollständig wieder her.
-- **Workspace löschen:** Entfernt einen gespeicherten Snapshot.
+### Was im Backup enthalten ist (Schema v2)
 
-**Anwendungsfall:** Erstelle für jedes Quartal oder jedes Jahr einen eigenen Workspace, um den Abrechnungsverlauf nachvollziehbar zu halten.
+| Einstellung | Beschreibung |
+|---|---|
+| Kompilationsfilter | Regeln zum Ausschluss von Releases |
+| Künstler-Mappings | Featuring-Name → Hauptkünstler-Aliase |
+| Split-Gebühren | Royalty-Prozentsätze pro Künstler |
+| Manuelle Erlöse | Manuell eingetragene Umsatzeinträge |
+| CSV-Spalten-Aliase | Benutzerdefinierte Spaltenzuordnungen |
+| Label-Info | Label-Name, Adresse, Branding |
+| Label-Künstler | Label-Roster |
+| Ignorierte Einträge | Von Abrechnungen ausgeschlossene Einträge |
+| Track-Erlös-Zuordnungen | Release-zu-Künstler-Umsatzregeln |
+| Physische Umsätze ausschließen | Schalter für Physical-Erlöse |
+| Gast-Auszahlungsregeln | Auszahlungsanteile für Featured Artists |
+| App-Standardwerte | Standard-Split %, Distributionsgebühr, Rechnungseinstellungen usw. |
+| PDF-Exporteinstellungen | Welche Abschnitte im exportierten PDF erscheinen |
+| E-Mail-Konfiguration | Absendername, Absender-E-Mail, Antwortadresse |
+| CSV-Importprofile | Benutzerdefinierte CSV-Spaltenprofile |
+
+> **Nicht enthalten:** Hochgeladene CSV-Dateien und Ausgabeneinträge – diese sind periodenspezifische Transaktionsdaten, keine Konfiguration.
+
+### Exportieren
+
+1. Gehe zu **Einstellungen → App & System**.
+2. Klicke auf **Workspace exportieren**.
+3. Die Datei `sos_workspace_backup.json` wird auf dein Gerät heruntergeladen.
+
+### Importieren
+
+1. Gehe zu **Einstellungen → App & System**.
+2. Klicke auf **Workspace importieren**.
+3. Wähle deine `sos_workspace_backup.json`-Datei aus.
+4. Alle oben aufgeführten Einstellungen werden sofort wiederhergestellt.
+
+> ⚠️ **Warnung:** Der Import überschreibt alle aktuellen Einstellungen unwiderruflich.
+
+### Rückwärtskompatibilität
+
+Backup-Dateien, die mit dem alten Schema (v1) exportiert wurden, können weiterhin importiert werden. Fehlende v2-Felder werden automatisch mit den Anwendungsstandards befüllt.
+
+**Anwendungsfall:** Erstelle ein Backup, wenn du einen Abrechnungszeitraum abschließt, damit du deine genaue Konfiguration für jedes Quartal oder Jahr wiederherstellen kannst.
 
 ---
 

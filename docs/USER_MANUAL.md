@@ -738,14 +738,50 @@ The History page logs all uploaded files as a complete audit trail.
 
 ## 13. Workspace Management
 
-The **Workspace Manager** allows you to save and restore different billing states.
+The **Workspace Manager** allows you to export and import all your settings as a single JSON backup file (`sos_workspace_backup.json`).
 
-**Features:**
-- **Save Workspace:** Saves all current settings, mappings, and processed data as a named snapshot.
-- **Load Workspace:** Fully restores a saved state.
-- **Delete Workspace:** Removes a saved snapshot.
+### What is included in a backup (schema v2)
 
-**Use case:** Create a separate workspace for each quarter or year to keep a traceable billing history.
+| Setting | Description |
+|---|---|
+| Compilation Filters | Release exclusion rules |
+| Artist Mappings | Featuring-name → primary-artist aliases |
+| Split Fees | Per-artist royalty percentages |
+| Manual Revenues | Hand-entered revenue entries |
+| CSV Column Aliases | Custom column-name mappings |
+| Label Info | Label name, address, branding |
+| Label Artists | Label roster |
+| Ignored Entries | Entries excluded from statements |
+| Track Revenue Assignments | Release-to-artist revenue rules |
+| Exclude Physical | Physical-sales toggle |
+| Guest Payout Rules | Featured-artist payout shares |
+| App Defaults | Default split %, distribution fee, invoice settings, etc. |
+| PDF Export Settings | Which sections appear in exported PDFs |
+| Email Config | From-name, from-email, reply-to |
+| CSV Import Profiles | Custom CSV column profiles |
+
+> **Not included:** Uploaded CSV files and expense entries — these are period-specific transaction data, not configuration.
+
+### How to export
+
+1. Go to **Settings → App & System**.
+2. Click **Export Workspace**.
+3. The file `sos_workspace_backup.json` is downloaded to your device.
+
+### How to import
+
+1. Go to **Settings → App & System**.
+2. Click **Import Workspace**.
+3. Select your `sos_workspace_backup.json` file.
+4. All settings listed above are restored immediately.
+
+> ⚠️ **Warning:** Importing a backup overwrites all current settings irreversibly.
+
+### Backward compatibility
+
+Backup files exported with the old schema (v1) are still importable. Any v2 fields missing from a v1 file are automatically filled with application defaults.
+
+**Use case:** Create a backup whenever you finalise a billing period, so you can restore your exact configuration for any quarter or year.
 
 ---
 

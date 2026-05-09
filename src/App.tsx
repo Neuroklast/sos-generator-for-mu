@@ -704,8 +704,14 @@ function App() {
       setLabelArtists(backup.labelArtists ?? [])
       setIgnoredEntries(backup.ignoredEntries ?? [])
       setTrackRevenueAssignments(backup.trackRevenueAssignments ?? [])
+      setExcludePhysical(backup.excludePhysical ?? false)
+      setGuestPayoutRules(backup.guestPayoutRules ?? [])
+      setAppDefaults(backup.appDefaults ?? DEFAULT_APP_DEFAULTS)
+      setPdfExportSettings(backup.pdfExportSettings ?? DEFAULT_PDF_EXPORT_SETTINGS)
+      setEmailConfig(backup.emailConfig ?? DEFAULT_EMAIL_CONFIG)
+      setCsvImportProfiles(backup.csvImportProfiles ?? DEFAULT_CSV_PROFILES)
     },
-    [setCompilationFilters, setArtistMappings, setSplitFees, setManualRevenues, setCsvAliases, setLabelInfo, setLabelArtists, setIgnoredEntries, setTrackRevenueAssignments]
+    [setCompilationFilters, setArtistMappings, setSplitFees, setManualRevenues, setCsvAliases, setLabelInfo, setLabelArtists, setIgnoredEntries, setTrackRevenueAssignments, setExcludePhysical, setGuestPayoutRules, setAppDefaults, setPdfExportSettings, setEmailConfig, setCsvImportProfiles]
   )
 
   const handleAddLabelArtist = useCallback(
@@ -1315,6 +1321,7 @@ function App() {
                   onAddCsvProfile={handleAddCsvProfile}
                   onUpdateCsvProfile={handleUpdateCsvProfile}
                   onDeleteCsvProfile={handleDeleteCsvProfile}
+                  guestPayoutRules={guestPayoutRules ?? []}
                 />
               )}
 

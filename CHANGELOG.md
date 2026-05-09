@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - **`agents.md`** — Mandatory end-of-session protocol for AI agents. Documents the documentation steps (CHANGELOG, USER_MANUAL, BENUTZERHANDBUCH, README, LICENSE, ARCHITECTURE) that MUST be completed at the end of every agent session involving a behaviour or feature change.
 - **Artist Roster CSV Import** documented in `docs/USER_MANUAL.md` and `docs/BENUTZERHANDBUCH.md` (§5 File Upload / §5 Datei-Upload): uploading a CSV with a `name` column plus at least one companion field auto-imports artist master data directly from the Ingest view.
+- **Workspace Backup schema v2** — The workspace export/import now covers all 15 persistent settings instead of only 9. Six previously missing fields are now included in every backup file: `excludePhysical`, `guestPayoutRules`, `appDefaults`, `pdfExportSettings`, `emailConfig`, and `csvImportProfiles`. Existing v1 backup files remain fully importable (missing v2 fields fall back to their application defaults).
 
 ### Changed
 - **LICENSE** — Copyright corrected from "GitHub, Inc." to "Neuroklast (c) 2024–2026".
