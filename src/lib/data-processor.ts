@@ -460,6 +460,30 @@ function buildReleaseBreakdown(transactions: SalesTransaction[]): ReleaseRevenue
 
 // ── Main processing ────────────────────────────────────────────────────────────
 
+/**
+ * Resolves a TrackRevenueAssignment to a normalised list of owners with
+ * fractional revenue shares (0–1).
+ *
+ * Backward-compat: when `owners` is absent or empty, falls back to
+ * `ownerArtist` at fraction 1 (100%). This preserves behaviour for all
+ * workspace backups created before multi-owner support was introduced.
+ *
+ * @param assignment - The rule to resolve.
+ * @returns An array of { artist, fraction } entries. Guaranteed non-empty.
+ */
+function resolveAssignmentOwners(
+  assignment: TrackRevenueAssignment
+): ReadonlyArray<{ readonly artist: string; readonly fraction: number }> {
+  if (assignment.owners && assignment.owners.length > 0) {
+    return assignment.owners.map(o => ({
+      artist: o.artist,
+      fraction: o.percentage / 100,
+    }))
+  }
+  const legacyArtist = assignment.ownerArtist ?? ''
+  return [{ artist: legacyArtist, fraction: 1 }]
+}
+
 export function processTransactions(
   transactions: SalesTransaction[],
   config: DataProcessorConfig
@@ -527,23 +551,42 @@ export function processTransactionsWithCompilations(
   }))
 
   // ── Track revenue assignment ───────────────────────────────────────────────
-  // Re-attribute transactions to a single owner artist when a rule matches the
-  // release_title or track_title (case-insensitive substring).  Runs after
-  // artist-mapping but before the roster filter so the ownerArtist absorbs the
-  // revenue exclusively and other artists never see the track in any statement.
+  // When a rule matches, revenue is proportionally distributed among co-owners
+  // by cloning the transaction with a scaled net_revenue and quantity per owner.
+  // Single-owner rules (legacy or new) are handled without cloning for perf.
+  // Runs after artist-mapping but before the roster filter.
   const trackAssignments = config.trackRevenueAssignments ?? []
-  const assigned = trackAssignments.length === 0
+
+  const assigned: typeof resolved = trackAssignments.length === 0
     ? resolved
-    : resolved.map(t => {
+    : resolved.flatMap(t => {
         const relLower = (t.release_title ?? '').toLowerCase()
         const trkLower = (t.track_title ?? '').toLowerCase()
         const match = trackAssignments.find(
-          a => a.trackTitle.trim() !== '' && (
-            relLower.includes(a.trackTitle.trim().toLowerCase()) ||
-            trkLower.includes(a.trackTitle.trim().toLowerCase())
-          )
+          a =>
+            a.trackTitle.trim() !== '' &&
+            (relLower.includes(a.trackTitle.trim().toLowerCase()) ||
+              trkLower.includes(a.trackTitle.trim().toLowerCase()))
         )
-        return match ? { ...t, main_artist: match.ownerArtist } : t
+
+        if (!match) return [t]
+
+        const owners = resolveAssignmentOwners(match)
+
+        // Single-owner fast path — simple re-attribution, no clone needed.
+        if (owners.length === 1) {
+          return [{ ...t, main_artist: owners[0].artist }]
+        }
+
+        // Multi-owner path — clone transaction with scaled revenue per owner.
+        // ID is suffixed to guarantee uniqueness in downstream Maps.
+        return owners.map(owner => ({
+          ...t,
+          id: `${t.id}__split__${owner.artist}`,
+          main_artist: owner.artist,
+          net_revenue: t.net_revenue * owner.fraction,
+          quantity: Math.round(t.quantity * owner.fraction),
+        }))
       })
 
   // ── Label artist roster filter ─────────────────────────────────────────────

@@ -380,14 +380,28 @@ export interface EmailConfig {
 }
 
 /**
- * A rule that assigns all revenue from a specific track/release to a single
- * owner artist, regardless of the artist name stored in the CSV.
+ * One co-owner's contractual share of a specific release's gross revenue.
+ * Applied before any label distribution fee or artist split percentage.
+ */
+export interface RevenueOwner {
+  /** Canonical artist name (must match roster or CSV artist name). */
+  artist: string
+  /**
+   * Ownership share as a percentage (0–100).
+   * Invariant: sum of all owners in a TrackRevenueAssignment must equal 100.
+   */
+  percentage: number
+}
+
+/**
+ * A rule that assigns revenue from a specific track/release to one or more
+ * owner artists, regardless of the artist name stored in the CSV.
  *
  * Matching is a case-insensitive substring check against both `release_title`
  * and `track_title` of every transaction.  When a match is found the
- * transaction's `main_artist` is overwritten with `ownerArtist` before any
- * roster filtering or grouping happens, so the revenue lands exclusively on
- * that artist and does NOT appear in any other artist's statement.
+ * transaction is re-attributed — exclusively to the single ownerArtist (legacy)
+ * or split proportionally among multiple owners (new) — before any roster
+ * filtering or grouping happens.
  */
 export interface TrackRevenueAssignment {
   id: string
@@ -396,8 +410,22 @@ export interface TrackRevenueAssignment {
    * The first matching rule wins.
    */
   trackTitle: string
-  /** Canonical artist name that exclusively receives the revenue. */
-  ownerArtist: string
+  /**
+   * @deprecated Use `owners` for new rules. Kept for backward-compatibility
+   * with existing workspace backups that pre-date multi-owner support.
+   * When `owners` is present and non-empty, this field is ignored.
+   */
+  ownerArtist?: string
+  /**
+   * Proportional revenue distribution among co-owner artists.
+   * When set, each matching transaction is cloned and scaled per owner
+   * before any label split or expense calculation runs.
+   *
+   * When absent, falls back to `ownerArtist` at 100% (legacy behaviour).
+   *
+   * Invariant: sum(owners[*].percentage) === 100.
+   */
+  owners?: RevenueOwner[]
 }
 
 /** Contractual payout share assigned to a guest / featured artist. */

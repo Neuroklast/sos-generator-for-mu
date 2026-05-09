@@ -490,24 +490,39 @@ Ignorierte Einträge erscheinen in einer separaten Liste und können jederzeit d
 
 ### 7.4 Track-Revenue-Zuweisungen
 
-Mit **Track-Revenue-Zuweisungen** kannst du die gesamte Revenue eines bestimmten Tracks oder Releases ausschließlich einem einzigen Künstler zuweisen. Das ist besonders nützlich für Kollaborations-Tracks (z. B. ein Featured-Artist-Track, der vollständig dem Hauptkünstler zugerechnet werden soll) oder für Releases, bei denen die CSV einen kombinierten Künstlernamen enthält.
+Mit **Track-Revenue-Zuweisungen** kannst du die Revenue eines bestimmten Tracks oder Releases anteilig auf einen oder mehrere Miteigentümer-Künstler aufteilen – **bevor** der Label-Split oder Kosten abgezogen werden. Das ist besonders nützlich für Kollaborations-Releases (z. B. ein Release, das zwei Künstlern zu gleichen Teilen gehört) oder für Releases, bei denen die CSV einen kombinierten Künstlernamen enthält.
 
 **Funktionsweise:**
-- Du definierst den **berechtigten Künstler** und einen **Track-Titel (Teilstring, Groß-/Kleinschreibung egal)**.
-- Jede Transaktion, deren `release_title` oder `track_title` den Teilstring enthält, wird dem berechtigten Künstler zugeordnet – bevor der Roster-Filter oder die Split-Berechnung greift.
-- Der Track erscheint **ausschließlich** im Statement und im PDF des berechtigten Künstlers. Im Statement aller anderen Künstler ist er vollständig unsichtbar.
+- Du definierst einen **Release- / Track-Titel (Teilstring, Groß-/Kleinschreibung egal)** und einen oder mehrere **Miteigentümer-Künstler mit Prozentanteilen**.
+- Jede Transaktion, deren `release_title` oder `track_title` den Teilstring enthält, wird zugeordnet.
+- Bei einem **einzigen Eigentümer** (100%) wird die Transaktion vollständig diesem Künstler zugeschrieben – sie erscheint nur in seinem Statement.
+- Bei **mehreren Eigentümern** wird die Transaktion geklont und anteilig skaliert. Jeder Eigentümer-Anteil durchläuft dann unabhängig die Label-Split- und Kosten-Pipeline.
 - Bei mehreren passenden Regeln gewinnt die erste.
+- **Invariante:** Die Prozentanteile aller Eigentümer einer Regel müssen zusammen genau 100% ergeben.
 
-**Zuweisung hinzufügen:**
+**Mehrere Eigentümer (`owners`-Array, neu):**
+
+Jede Zuweisung kann ein `owners`-Array mit Einträgen wie diesem haben:
+```json
+{ "artist": "Künstler A", "percentage": 60 }
+{ "artist": "Künstler B", "percentage": 40 }
+```
+Die Revenue wird anteilig aufgeteilt (60% → Künstler A, 40% → Künstler B), bevor Vertriebsgebühren oder Kosten abgezogen werden.
+
+**Ältere Einzeleigentümer-Zuweisungen** (vor diesem Feature erstellt) werden automatisch wie `owners: [{ artist: ownerArtist, percentage: 100 }]` behandelt – keine Migration erforderlich.
+
+**Mehrere Eigentümer hinzufügen:**
 1. Gehe zu **Einstellungen → Export & Regeln**.
 2. Scrolle zu **Track-Revenue-Zuweisungen**.
-3. Wähle im **Berechtigter Künstler**-Dropdown den gewünschten Künstler per Volltextsuche aus.
-4. Wähle im **Release-/Track-Titel**-Dropdown den gewünschten Release. Sobald ein Künstler ausgewählt ist, zeigt die Liste nur noch Releases dieses Künstlers (inkl. Kollaborationen und Features). Ohne Künstlerauswahl werden alle bekannten Releases angezeigt. Freie Texteingabe ist ebenfalls möglich.
-5. Klicke auf **Zuweisung hinzufügen**.
+3. Wähle im Feld **Release- / Track-Titel** den gewünschten Release. Das Dropdown wird auf Releases des ersten ausgewählten Eigentümers vorgefiltert.
+4. Wähle in der ersten **Eigentümer-Zeile** den Künstler und gib seinen Prozentanteil ein (z. B. 60).
+5. Klicke auf **Beteiligten hinzufügen**, um weitere Eigentümer-Zeilen anzuhängen. Gib für jeden Künstler den entsprechenden Anteil ein.
+6. Beachte den **Prozentzahl-Indikator** — er wird grün, sobald die Summe genau 100% ergibt.
+7. Klicke auf **Zuweisung hinzufügen** (nur aktiv, wenn die Summe 100% beträgt und ein Release-Titel gesetzt ist).
 
 **Zuweisung entfernen:** Fahre über den Eintrag und klicke auf das Papierkorb-Symbol.
 
-> **Hinweis:** Diese Funktion wirkt auf Pipeline-Ebene. Das PDF des berechtigten Künstlers enthält die vollständige Revenue des zugewiesenen Tracks; das PDF aller anderen Künstler enthält ihn nicht.
+> **Hinweis:** Die Revenue-Aufteilung erfolgt auf Pipeline-Ebene, vor Label-Split und Kosten. Jeder Miteigentümer-Anteil unterliegt dann unabhängig seinen konfigurierten Split-Fees und Kostenregeln. Die Anzeige in der Listenansicht zeigt die Anteile: z. B. `„Künstler A 60% / Künstler B 40%"`.
 
 ---
 

@@ -487,24 +487,39 @@ Ignored entries appear in a separate list and can be removed at any time by hove
 
 ### 7.4 Track Revenue Assignments
 
-**Track Revenue Assignments** let you route all revenue from a particular track or release exclusively to one artist. This is useful for collaboration tracks (e.g. a featured-artist track that should count entirely toward the primary artist) or for any release where the CSV lists a combined artist name that you want attributed to a single roster member.
+**Track Revenue Assignments** let you route revenue from a particular track or release to one or more co-owner artists **before** any label split or expenses are applied. This is useful for collaboration releases (e.g. a release jointly owned by two artists) or for any release where the CSV lists a combined artist name that you want attributed to specific roster members.
 
 **How it works:**
-- You define an **owner artist** and a **track title substring** (case-insensitive).
-- Every transaction whose `release_title` or `track_title` contains the substring is re-attributed to the owner artist before any roster filter or split calculation runs.
-- The track appears **only** in the owner artist's statement and PDF — it is completely invisible in every other artist's report.
+- You define a **release / track title substring** (case-insensitive) and one or more **owner artists with percentage shares**.
+- Every transaction whose `release_title` or `track_title` contains the substring is matched.
+- When there is a **single owner** (100%), the transaction is re-attributed entirely to that artist — it appears only in their statement.
+- When there are **multiple owners**, the transaction is cloned and scaled proportionally per owner. Each owner's share of the revenue is then processed independently through the label split and expenses pipeline.
 - The first matching rule wins when multiple rules could apply to the same transaction.
+- **Invariant:** The percentage shares of all owners in one rule must sum to exactly 100%.
 
-**Adding an assignment:**
+**Multi-owner `owners` array (new):**
+
+Each assignment can have an `owners` array with entries like:
+```json
+{ "artist": "Artist A", "percentage": 60 }
+{ "artist": "Artist B", "percentage": 40 }
+```
+The revenue is split proportionally (60% → Artist A, 40% → Artist B) before any label distribution fee or expenses are deducted.
+
+**Legacy single-owner assignments** created before this feature are automatically treated as if `owners: [{ artist: ownerArtist, percentage: 100 }]` — no migration required.
+
+**Adding a multi-owner assignment:**
 1. Go to **Settings → Export & Rules**.
 2. Scroll to **Track Revenue Assignments**.
-3. In the **Owner artist** dropdown, start typing to search and select the artist who should receive the revenue. The dropdown shows all artists found in the loaded data.
-4. In the **Release / track title** dropdown, select or type the release title. Once an artist is selected, the dropdown is filtered to only show releases associated with that artist (including collabs and features). Clearing the artist selection shows all known releases again.
-5. Click **Add Assignment**.
+3. In the **Release / track title** field, select or type the release title. The dropdown is pre-filtered to the first selected owner's releases.
+4. In the first **owner row**, select the artist and set their percentage share (e.g. 60).
+5. Click **Add owner** to append additional owner rows. Set each artist and their percentage.
+6. Watch the **percentage sum indicator** — it turns green when the total reaches exactly 100%.
+7. Click **Add Assignment** (enabled only when the sum is 100% and a release title is set).
 
 **Removing an assignment:** Hover over a rule in the list and click the trash icon.
 
-> **Note:** This feature re-attributes revenue at the data-pipeline level. The PDF statement generated for the owner artist will show the full revenue from the assigned track; the PDF for any other artist will not include it.
+> **Note:** The revenue split happens at the data-pipeline level, before the label split and expenses. Each co-owner's share is then independently subject to their configured split fee and expense rules. The display in the entry list shows the proportional shares: e.g. `"Artist A 60% / Artist B 40%"`.
 
 ---
 
