@@ -82,6 +82,9 @@ interface SettingsViewProps {
   onAddCsvProfile: (profile: Omit<CsvImportProfile, 'id'>) => void
   onUpdateCsvProfile: (id: string, patch: Omit<CsvImportProfile, 'id' | 'isSystemDefault'>) => void
   onDeleteCsvProfile: (id: string) => void
+
+  // ── Guest payout rules (for workspace backup) ────────────────────────────
+  guestPayoutRules: import('@/lib/types').GuestPayoutRule[]
 }
 
 export function SettingsView({
@@ -125,6 +128,7 @@ export function SettingsView({
   onAddCsvProfile,
   onUpdateCsvProfile,
   onDeleteCsvProfile,
+  guestPayoutRules,
 }: SettingsViewProps) {
   const { t } = useTranslation()
   return (
@@ -152,6 +156,12 @@ export function SettingsView({
           labelArtists={labelArtists}
           ignoredEntries={ignoredEntries}
           trackRevenueAssignments={trackRevenueAssignments}
+          excludePhysical={excludePhysical}
+          guestPayoutRules={guestPayoutRules}
+          appDefaults={appDefaults}
+          pdfExportSettings={pdfExportSettings}
+          emailConfig={emailConfig}
+          csvImportProfiles={csvImportProfiles}
           onImport={onImport}
         />
 
