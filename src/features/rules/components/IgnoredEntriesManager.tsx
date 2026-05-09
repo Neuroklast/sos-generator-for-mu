@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { SearchableCombobox } from '@/components/ui/combobox'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { getAllReleases } from '@/lib/release-utils'
 import type { IgnoredEntry } from '@/lib/types'
 
 interface IgnoredEntriesManagerProps {
@@ -35,15 +36,7 @@ export function IgnoredEntriesManager({
   const [note, setNote] = useState('')
 
   /** All unique release titles across all artists — fallback when no artist is selected. */
-  const allReleases = useMemo<string[]>(() => {
-    const seen = new Set<string>()
-    for (const titles of Object.values(releaseTitlesByArtist)) {
-      for (const title of titles) {
-        seen.add(title)
-      }
-    }
-    return Array.from(seen).sort((a, b) => a.localeCompare(b))
-  }, [releaseTitlesByArtist])
+  const allReleases = useMemo(() => getAllReleases(releaseTitlesByArtist), [releaseTitlesByArtist])
 
   /** Releases visible in the dropdown — filtered to the selected artist when set. */
   const releaseOptions = useMemo<string[]>(() => {

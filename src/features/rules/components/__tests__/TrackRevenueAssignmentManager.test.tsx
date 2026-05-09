@@ -126,6 +126,35 @@ describe('TrackRevenueAssignmentManager', () => {
     expect(screen.getByText('Record X')).toBeTruthy()
   })
 
+  test('clears track title when owner artist changes', async () => {
+    const user = userEvent.setup()
+    render(
+      <TrackRevenueAssignmentManager
+        assignments={[]}
+        releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artists={ARTISTS}
+        onAdd={onAdd}
+        onRemove={onRemove}
+      />
+    )
+
+    // Select Artist A and Album One
+    const artistInput = screen.getByPlaceholderText(/search owner artist/i)
+    fireEvent.focus(artistInput)
+    await user.click(screen.getByText('Artist A'))
+
+    const releaseInput = screen.getByPlaceholderText(/search release/i)
+    fireEvent.focus(releaseInput)
+    await user.click(screen.getByText('Album One'))
+    expect((releaseInput as HTMLInputElement).value).toBe('Album One')
+
+    // Clear and switch to Artist B — release field should be cleared
+    await user.clear(artistInput)
+    fireEvent.focus(artistInput)
+    await user.click(screen.getByText('Artist B'))
+    expect((releaseInput as HTMLInputElement).value).toBe('')
+  })
+
   test('calls onAdd with the entered values and resets fields', async () => {
     const user = userEvent.setup()
     render(

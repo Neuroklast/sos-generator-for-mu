@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { SearchableCombobox } from '@/components/ui/combobox'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { getAllReleases } from '@/lib/release-utils'
 import type { TrackRevenueAssignment } from '@/lib/types'
 
 interface TrackRevenueAssignmentManagerProps {
@@ -37,15 +38,7 @@ export function TrackRevenueAssignmentManager({
    * All unique release titles across all artists — shown in the dropdown when
    * no owner artist has been selected yet.
    */
-  const allReleases = useMemo<string[]>(() => {
-    const seen = new Set<string>()
-    for (const titles of Object.values(releaseTitlesByArtist)) {
-      for (const title of titles) {
-        seen.add(title)
-      }
-    }
-    return Array.from(seen).sort((a, b) => a.localeCompare(b))
-  }, [releaseTitlesByArtist])
+  const allReleases = useMemo(() => getAllReleases(releaseTitlesByArtist), [releaseTitlesByArtist])
 
   /**
    * Releases visible in the track-title dropdown.
@@ -56,6 +49,15 @@ export function TrackRevenueAssignmentManager({
     if (!ownerArtist.trim()) return allReleases
     return releaseTitlesByArtist[ownerArtist] ?? allReleases
   }, [ownerArtist, releaseTitlesByArtist, allReleases])
+
+  /**
+   * Handles owner-artist selection.  Clears the track-title field whenever the
+   * artist changes so the user is not left with a release from a different artist.
+   */
+  const handleOwnerArtistChange = (value: string) => {
+    setOwnerArtist(value)
+    setTrackTitle('')
+  }
 
   const handleAdd = useCallback(() => {
     const title = trackTitle.trim()
@@ -97,7 +99,7 @@ export function TrackRevenueAssignmentManager({
           <div className="flex-1">
             <SearchableCombobox
               value={ownerArtist}
-              onChange={setOwnerArtist}
+              onChange={handleOwnerArtistChange}
               options={artists}
               placeholder={t('trackRevenueAssignment.ownerArtistPlaceholder')}
               emptyText={t('trackRevenueAssignment.noArtistFound')}
