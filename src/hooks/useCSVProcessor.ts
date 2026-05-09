@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
 import i18next from 'i18next'
 import { computeAutoMappings } from '@/lib/auto-mapping'
-import { fetchExchangeRates } from '@/lib/currency'
-import type { ExchangeRates } from '@/lib/currency'
+import { fetchExchangeRates, fetchHistoricalExchangeRates } from '@/lib/currency'
+import type { ExchangeRates, HistoricalRates } from '@/lib/currency'
 import type {
   UploadedFile,
   CompilationFilter,
@@ -107,6 +107,7 @@ export function useCSVProcessor(
   const [isProcessing, setIsProcessing] = useState(false)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(true)
+  const [historicalRates, setHistoricalRates] = useState<HistoricalRates | null>(null)
 
   // ── Fetch ECB exchange rates once on mount ────────────────────────────────────
 
@@ -126,13 +127,42 @@ export function useCSVProcessor(
       })
   }, [])
 
+  // ── Fetch historical monthly rates when the detected period is known ──────────
+  // Triggered whenever the worker detects a new billing period from the CSV data.
+  // The historical rates (ECB monthly averages) provide more accurate EUR
+  // conversion than a single current rate for retrospective statements.
+
+  const { periodStart: detectedStart, periodEnd: detectedEnd } = workerResult
+  useEffect(() => {
+    if (!detectedStart || !detectedEnd) return
+
+    setExchangeRatesLoading(true)
+    fetchHistoricalExchangeRates(detectedStart, detectedEnd)
+      .then(rates => {
+        setHistoricalRates(rates)
+      })
+      .catch(err => {
+        console.warn('[useCSVProcessor] Historical exchange rate fetch failed:', err)
+      })
+      .finally(() => {
+        setExchangeRatesLoading(false)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detectedStart, detectedEnd])
+
   // ── Manual refresh of exchange rates ─────────────────────────────────────────
 
   const refreshExchangeRates = useCallback(async () => {
     setExchangeRatesLoading(true)
     try {
-      const rates = await fetchExchangeRates()
+      const [rates, historical] = await Promise.all([
+        fetchExchangeRates(),
+        detectedStart && detectedEnd
+          ? fetchHistoricalExchangeRates(detectedStart, detectedEnd)
+          : Promise.resolve(null),
+      ])
       setExchangeRates(rates)
+      if (historical !== null) setHistoricalRates(historical)
       toast.success(i18next.t('ingest.exchangeRatesUpdated'))
     } catch (err) {
       console.warn('[useCSVProcessor] Exchange rate refresh failed:', err)
@@ -140,7 +170,7 @@ export function useCSVProcessor(
     } finally {
       setExchangeRatesLoading(false)
     }
-  }, [])
+  }, [detectedStart, detectedEnd])
 
   // ── Build stable derivative keys ─────────────────────────────────────────────
 
@@ -168,6 +198,7 @@ export function useCSVProcessor(
     config.expenses.map(e => `${e.id}:${e.amount}`).join(','),
     String(config.excludePhysical),
     Object.keys(exchangeRates).length > 0 ? 'rates' : 'no-rates',
+    historicalRates !== null ? `hist:${Object.keys(historicalRates).length}` : 'no-hist',
     config.labelArtists.map(la => la.id).join(','),
     config.ignoredEntries.map(ie => ie.id).join(','),
     String(config.distributionFeePercentage),
@@ -190,6 +221,7 @@ export function useCSVProcessor(
     expenses: config.expenses,
     excludePhysical: config.excludePhysical,
     exchangeRates,
+    historicalExchangeRates: historicalRates ?? undefined,
     labelArtists: config.labelArtists,
     ignoredEntries: config.ignoredEntries,
     distributionFeePercentage: config.distributionFeePercentage,
@@ -200,7 +232,7 @@ export function useCSVProcessor(
     defaultSplitPercentagePhysical: config.defaultSplitPercentagePhysical,
     sourceSplits: config.sourceSplits,
     trackRevenueAssignments: config.trackRevenueAssignments,
-  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical, config.defaultSplitPercentage, config.defaultSplitPercentageDigital, config.defaultSplitPercentagePhysical, config.sourceSplits, config.trackRevenueAssignments])
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, historicalRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical, config.defaultSplitPercentage, config.defaultSplitPercentageDigital, config.defaultSplitPercentagePhysical, config.sourceSplits, config.trackRevenueAssignments])
 
   const sendProcess = useCallback(() => {
     const cfg = latestConfigRef.current ?? buildConfig()

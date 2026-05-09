@@ -189,6 +189,30 @@ The built-in parser handles:
 - **Quoted headers** — column headers with quotation marks
 - **Decimal separators** — both period and comma are recognised
 
+### Exchange Rate Handling
+
+NeuroStat uses the **Frankfurter API** (backed by European Central Bank reference
+rates) for all currency conversions. Bandcamp is the only source that reports
+revenue in non-EUR currencies (USD, GBP, etc.).
+
+**Historical monthly average rates**
+
+When the billing period is detected from the uploaded CSV files, the application
+automatically fetches the ECB monthly average exchange rate for each month in the
+period. Each Bandcamp transaction is then converted to EUR at the official average
+rate for the month in which the sale occurred.
+
+This approach follows the standard accounting practice for retrospective royalty
+statements: the ECB publishes rates on every business day, and averaging across
+the full calendar month gives the recognised **monthly reference rate**.
+
+If the Frankfurter API is unavailable (e.g. offline or for incomplete months),
+approximate fallback rates are used transparently and a warning is displayed.
+
+Fetching occurs automatically after files are processed and requires no user action.
+The **Refresh exchange rates** button in the Ingest view re-fetches both the current
+rates and the historical monthly averages for the active billing period.
+
 ---
 
 ## 6. Settings
