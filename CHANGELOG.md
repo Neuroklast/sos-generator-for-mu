@@ -7,6 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **`agents.md`** — Mandatory end-of-session protocol for AI agents. Documents the documentation steps (CHANGELOG, USER_MANUAL, BENUTZERHANDBUCH, README, LICENSE, ARCHITECTURE) that MUST be completed at the end of every agent session involving a behaviour or feature change.
+- **Artist Roster CSV Import** documented in `docs/USER_MANUAL.md` and `docs/BENUTZERHANDBUCH.md` (§5 File Upload / §5 Datei-Upload): uploading a CSV with a `name` column plus at least one companion field auto-imports artist master data directly from the Ingest view.
+
+### Changed
+- **LICENSE** — Copyright corrected from "GitHub, Inc." to "Neuroklast (c) 2024–2026".
+- **README.md** — Added *Artist Roster CSV Import* to the Features list; updated the License section with correct copyright and a link to the LICENSE file.
+- **docs/USER_MANUAL.md** — §5 adds the Artist Roster CSV Import subsection; §7 documents the two-tab layout (*Stammdaten* / *Abrechnungsregeln*); §6.1 documents the "Select all artists" checkbox in SplitFeeManager; §11 adds the *Negative Payouts* note (red bold display, SEPA exclusion).
+- **docs/BENUTZERHANDBUCH.md** — Same sections updated in German.
+
 ### Fixed
 - **Featured tracks now appear in release dropdown** when a featuring artist is selected as an owner in Track Revenue Assignments. The CSV Processor Worker now computes a `releaseTitlesByArtistIncFeaturing` map that includes releases where the artist appears as a featured artist (parsed via `extractFeaturedArtistsDetailed`). In `App.tsx` this is merged with the roster-based map into `releaseTitlesByArtistFull`, which is passed to both `TrackRevenueAssignmentManager` and `IgnoredEntriesManager`.
 - **Track title no longer cleared** when selecting an owner artist after having already chosen a release title in Track Revenue Assignments. The `handleOwnerArtistChange` callback no longer calls `setTrackTitle('')` — the user-first-title workflow makes this automatic clear unnecessary.
