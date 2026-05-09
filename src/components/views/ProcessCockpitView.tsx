@@ -27,6 +27,8 @@ import { CompilationFilterManager } from '@/features/rules/components/Compilatio
 import { ArtistMappingManager } from '@/features/rules/components/ArtistMappingManager'
 import { ManualRevenueManager } from '@/features/rules/components/ManualRevenueManager'
 import { ExpenseManager } from '@/features/rules/components/ExpenseManager'
+import { IgnoredEntriesManager } from '@/features/rules/components/IgnoredEntriesManager'
+import { TrackRevenueAssignmentManager } from '@/features/rules/components/TrackRevenueAssignmentManager'
 import { toast } from 'sonner'
 import { fmtEur, fmtPct, totalDeductions, fmtCurrencyEur } from '@/lib/formatters'
 import type {
@@ -37,6 +39,8 @@ import type {
   ExpenseEntry,
   GuestPayoutRule,
   ArtistCollabNode,
+  IgnoredEntry,
+  TrackRevenueAssignment,
 } from '@/lib/types'
 import type { CompilationDetectionResult } from '@/lib/compilation-heuristics'
 
@@ -91,6 +95,17 @@ interface ProcessCockpitViewProps {
   detectedPeriodEnd: string
   isProcessing: boolean
   navigate: (view: string) => void
+  // ── Moved from Settings ───────────────────────────────────────────────────
+  ignoredEntries: IgnoredEntry[]
+  handleAddIgnoredEntry: (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => void
+  handleRemoveIgnoredEntry: (id: string) => void
+  trackRevenueAssignments: TrackRevenueAssignment[]
+  handleAddTrackRevenueAssignment: (entry: Omit<TrackRevenueAssignment, 'id'>) => void
+  handleRemoveTrackRevenueAssignment: (id: string) => void
+  /** Artist → sorted release titles map (including featuring artists). */
+  releaseTitlesByArtist: Record<string, string[]>
+  /** Release title → sorted list of participating artists (main + featuring). */
+  artistsByReleaseTitle: Record<string, string[]>
 }
 
 export function ProcessCockpitView({
@@ -138,6 +153,14 @@ export function ProcessCockpitView({
   detectedPeriodEnd,
   isProcessing,
   navigate,
+  ignoredEntries,
+  handleAddIgnoredEntry,
+  handleRemoveIgnoredEntry,
+  trackRevenueAssignments,
+  handleAddTrackRevenueAssignment,
+  handleRemoveTrackRevenueAssignment,
+  releaseTitlesByArtist,
+  artistsByReleaseTitle,
 }: ProcessCockpitViewProps) {
   const totalPayout = revenues.reduce((sum, rev) => sum + rev.finalAmount, 0)
   const rosterGross = revenues.reduce((sum, rev) => sum + rev.totalRevenue, 0)
@@ -646,6 +669,29 @@ export function ProcessCockpitView({
               onRemoveExpense={handleRemoveExpense}
             />
           </div>
+        </Card>
+
+        {/* ─ Card 6: Ignored Entries — full width ─ */}
+        <Card className="col-span-12 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+          <IgnoredEntriesManager
+            entries={ignoredEntries}
+            artists={uniqueArtists}
+            releaseTitlesByArtist={releaseTitlesByArtist}
+            onAdd={handleAddIgnoredEntry}
+            onRemove={handleRemoveIgnoredEntry}
+          />
+        </Card>
+
+        {/* ─ Card 7: Track Revenue Assignments — full width ─ */}
+        <Card className="col-span-12 p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
+          <TrackRevenueAssignmentManager
+            assignments={trackRevenueAssignments}
+            releaseTitlesByArtist={releaseTitlesByArtist}
+            artistsByReleaseTitle={artistsByReleaseTitle}
+            artists={uniqueArtists}
+            onAdd={handleAddTrackRevenueAssignment}
+            onRemove={handleRemoveTrackRevenueAssignment}
+          />
         </Card>
       </div>
 

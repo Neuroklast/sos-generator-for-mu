@@ -7,7 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Featured tracks now appear in release dropdown** when a featuring artist is selected as an owner in Track Revenue Assignments. The CSV Processor Worker now computes a `releaseTitlesByArtistIncFeaturing` map that includes releases where the artist appears as a featured artist (parsed via `extractFeaturedArtistsDetailed`). In `App.tsx` this is merged with the roster-based map into `releaseTitlesByArtistFull`, which is passed to both `TrackRevenueAssignmentManager` and `IgnoredEntriesManager`.
+- **Track title no longer cleared** when selecting an owner artist after having already chosen a release title in Track Revenue Assignments. The `handleOwnerArtistChange` callback no longer calls `setTrackTitle('')` — the user-first-title workflow makes this automatic clear unnecessary.
+
 ### Added
+- **Auto-pre-fill owners from selected release** in Track Revenue Assignments: selecting a known release title in the form pre-populates the owner rows with the known participating artists (primary + all featured) at equal percentage splits, which the user can then adjust before saving.
+- **Track Revenue Assignments and Ignored Entries moved to Process Cockpit** — both panels are now accessible directly in the Cockpit view (after the Recoupable Expenses card) alongside Artist Mappings, Compilation Filters, and other pipeline rules, instead of being buried in Settings → Export & Rules.
+
 - **Multi-artist release revenue split**: `TrackRevenueAssignment` now supports an `owners` array, allowing release revenue to be distributed proportionally among multiple co-owner artists before the label split and expenses are applied. Existing single-owner assignments continue to work unchanged (backward-compatible).
 - **Historical monthly exchange rates for accurate EUR conversion.**
   The Vercel Edge Function (`api/exchange-rates.ts`) now accepts optional `start`

@@ -6,8 +6,6 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { WorkspaceManager, type WorkspaceBackup } from '@/features/core/components/WorkspaceManager'
 import { LabelBranding } from '@/features/core/components/LabelBranding'
-import { IgnoredEntriesManager } from '@/features/rules/components/IgnoredEntriesManager'
-import { TrackRevenueAssignmentManager } from '@/features/rules/components/TrackRevenueAssignmentManager'
 import { CompilationFilterManager } from '@/features/rules/components/CompilationFilterManager'
 import { CSVColumnMapper } from '@/features/ingest/components/CSVColumnMapper'
 import { DefaultSettings } from '@/features/core/components/DefaultSettings'
@@ -58,14 +56,8 @@ interface SettingsViewProps {
   periodEnd: string
 
   // ── Rules ────────────────────────────────────────────────────────────────
-  uniqueArtists: string[]
-  /** Map of artist name → release titles — used to filter release dropdowns by artist. */
-  releaseTitlesByArtist: Record<string, string[]>
-  handleAddIgnoredEntry: (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => void
-  handleRemoveIgnoredEntry: (id: string) => void
+  /** Kept for WorkspaceManager backup/restore — not used for UI panels (moved to Cockpit). */
   trackRevenueAssignments: TrackRevenueAssignment[]
-  handleAddTrackRevenueAssignment: (entry: Omit<TrackRevenueAssignment, 'id'>) => void
-  handleRemoveTrackRevenueAssignment: (id: string) => void
   excludePhysical: boolean
   setExcludePhysical: (checked: boolean) => void
   handleAddCompilationFilter: (filter: Omit<CompilationFilter, 'id'>) => void
@@ -112,13 +104,7 @@ export function SettingsView({
   totalFiles,
   periodStart,
   periodEnd,
-  uniqueArtists,
-  releaseTitlesByArtist,
-  handleAddIgnoredEntry,
-  handleRemoveIgnoredEntry,
   trackRevenueAssignments,
-  handleAddTrackRevenueAssignment,
-  handleRemoveTrackRevenueAssignment,
   excludePhysical,
   setExcludePhysical,
   handleAddCompilationFilter,
@@ -306,26 +292,6 @@ export function SettingsView({
             aliases={csvAliases}
             onAddAlias={handleAddAlias}
             onRemoveAlias={handleRemoveAlias}
-          />
-        </Card>
-
-        <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
-          <IgnoredEntriesManager
-            entries={ignoredEntries}
-            artists={uniqueArtists}
-            releaseTitlesByArtist={releaseTitlesByArtist}
-            onAdd={handleAddIgnoredEntry}
-            onRemove={handleRemoveIgnoredEntry}
-          />
-        </Card>
-
-        <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
-          <TrackRevenueAssignmentManager
-            assignments={trackRevenueAssignments}
-            releaseTitlesByArtist={releaseTitlesByArtist}
-            artists={uniqueArtists}
-            onAdd={handleAddTrackRevenueAssignment}
-            onRemove={handleRemoveTrackRevenueAssignment}
           />
         </Card>
 

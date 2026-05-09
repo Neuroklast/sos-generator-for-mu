@@ -45,6 +45,7 @@ import {
 } from '@/lib/data-processor'
 import { buildArtistCollabTree } from '@/lib/grouping'
 import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
+import { extractFeaturedArtistsDetailed } from '@/features/ingest/lib/csv-parser'
 import type {
   SafeProcessedArtistData,
   ArtistTreeNode,
@@ -124,6 +125,13 @@ export interface WorkerResult {
    *  roster filter or ignored-entry filter is applied. Used to display a
    *  "total revenue" figure that includes non-roster artists. */
   totalGrossAllData: number
+  /**
+   * Map of artist name → sorted, de-duplicated release titles, covering both
+   * primary (main) artists AND artists that appear as featured artists.
+   * Computed directly from raw transactions so that featuring artists who are
+   * not in the roster still have their releases listed.
+   */
+  releaseTitlesByArtistIncFeaturing: Record<string, string[]>
 }
 
 export type WorkerRequest =
@@ -159,6 +167,43 @@ const printfulRawCostsMap = new Map<string, PrintfulRawCost[]>()
 
 function post(msg: WorkerResponse): void {
   self.postMessage(msg)
+}
+
+/**
+ * Builds a map of artist name → sorted, de-duplicated release titles by
+ * iterating all raw transactions and expanding `original_artist` using
+ * `extractFeaturedArtistsDetailed`.  Both the primary artist and every
+ * featured artist are associated with the transaction's `release_title`,
+ * so featuring artists who are not in the main roster still appear.
+ *
+ * @param transactions - All raw sales transactions (before any roster filter).
+ * @returns Record mapping each artist (primary + featured) to their release titles.
+ */
+function buildReleaseTitlesByArtistIncFeaturing(
+  transactions: SalesTransaction[]
+): Record<string, string[]> {
+  const map: Record<string, Set<string>> = {}
+
+  for (const tx of transactions) {
+    const releaseTitle = tx.release_title
+    if (!releaseTitle) continue
+
+    const { primary, featured } = extractFeaturedArtistsDetailed(tx.original_artist)
+    const allArtists = primary ? [primary, ...featured] : featured
+
+    for (const artist of allArtists) {
+      const trimmed = artist.trim()
+      if (!trimmed) continue
+      if (!map[trimmed]) map[trimmed] = new Set<string>()
+      map[trimmed].add(releaseTitle)
+    }
+  }
+
+  const result: Record<string, string[]> = {}
+  for (const [artist, titles] of Object.entries(map)) {
+    result[artist] = Array.from(titles).sort((a, b) => a.localeCompare(b))
+  }
+  return result
 }
 
 function getAllTransactions(): SalesTransaction[] {
@@ -203,6 +248,7 @@ function runProcess(config: WorkerProcessConfig): void {
           periodStart: '',
           periodEnd: '',
           totalGrossAllData: 0,
+          releaseTitlesByArtistIncFeaturing: {},
         },
       })
       return
@@ -255,12 +301,16 @@ function runProcess(config: WorkerProcessConfig): void {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const processedData: SafeProcessedArtistData[] = artistData.map(({ transactions: _transactions, ...safe }) => safe)
 
+    // Build the featuring-aware release-titles map while we still have all
+    // raw transactions in scope (they must not be sent to the main thread).
+    const releaseTitlesByArtistIncFeaturing = buildReleaseTitlesByArtistIncFeaturing(allTransactions)
+
     // Raw transaction arrays and the full ProcessedArtistData (with .transactions)
     // are now only in local scope and will be garbage-collected once this
     // function returns — they are NEVER sent to the main thread.
     post({
       type: 'result',
-      data: { processedData, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData },
+      data: { processedData, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData, releaseTitlesByArtistIncFeaturing },
     })
   } catch (err) {
     post({

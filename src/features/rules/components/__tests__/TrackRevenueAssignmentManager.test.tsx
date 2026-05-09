@@ -48,6 +48,12 @@ const RELEASE_TITLES_BY_ARTIST: Record<string, string[]> = {
   'Artist B': ['Record X'],
 }
 
+const ARTISTS_BY_RELEASE_TITLE: Record<string, string[]> = {
+  'Album One': ['Artist A'],
+  'Album Two': ['Artist A'],
+  'Record X': ['Artist B'],
+}
+
 const ARTISTS = ['Artist A', 'Artist B']
 
 const makeAssignment = (overrides: Partial<TrackRevenueAssignment> = {}): TrackRevenueAssignment => ({
@@ -70,6 +76,7 @@ describe('TrackRevenueAssignmentManager', () => {
       <TrackRevenueAssignmentManager
         assignments={[]}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
@@ -84,6 +91,7 @@ describe('TrackRevenueAssignmentManager', () => {
       <TrackRevenueAssignmentManager
         assignments={[]}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
@@ -104,6 +112,7 @@ describe('TrackRevenueAssignmentManager', () => {
       <TrackRevenueAssignmentManager
         assignments={[]}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
@@ -125,33 +134,30 @@ describe('TrackRevenueAssignmentManager', () => {
     expect(screen.getByText('Record X')).toBeTruthy()
   })
 
-  test('clears track title when owner artist changes', async () => {
+  test('does not clear track title when owner artist changes', async () => {
     const user = userEvent.setup()
     render(
       <TrackRevenueAssignmentManager
         assignments={[]}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
       />
     )
 
-    // Select Artist A and Album One
-    const artistInput = screen.getByPlaceholderText(/search owner artist/i)
-    fireEvent.focus(artistInput)
-    await user.click(screen.getByText('Artist A'))
-
+    // Select Album One first (title-first workflow)
     const releaseInput = screen.getByPlaceholderText(/search release/i)
     fireEvent.focus(releaseInput)
     await user.click(screen.getByText('Album One'))
     expect((releaseInput as HTMLInputElement).value).toBe('Album One')
 
-    // Clear and switch to Artist B — release field should be cleared
-    await user.clear(artistInput)
+    // Selecting an owner artist should NOT clear the track title
+    const artistInput = screen.getByPlaceholderText(/search owner artist/i)
     fireEvent.focus(artistInput)
-    await user.click(screen.getByText('Artist B'))
-    expect((releaseInput as HTMLInputElement).value).toBe('')
+    await user.click(screen.getByText('Artist A'))
+    expect((releaseInput as HTMLInputElement).value).toBe('Album One')
   })
 
   test('calls onAdd with owners array and resets fields', async () => {
@@ -160,6 +166,7 @@ describe('TrackRevenueAssignmentManager', () => {
       <TrackRevenueAssignmentManager
         assignments={[]}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
@@ -191,6 +198,7 @@ describe('TrackRevenueAssignmentManager', () => {
       <TrackRevenueAssignmentManager
         assignments={[]}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
@@ -206,6 +214,7 @@ describe('TrackRevenueAssignmentManager', () => {
       <TrackRevenueAssignmentManager
         assignments={assignments}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
@@ -228,6 +237,7 @@ describe('TrackRevenueAssignmentManager', () => {
       <TrackRevenueAssignmentManager
         assignments={assignments}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
@@ -244,6 +254,7 @@ describe('TrackRevenueAssignmentManager', () => {
       <TrackRevenueAssignmentManager
         assignments={assignments}
         releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artistsByReleaseTitle={ARTISTS_BY_RELEASE_TITLE}
         artists={ARTISTS}
         onAdd={onAdd}
         onRemove={onRemove}
