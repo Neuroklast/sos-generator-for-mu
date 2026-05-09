@@ -1116,4 +1116,70 @@ describe('trackRevenueAssignments', () => {
     expect(result.find(r => r.artist === 'Artist B')?.grossRevenue).toBeCloseTo(90)
     expect(result.find(r => r.artist === 'Artist C')?.grossRevenue).toBeCloseTo(60)
   })
+
+  it('owner with 0% does not appear in any statement', () => {
+    const txs = [
+      makeTx({ original_artist: 'Various', release_title: 'Exclusive Track', net_revenue: 100 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{
+        id: '1',
+        trackTitle: 'Exclusive Track',
+        owners: [
+          { artist: 'Artist A', percentage: 100 },
+          { artist: 'Artist B', percentage: 0 },
+        ],
+      }],
+    })
+    // Artist A receives full revenue
+    const artistA = result.find(r => r.artist === 'Artist A')
+    expect(artistA?.grossRevenue).toBeCloseTo(100)
+    // Artist B must NOT appear in the results at all
+    const artistB = result.find(r => r.artist === 'Artist B')
+    expect(artistB).toBeUndefined()
+  })
+
+  it('total revenue is preserved when one owner has 100% and others have 0%', () => {
+    const txs = [
+      makeTx({ original_artist: 'Various', release_title: 'Solo Track', net_revenue: 250 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{
+        id: '1',
+        trackTitle: 'Solo Track',
+        owners: [
+          { artist: 'Main Artist', percentage: 100 },
+          { artist: 'Guest A',     percentage: 0 },
+          { artist: 'Guest B',     percentage: 0 },
+        ],
+      }],
+    })
+    expect(result).toHaveLength(1)
+    expect(result[0].artist).toBe('Main Artist')
+    expect(result[0].grossRevenue).toBeCloseTo(250)
+  })
+
+  it('filters owners with empty artist name even if percentage > 0', () => {
+    const txs = [
+      makeTx({ original_artist: 'Various', release_title: 'Track With Empty Owner', net_revenue: 100 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{
+        id: '1',
+        trackTitle: 'Track With Empty Owner',
+        owners: [
+          { artist: 'Real Artist', percentage: 70 },
+          { artist: '',            percentage: 30 },
+        ],
+      }],
+    })
+    // Only Real Artist should appear; empty-name owner is silently dropped
+    const realArtist = result.find(r => r.artist === 'Real Artist')
+    expect(realArtist?.grossRevenue).toBeCloseTo(70)
+    // No artist with empty name
+    expect(result.every(r => r.artist.trim() !== '')).toBe(true)
+  })
 })
