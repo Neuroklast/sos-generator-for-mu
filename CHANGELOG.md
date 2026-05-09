@@ -12,11 +12,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   All view components (`DashboardView`, `IngestView`, `ProcessCockpitView`,
   `AnalyticsView`, `ArtistsView`, `ReportsView`, `SettingsView`, `HistoryView`,
   `BrandingView`) are now loaded lazily via `React.lazy()`. Heavy dependencies
-  such as `recharts` (≈439 kB unminified), `jspdf`/`html2canvas`, and `jszip`
-  are only downloaded when the user first navigates to the relevant view, not on
-  initial page load. A skeleton `ViewLoadingFallback` is shown inside the Suspense
-  boundary during the one-time load. All type-only imports from view modules remain
-  static (they are erased at compile time by TypeScript and carry no runtime cost).
+  such as `recharts`, `jspdf`/`html2canvas`, and `jszip` are only downloaded when
+  the user first navigates to the relevant view, not on initial page load.
+  A skeleton `ViewLoadingFallback` is shown inside the Suspense boundary during
+  the one-time load. All type-only imports from view modules remain static (they
+  are erased at compile time by TypeScript and carry no runtime cost).
+  Note: a generic `createLazyView` helper was considered but rejected — it cannot
+  preserve per-component prop types under strict TypeScript without using `any`.
 
 - **`useDeferredValue` for the Finance Master Table search.**
   The `masterTableRevenues` memo now depends on a deferred copy of the `masterSearch`

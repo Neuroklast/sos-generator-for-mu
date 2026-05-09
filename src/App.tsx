@@ -102,6 +102,13 @@ const STORAGE_CLEAR_RELOAD_DELAY_MS = 1200
 // ── Code-split view chunks ─────────────────────────────────────────────────────
 // Each view is loaded on first navigation, keeping the initial JS bundle small.
 // Heavy dependencies (recharts, jspdf, xlsx) are only downloaded when needed.
+//
+// Why explicit .then(m => ({ default: m.X })) per view?
+// A generic createLazyView<M, K>(factory, name) helper is tempting, but TypeScript
+// cannot narrow M[K] to a concrete ComponentType within the generic function body
+// without `any` (banned in strict mode) or a lossy `React.ComponentType` cast that
+// erases per-component prop types. The explicit pattern keeps full prop-type safety
+// for every JSX call site and is statically analysable by Vite for code splitting.
 const DashboardView = lazy(() =>
   import('@/components/views/DashboardView').then(m => ({ default: m.DashboardView }))
 )
