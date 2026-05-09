@@ -1,19 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useKV } from '@/hooks/useLocalKV'
 import { useUndoStack } from '@/hooks/useUndoStack'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_APP_DEFAULTS, DEFAULT_EMAIL_CONFIG, DEFAULT_PDF_EXPORT_SETTINGS, DEFAULT_LABEL_INFO } from '@/lib/defaults'
-import { DashboardView } from '@/components/views/DashboardView'
-import { IngestView } from '@/components/views/IngestView'
-import { ProcessCockpitView, type MasterSortField, type MasterSortDir } from '@/components/views/ProcessCockpitView'
-import { AnalyticsView } from '@/components/views/AnalyticsView'
-import { ArtistsView } from '@/components/views/ArtistsView'
-import { ReportsView } from '@/components/views/ReportsView'
-import { SettingsView } from '@/components/views/SettingsView'
-import { HistoryView } from '@/components/views/HistoryView'
-import { BrandingView } from '@/components/views/BrandingView'
+// Type-only imports are erased at compile time — safe to keep as static imports
+// alongside the lazy runtime chunks below.
+import type { MasterSortField, MasterSortDir } from '@/components/views/ProcessCockpitView'
 import { SideNavItem, StepNavItem, MobileNavItem, type NavItem } from '@/components/nav/NavItems'
 import type { WorkspaceBackup } from '@/features/core/components/WorkspaceManager'
 import { useFileManager } from '@/hooks/useFileManager'
@@ -103,6 +98,55 @@ const pageVariants = {
 /** Accepts date strings in `YYYY-MM-DD` format (new) or `YYYY-MM` format (legacy) for period inputs. */
 const VALID_DATE_RE = /^\d{4}-\d{2}(-\d{2})?$/
 const STORAGE_CLEAR_RELOAD_DELAY_MS = 1200
+
+// ── Code-split view chunks ─────────────────────────────────────────────────────
+// Each view is loaded on first navigation, keeping the initial JS bundle small.
+// Heavy dependencies (recharts, jspdf, xlsx) are only downloaded when needed.
+//
+// Why explicit .then(m => ({ default: m.X })) per view?
+// A generic createLazyView<M, K>(factory, name) helper is tempting, but TypeScript
+// cannot narrow M[K] to a concrete ComponentType within the generic function body
+// without `any` (banned in strict mode) or a lossy `React.ComponentType` cast that
+// erases per-component prop types. The explicit pattern keeps full prop-type safety
+// for every JSX call site and is statically analysable by Vite for code splitting.
+const DashboardView = lazy(() =>
+  import('@/components/views/DashboardView').then(m => ({ default: m.DashboardView }))
+)
+const IngestView = lazy(() =>
+  import('@/components/views/IngestView').then(m => ({ default: m.IngestView }))
+)
+const ProcessCockpitView = lazy(() =>
+  import('@/components/views/ProcessCockpitView').then(m => ({ default: m.ProcessCockpitView }))
+)
+const AnalyticsView = lazy(() =>
+  import('@/components/views/AnalyticsView').then(m => ({ default: m.AnalyticsView }))
+)
+const ArtistsView = lazy(() =>
+  import('@/components/views/ArtistsView').then(m => ({ default: m.ArtistsView }))
+)
+const ReportsView = lazy(() =>
+  import('@/components/views/ReportsView').then(m => ({ default: m.ReportsView }))
+)
+const SettingsView = lazy(() =>
+  import('@/components/views/SettingsView').then(m => ({ default: m.SettingsView }))
+)
+const HistoryView = lazy(() =>
+  import('@/components/views/HistoryView').then(m => ({ default: m.HistoryView }))
+)
+const BrandingView = lazy(() =>
+  import('@/components/views/BrandingView').then(m => ({ default: m.BrandingView }))
+)
+
+/** Skeleton placeholder shown inside the Suspense boundary while a view chunk loads. */
+function ViewLoadingFallback() {
+  return (
+    <div className="space-y-4 p-4">
+      <Skeleton className="h-8 w-64 rounded-xl" />
+      <Skeleton className="h-48 w-full rounded-2xl" />
+      <Skeleton className="h-48 w-full rounded-2xl" />
+    </div>
+  )
+}
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 
@@ -784,6 +828,9 @@ function App() {
 
   // ── Finance Master Table search + sort ─────────────────────────────────────
   const [masterSearch, setMasterSearch] = useState('')
+  // Defer the search string so that typing stays at 60 fps even for large
+  // revenue arrays — React schedules the expensive filter/sort as low-priority.
+  const deferredSearch = useDeferredValue(masterSearch)
   const [masterSortField, setMasterSortField] = useState<MasterSortField>('artist')
   const [masterSortDir, setMasterSortDir] = useState<MasterSortDir>('asc')
 
@@ -799,7 +846,7 @@ function App() {
   }, [])
 
   const masterTableRevenues = useMemo(() => {
-    const q = masterSearch.toLowerCase()
+    const q = deferredSearch.toLowerCase()
     const filtered = q ? revenues.filter(r => r.artist.toLowerCase().includes(q)) : revenues
     return [...filtered].sort((a, b) => {
       let diff = 0
@@ -809,7 +856,7 @@ function App() {
       else if (masterSortField === 'finalAmount') diff = a.finalAmount - b.finalAmount
       return masterSortDir === 'asc' ? diff : -diff
     })
-  }, [revenues, masterSearch, masterSortField, masterSortDir])
+  }, [revenues, deferredSearch, masterSortField, masterSortDir])
 
   // UX 4: 4 core mobile nav items. Constructed from named ids instead of slice()
   // so items remain correct even if the NAV_ITEMS order changes.
@@ -1027,6 +1074,7 @@ function App() {
               animate="animate"
               exit="exit"
             >
+              <Suspense fallback={<ViewLoadingFallback />}>
               {/* ── Dashboard ─── */}
               {activeView === 'dashboard' && (
                 <DashboardView
@@ -1245,6 +1293,7 @@ function App() {
                   onUpdate={setLabelInfo}
                 />
               )}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </main>

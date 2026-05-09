@@ -6,6 +6,49 @@ following the ADR (Architecture Decision Record) pattern:
 
 ---
 
+## ADR-005 · Route-Level Code Splitting (React.lazy + Suspense)
+
+**Date:** 2026-05-09
+
+### Context
+
+All nine application views were statically imported at the top of `App.tsx`.
+Vite therefore included every view — and their heavy transitive dependencies
+(`recharts`, `jspdf`, `html2canvas`, `jszip`, `xlsx`) — in the initial JavaScript
+bundle. This increased Time to Interactive because the browser had to download and
+parse code for views the user had not yet visited.
+
+### Decision
+
+Convert every view import to a `React.lazy()` factory that resolves to the named
+export via `.then(m => ({ default: m.ViewName }))`. A `<Suspense>` boundary with
+a skeleton fallback (`ViewLoadingFallback`) is placed inside the `<motion.div>`
+animation wrapper so:
+1. The page-transition animation fires immediately on navigation.
+2. The skeleton is shown inside the animated container during the one-time chunk
+   fetch (subsequent visits use the cached chunk — no skeleton reappears).
+
+Type-only imports from lazy modules (`MasterSortField`, `MasterSortDir`) are kept
+as static `import type` statements; TypeScript erases these at compile time so they
+carry no runtime cost and do not create a synchronous chunk dependency.
+
+### Consequences
+
+**Positive:**
+- `AnalyticsView` (≈439 kB, includes `recharts`) is deferred until first visit.
+- `IngestView` (≈128 kB) and `SettingsView` (≈99 kB) similarly deferred.
+- Vite emits a separate named chunk per view, visible in the build output.
+- No changes to existing view component APIs or test files.
+
+**Negative / Trade-offs:**
+- First navigation to a not-yet-cached view incurs a ~100–500 ms network round
+  trip to fetch the chunk (mitigated by the skeleton fallback).
+- The main bundle (`index-*.js`) still contains all shared UI primitives, hooks,
+  and utilities; further splitting would require manual `rollupOptions.manualChunks`
+  configuration.
+
+---
+
 ## ADR-001 · God-Component Decomposition (App.tsx)
 
 **Date:** 2026-03-25
