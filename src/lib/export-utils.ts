@@ -23,6 +23,10 @@ export function formatCurrency(value: number): string {
   }).format(value)
 }
 
+function safeFinite(value: number): number {
+  return isFinite(value) ? value : 0
+}
+
 /**
  * Returns true when a release row matches any active compilation filter.
  * Matches by filter type, mirroring the core processing logic.
@@ -179,6 +183,10 @@ function buildDigitalSplitLabel(
 
   const activeOther = activeSources.find(source => source.label === 'Other')
   if (activeOther) {
+    // Compact-label optimization:
+    // when "Other" is active and only one active source deviates from that base,
+    // render "base + exception" instead of naming all buckets.
+    // Example: × Digital Split (60%, Bandcamp 50%)
     const deviationsFromOther = activeSources.filter(
       source => source.label !== 'Other' && source.percentage !== activeOther.percentage
     )
@@ -444,7 +452,7 @@ function buildPDF(
   const hasStreamDownloadDetail = safeStreamRevenue > 0 || safeDownloadRevenue > 0
 
   // ── Per-bucket split application ────────────────────────────────────────────
-  const digitalAfterFeeDisplay = isFinite(artistData.digitalRevenueAfterFee) ? artistData.digitalRevenueAfterFee : 0
+  const digitalAfterFeeDisplay = safeFinite(artistData.digitalRevenueAfterFee)
   const physRelAfterFeeDisplay = artistData.physicalReleasesRevenueAfterFee
   const darkmerchAfterFeeDisplay = artistData.darkmerchRevenueAfterFee
   const digitalSplitPct = artistData.digitalSplitPercentage
@@ -455,9 +463,9 @@ function buildPDF(
 
   const waterfallRows: string[][] = []
 
-  const believeAfterFee = isFinite(artistData.believeDigitalRevenueAfterFee) ? artistData.believeDigitalRevenueAfterFee : 0
-  const bandcampAfterFee = isFinite(artistData.bandcampDigitalRevenueAfterFee) ? artistData.bandcampDigitalRevenueAfterFee : 0
-  const otherDigitalAfterFee = isFinite(artistData.otherDigitalRevenueAfterFee) ? artistData.otherDigitalRevenueAfterFee : 0
+  const believeAfterFee = safeFinite(artistData.believeDigitalRevenueAfterFee)
+  const bandcampAfterFee = safeFinite(artistData.bandcampDigitalRevenueAfterFee)
+  const otherDigitalAfterFee = safeFinite(artistData.otherDigitalRevenueAfterFee)
 
   // ── Bucket share values (after-fee revenue × per-bucket split percentages) ──
   const digitalShare =
@@ -859,6 +867,8 @@ function buildExcel(
 ): Blob {
   const workbook = XLSX.utils.book_new()
   const digitalFallbackSplit = artistData.digitalSplitPercentage
+  // Keep source rows visible when they are economically relevant (have revenue),
+  // even if the percentage currently matches the fallback.
   const includeBelieveDigitalSplit =
     artistData.believeSplitPercentage !== digitalFallbackSplit || artistData.believeRevenue > 0
   const includeBandcampDigitalSplit =
