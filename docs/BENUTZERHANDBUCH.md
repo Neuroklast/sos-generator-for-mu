@@ -451,13 +451,13 @@ Einzelne Künstler oder spezifische Releases können vollständig von der Abrech
 - **Ganzer Künstler ignorieren:** Alle Transaktionen des Künstlers werden aus der Abrechnung entfernt.
 - **Einzelnes Release ignorieren:** Nur Transaktionen eines bestimmten Release-Titels werden entfernt.
 
-**Eintrag ignorieren:**
-1. Gehe zu **Artists** oder **Process Cockpit**.
-2. Klicke neben dem Künstler/Release auf das Ignore-Symbol (🚫).
-3. (Optional) Trage eine Notiz ein, warum der Eintrag ignoriert wird.
-4. Speichere.
+**Eintrag hinzufügen (Einstellungen → Export & Regeln → Ignorierte Einträge):**
+1. Wähle im **Künstler**-Dropdown den gewünschten Künstler aus. Die Volltextsuche filtert die Auswahlliste sofort beim Tippen.
+2. *(Optional)* Wähle im **Release-Titel**-Dropdown einen bestimmten Release. Die Liste wird automatisch auf Releases des gewählten Künstlers (inkl. Kollaborationen und Features) eingeschränkt. Lässt du dieses Feld leer, werden **alle** Releases dieses Künstlers ignoriert.
+3. *(Optional)* Trage eine Notiz ein, warum der Eintrag ignoriert wird.
+4. Klicke auf **Ignorierten Eintrag hinzufügen**.
 
-Ignorierte Einträge erscheinen in einer separaten Liste unter **Ignored Entries** und können jederzeit wieder aktiviert werden.
+Ignorierte Einträge erscheinen in einer separaten Liste und können jederzeit durch Klick auf das Papierkorb-Symbol entfernt werden.
 
 ---
 
@@ -466,7 +466,7 @@ Ignorierte Einträge erscheinen in einer separaten Liste unter **Ignored Entries
 Mit **Track-Revenue-Zuweisungen** kannst du die gesamte Revenue eines bestimmten Tracks oder Releases ausschließlich einem einzigen Künstler zuweisen. Das ist besonders nützlich für Kollaborations-Tracks (z. B. ein Featured-Artist-Track, der vollständig dem Hauptkünstler zugerechnet werden soll) oder für Releases, bei denen die CSV einen kombinierten Künstlernamen enthält.
 
 **Funktionsweise:**
-- Du definierst einen **Track-Titel (Teilstring, Groß-/Kleinschreibung egal)** und den **berechtigten Künstler**.
+- Du definierst den **berechtigten Künstler** und einen **Track-Titel (Teilstring, Groß-/Kleinschreibung egal)**.
 - Jede Transaktion, deren `release_title` oder `track_title` den Teilstring enthält, wird dem berechtigten Künstler zugeordnet – bevor der Roster-Filter oder die Split-Berechnung greift.
 - Der Track erscheint **ausschließlich** im Statement und im PDF des berechtigten Künstlers. Im Statement aller anderen Künstler ist er vollständig unsichtbar.
 - Bei mehreren passenden Regeln gewinnt die erste.
@@ -474,8 +474,8 @@ Mit **Track-Revenue-Zuweisungen** kannst du die gesamte Revenue eines bestimmten
 **Zuweisung hinzufügen:**
 1. Gehe zu **Einstellungen → Export & Regeln**.
 2. Scrolle zu **Track-Revenue-Zuweisungen**.
-3. Trage im Feld **Track-/Release-Titel** einen Suchbegriff ein oder wähle einen Release aus dem Dropdown aus. Das Dropdown wird aus allen Releases der aktuell geladenen CSV-Daten befüllt; freie Texteingabe ist ebenfalls möglich.
-4. Wähle oder tippe im Feld **Berechtigter Künstler** den gewünschten Künstler.
+3. Wähle im **Berechtigter Künstler**-Dropdown den gewünschten Künstler per Volltextsuche aus.
+4. Wähle im **Release-/Track-Titel**-Dropdown den gewünschten Release. Sobald ein Künstler ausgewählt ist, zeigt die Liste nur noch Releases dieses Künstlers (inkl. Kollaborationen und Features). Ohne Künstlerauswahl werden alle bekannten Releases angezeigt. Freie Texteingabe ist ebenfalls möglich.
 5. Klicke auf **Zuweisung hinzufügen**.
 
 **Zuweisung entfernen:** Fahre über den Eintrag und klicke auf das Papierkorb-Symbol.

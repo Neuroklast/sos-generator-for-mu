@@ -1,16 +1,24 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18next from 'i18next'
 import { EyeSlash, Plus, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SearchableCombobox } from '@/components/ui/combobox'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { getAllReleases } from '@/lib/release-utils'
 import type { IgnoredEntry } from '@/lib/types'
 
 interface IgnoredEntriesManagerProps {
   entries: IgnoredEntry[]
   artists: string[]
+  /**
+   * Map of artist name → release titles that belong to that artist.
+   * When an artist is selected the release dropdown is restricted to their
+   * releases; when no artist is selected all releases are shown.
+   */
+  releaseTitlesByArtist: Record<string, string[]>
   onAdd: (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => void
   onRemove: (id: string) => void
 }
@@ -18,6 +26,7 @@ interface IgnoredEntriesManagerProps {
 export function IgnoredEntriesManager({
   entries,
   artists,
+  releaseTitlesByArtist,
   onAdd,
   onRemove,
 }: IgnoredEntriesManagerProps) {
@@ -25,6 +34,22 @@ export function IgnoredEntriesManager({
   const [artist, setArtist] = useState('')
   const [releaseTitle, setReleaseTitle] = useState('')
   const [note, setNote] = useState('')
+
+  /** All unique release titles across all artists — fallback when no artist is selected. */
+  const allReleases = useMemo(() => getAllReleases(releaseTitlesByArtist), [releaseTitlesByArtist])
+
+  /** Releases visible in the dropdown — filtered to the selected artist when set. */
+  const releaseOptions = useMemo<string[]>(() => {
+    if (!artist.trim()) return allReleases
+    return releaseTitlesByArtist[artist] ?? allReleases
+  }, [artist, releaseTitlesByArtist, allReleases])
+
+  const handleArtistChange = (value: string) => {
+    setArtist(value)
+    // Clear the release title whenever the artist changes so the user is not
+    // left with a release that belongs to the previous artist.
+    setReleaseTitle('')
+  }
 
   const handleAdd = useCallback(() => {
     const a = artist.trim()
@@ -60,23 +85,23 @@ export function IgnoredEntriesManager({
       <div className="space-y-2 mb-5">
         <div className="flex gap-2">
           <div className="flex-1">
-            <Input
-              list="ignored-artists-list"
-              placeholder={t('ignoredEntry.artist')}
+            <SearchableCombobox
               value={artist}
-              onChange={e => setArtist(e.target.value)}
-              className="h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
+              onChange={handleArtistChange}
+              options={artists}
+              placeholder={t('ignoredEntry.artistPlaceholder')}
+              emptyText={t('ignoredEntry.noArtistFound')}
             />
-            <datalist id="ignored-artists-list">
-              {artists.map(a => <option key={a} value={a} />)}
-            </datalist>
           </div>
-          <Input
-            placeholder={t('ignoredEntry.releaseTitle')}
-            value={releaseTitle}
-            onChange={e => setReleaseTitle(e.target.value)}
-            className="h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60 flex-1"
-          />
+          <div className="flex-1">
+            <SearchableCombobox
+              value={releaseTitle}
+              onChange={setReleaseTitle}
+              options={releaseOptions}
+              placeholder={t('ignoredEntry.releasePlaceholder')}
+              emptyText={t('ignoredEntry.noReleaseFound')}
+            />
+          </div>
         </div>
         <div className="flex gap-2">
           <Input

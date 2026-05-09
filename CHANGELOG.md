@@ -8,6 +8,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Searchable combobox dropdowns for Track Revenue Assignments and Ignored Entries.**
+  Both the *Track Revenue Assignments* and *Ignored Entries* panels in Settings →
+  Export & Rules now use full-text searchable combobox dropdowns (Popover + Command)
+  instead of plain text inputs with `<datalist>` suggestions.
+  - **Track Revenue Assignments**: selecting the owner artist first restricts the
+    release-title dropdown to only the releases associated with that artist
+    (including collabs and features); when no artist is selected all known releases
+    are shown.
+  - **Ignored Entries**: same artist-first filter for the release dropdown;
+    switching the artist clears the previously selected release to avoid stale cross-
+    artist values.
+  - Shared `SearchableCombobox` UI component (`src/components/ui/combobox.tsx`)
+    extracted for DRY reuse across both managers.
+  - New i18n keys added for placeholder / empty-state text in both EN and DE locales.
+
 - **Track Revenue Assignments** — new rule type in Settings → Export & Rules.
   Allows routing all revenue from a specific track or release exclusively to one
   designated owner artist. Any transaction whose `release_title` or `track_title`
