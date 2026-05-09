@@ -475,13 +475,15 @@ Individual artists or specific releases can be completely excluded from billing 
 - **Ignore entire artist:** All transactions for the artist are removed from billing.
 - **Ignore single release:** Only transactions for a specific release title are removed.
 
-**Adding an ignored entry (Settings → Export & Rules → Ignored Entries):**
+**Adding an ignored entry (Process Cockpit → Ignored Entries):**
 1. In the **Artist** dropdown, start typing to search and select the artist you want to ignore. The dropdown shows all artists found in the loaded data.
 2. *(Optional)* In the **Release Title** dropdown, select a specific release to ignore. The dropdown is automatically filtered to releases that belong to the selected artist. Leave blank to ignore **all** releases for that artist.
 3. *(Optional)* Enter a free-text note explaining why the entry is ignored.
 4. Click **Add Ignored Entry**.
 
 Ignored entries appear in a separate list and can be removed at any time by hovering and clicking the trash icon.
+
+> **Note:** The Ignored Entries panel is located in the **Process Cockpit** view, after the Recoupable Expenses card.
 
 ---
 
@@ -496,6 +498,7 @@ Ignored entries appear in a separate list and can be removed at any time by hove
 - When there are **multiple owners**, the transaction is cloned and scaled proportionally per owner. Each owner's share of the revenue is then processed independently through the label split and expenses pipeline.
 - The first matching rule wins when multiple rules could apply to the same transaction.
 - **Invariant:** The percentage shares of all owners in one rule must sum to exactly 100%.
+- The release dropdown **includes releases for both primary AND featuring appearances** of the selected owner artist. This means that if "Artist B" is a featuring artist on "Artist A feat. Artist B – Album X", selecting Artist B as owner will still show that release in the dropdown.
 
 **Multi-owner `owners` array (new):**
 
@@ -508,18 +511,19 @@ The revenue is split proportionally (60% → Artist A, 40% → Artist B) before 
 
 **Legacy single-owner assignments** created before this feature are automatically treated as if `owners: [{ artist: ownerArtist, percentage: 100 }]` — no migration required.
 
-**Adding a multi-owner assignment:**
-1. Go to **Settings → Export & Rules**.
-2. Scroll to **Track Revenue Assignments**.
-3. In the **Release / track title** field, select or type the release title. The dropdown is pre-filtered to the first selected owner's releases.
-4. In the first **owner row**, select the artist and set their percentage share (e.g. 60).
-5. Click **Add owner** to append additional owner rows. Set each artist and their percentage.
+**Adding a multi-owner assignment (Process Cockpit → Track Revenue Assignments):**
+1. Go to the **Process Cockpit**.
+2. Scroll to the **Track Revenue Assignments** card.
+3. In the **Release / track title** field, select or type the release title. When you select a known release from the dropdown, the owner rows are **automatically pre-populated** with all participating artists (primary + featuring) at equal percentage splits.
+4. Adjust the artists and percentages in the owner rows as needed.
+5. To add more owners, click **Add owner** and fill in the additional rows.
 6. Watch the **percentage sum indicator** — it turns green when the total reaches exactly 100%.
 7. Click **Add Assignment** (enabled only when the sum is 100% and a release title is set).
 
 **Removing an assignment:** Hover over a rule in the list and click the trash icon.
 
-> **Note:** The revenue split happens at the data-pipeline level, before the label split and expenses. Each co-owner's share is then independently subject to their configured split fee and expense rules. The display in the entry list shows the proportional shares: e.g. `"Artist A 60% / Artist B 40%"`.
+> **Note:** The Track Revenue Assignments panel is located in the **Process Cockpit** view, after the Ignored Entries card.
+> The revenue split happens at the data-pipeline level, before the label split and expenses. Each co-owner's share is then independently subject to their configured split fee and expense rules. The display in the entry list shows the proportional shares: e.g. `"Artist A 60% / Artist B 40%"`.
 
 ---
 

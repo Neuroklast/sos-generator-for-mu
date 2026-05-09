@@ -262,6 +262,7 @@ function App() {
     detectedPeriodEnd,
     autoMappings,
     totalGrossAllData,
+    releaseTitlesByArtistIncFeaturing,
   } = useCSVProcessor(
     believeManager.files,
     bandcampManager.files,
@@ -339,6 +340,40 @@ function App() {
     ),
     [processedData]
   )
+
+  /**
+   * Merged release-titles map that includes both roster artists (from
+   * `processedData`) and featuring artists (from the worker's raw-transaction
+   * scan).  This ensures that when a featuring artist is selected as owner in
+   * the Track Revenue Assignments form, their releases appear in the dropdown.
+   */
+  const releaseTitlesByArtistFull = useMemo<Record<string, string[]>>(() => {
+    const merged: Record<string, string[]> = { ...releaseTitlesByArtist }
+    for (const [artist, titles] of Object.entries(releaseTitlesByArtistIncFeaturing)) {
+      const existing = new Set(merged[artist] ?? [])
+      for (const t of titles) existing.add(t)
+      merged[artist] = Array.from(existing).sort()
+    }
+    return merged
+  }, [releaseTitlesByArtist, releaseTitlesByArtistIncFeaturing])
+
+  /**
+   * Inverse of `releaseTitlesByArtistFull`: release title → sorted list of
+   * artists (primary + featured) that appear on that release.  Used to
+   * pre-populate the owner rows when a known release title is selected in
+   * the Track Revenue Assignments form.
+   */
+  const artistsByReleaseTitle = useMemo<Record<string, string[]>>(() => {
+    const map: Record<string, string[]> = {}
+    for (const [artist, titles] of Object.entries(releaseTitlesByArtistFull)) {
+      for (const title of titles) {
+        if (!map[title]) map[title] = []
+        if (!map[title].includes(artist)) map[title].push(artist)
+      }
+    }
+    for (const title of Object.keys(map)) map[title].sort()
+    return map
+  }, [releaseTitlesByArtistFull])
 
   // All unique release titles across all artists — de-duplicated and sorted for
   // the compilation exclusion dropdown picker.
@@ -1226,6 +1261,14 @@ function App() {
                   detectedPeriodEnd={detectedPeriodEnd}
                   isProcessing={isProcessing}
                   navigate={navigate}
+                  ignoredEntries={stableIgnoredEntries}
+                  handleAddIgnoredEntry={handleAddIgnoredEntry}
+                  handleRemoveIgnoredEntry={handleRemoveIgnoredEntry}
+                  trackRevenueAssignments={stableTrackRevenueAssignments}
+                  handleAddTrackRevenueAssignment={handleAddTrackRevenueAssignment}
+                  handleRemoveTrackRevenueAssignment={handleRemoveTrackRevenueAssignment}
+                  releaseTitlesByArtist={releaseTitlesByArtistFull}
+                  artistsByReleaseTitle={artistsByReleaseTitle}
                 />
               )}
 
@@ -1240,15 +1283,9 @@ function App() {
                   labelInfo={labelInfo ?? { name: '', address: '' }}
                   labelArtists={stableLabelArtists}
                   ignoredEntries={stableIgnoredEntries}
+                  trackRevenueAssignments={stableTrackRevenueAssignments}
                   onImport={handleWorkspaceImport}
                   onUpdateLabelInfo={setLabelInfo}
-                  uniqueArtists={uniqueArtists}
-                  releaseTitlesByArtist={releaseTitlesByArtist}
-                  handleAddIgnoredEntry={handleAddIgnoredEntry}
-                  handleRemoveIgnoredEntry={handleRemoveIgnoredEntry}
-                  trackRevenueAssignments={stableTrackRevenueAssignments}
-                  handleAddTrackRevenueAssignment={handleAddTrackRevenueAssignment}
-                  handleRemoveTrackRevenueAssignment={handleRemoveTrackRevenueAssignment}
                   clearConfirmOpen={clearConfirmOpen}
                   setClearConfirmOpen={setClearConfirmOpen}
                   clearAllStorageConfirmOpen={clearAllStorageConfirmOpen}

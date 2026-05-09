@@ -17,6 +17,12 @@ interface TrackRevenueAssignmentManagerProps {
    * and to restrict it to the selected artist's releases.
    */
   releaseTitlesByArtist: Record<string, string[]>
+  /**
+   * Inverse map of release title → sorted list of artists (primary + featured)
+   * that participate in that release.  When the user selects a known release
+   * title the owner rows are pre-populated with equal percentage splits.
+   */
+  artistsByReleaseTitle: Record<string, string[]>
   /** All known artist names — used to populate the owner artist dropdown. */
   artists: string[]
   onAdd: (entry: Omit<TrackRevenueAssignment, 'id'>) => void
@@ -52,6 +58,7 @@ function AssignmentLabel({ entry }: { entry: TrackRevenueAssignment }) {
 export function TrackRevenueAssignmentManager({
   assignments,
   releaseTitlesByArtist,
+  artistsByReleaseTitle,
   artists,
   onAdd,
   onRemove,
@@ -97,14 +104,35 @@ export function TrackRevenueAssignmentManager({
   const isFormValid = trackTitle.trim() !== '' && hasAnyArtist && isSumValid
 
   /**
-   * Handles first-owner artist selection.  Clears the track-title field
-   * whenever the first artist changes so the user is not left with a release
-   * from a different artist.
+   * Handles first-owner artist selection.  No longer clears the track-title
+   * field — the user picks the title first, then selects owners below.  The
+   * `releaseOptions` memo re-filters on artist change, so any stale release
+   * simply falls out of the suggestion list while remaining valid as free text.
    */
   const handleOwnerArtistChange = useCallback((index: number, value: string) => {
-    if (index === 0) setTrackTitle('')
     setOwners(prev => prev.map((o, i) => i === index ? { ...o, artist: value } : o))
   }, [])
+
+  /**
+   * Handles release/track title selection.  When the chosen title is a known
+   * release (i.e. it appears in `artistsByReleaseTitle`), the owner rows are
+   * pre-populated with all participating artists at equal percentage splits.
+   * The user can then adjust the percentages before submitting.
+   */
+  const handleTrackTitleChange = useCallback((newTitle: string) => {
+    setTrackTitle(newTitle)
+    const knownArtists = artistsByReleaseTitle[newTitle]
+    if (knownArtists && knownArtists.length > 0) {
+      const equalShare = Math.round(100 / knownArtists.length)
+      const remainder = 100 - equalShare * knownArtists.length
+      const newOwners: OwnerDraft[] = knownArtists.map((artist, idx) => ({
+        artist,
+        percentage: idx === knownArtists.length - 1 ? equalShare + remainder : equalShare,
+      }))
+      setOwners(newOwners)
+    }
+    // If the title is free-text / not in the map, leave owners unchanged
+  }, [artistsByReleaseTitle])
 
   const handleOwnerPercentageChange = useCallback((index: number, value: number) => {
     setOwners(prev => prev.map((o, i) => i === index ? { ...o, percentage: value } : o))
@@ -162,7 +190,7 @@ export function TrackRevenueAssignmentManager({
         {/* Release / track title */}
         <SearchableCombobox
           value={trackTitle}
-          onChange={setTrackTitle}
+          onChange={handleTrackTitleChange}
           options={releaseOptions}
           placeholder={t('trackRevenueAssignment.trackTitlePlaceholder')}
           emptyText={t('trackRevenueAssignment.noReleaseFound')}

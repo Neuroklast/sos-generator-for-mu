@@ -478,13 +478,15 @@ Einzelne Künstler oder spezifische Releases können vollständig von der Abrech
 - **Ganzer Künstler ignorieren:** Alle Transaktionen des Künstlers werden aus der Abrechnung entfernt.
 - **Einzelnes Release ignorieren:** Nur Transaktionen eines bestimmten Release-Titels werden entfernt.
 
-**Eintrag hinzufügen (Einstellungen → Export & Regeln → Ignorierte Einträge):**
+**Eintrag hinzufügen (Process Cockpit → Ignorierte Einträge):**
 1. Wähle im **Künstler**-Dropdown den gewünschten Künstler aus. Die Volltextsuche filtert die Auswahlliste sofort beim Tippen.
 2. *(Optional)* Wähle im **Release-Titel**-Dropdown einen bestimmten Release. Die Liste wird automatisch auf Releases des gewählten Künstlers (inkl. Kollaborationen und Features) eingeschränkt. Lässt du dieses Feld leer, werden **alle** Releases dieses Künstlers ignoriert.
 3. *(Optional)* Trage eine Notiz ein, warum der Eintrag ignoriert wird.
 4. Klicke auf **Ignorierten Eintrag hinzufügen**.
 
 Ignorierte Einträge erscheinen in einer separaten Liste und können jederzeit durch Klick auf das Papierkorb-Symbol entfernt werden.
+
+> **Hinweis:** Der Panel „Ignorierte Einträge" befindet sich im **Process Cockpit**, nach der Karte „Wiedereinsparbare Kosten".
 
 ---
 
@@ -499,6 +501,7 @@ Mit **Track-Revenue-Zuweisungen** kannst du die Revenue eines bestimmten Tracks 
 - Bei **mehreren Eigentümern** wird die Transaktion geklont und anteilig skaliert. Jeder Eigentümer-Anteil durchläuft dann unabhängig die Label-Split- und Kosten-Pipeline.
 - Bei mehreren passenden Regeln gewinnt die erste.
 - **Invariante:** Die Prozentanteile aller Eigentümer einer Regel müssen zusammen genau 100% ergeben.
+- Das Release-Dropdown zeigt Releases für **Haupt- UND Featured-Auftritte** des gewählten Eigentümer-Künstlers. Wenn z. B. „Künstler B" als Featuring-Künstler in „Künstler A feat. Künstler B – Album X" erscheint, wird dieses Release ebenfalls im Dropdown angezeigt, wenn Künstler B als Eigentümer ausgewählt wird.
 
 **Mehrere Eigentümer (`owners`-Array, neu):**
 
@@ -511,18 +514,19 @@ Die Revenue wird anteilig aufgeteilt (60% → Künstler A, 40% → Künstler B),
 
 **Ältere Einzeleigentümer-Zuweisungen** (vor diesem Feature erstellt) werden automatisch wie `owners: [{ artist: ownerArtist, percentage: 100 }]` behandelt – keine Migration erforderlich.
 
-**Mehrere Eigentümer hinzufügen:**
-1. Gehe zu **Einstellungen → Export & Regeln**.
-2. Scrolle zu **Track-Revenue-Zuweisungen**.
-3. Wähle im Feld **Release- / Track-Titel** den gewünschten Release. Das Dropdown wird auf Releases des ersten ausgewählten Eigentümers vorgefiltert.
-4. Wähle in der ersten **Eigentümer-Zeile** den Künstler und gib seinen Prozentanteil ein (z. B. 60).
-5. Klicke auf **Beteiligten hinzufügen**, um weitere Eigentümer-Zeilen anzuhängen. Gib für jeden Künstler den entsprechenden Anteil ein.
+**Mehrere Eigentümer hinzufügen (Process Cockpit → Track-Revenue-Zuweisungen):**
+1. Gehe zum **Process Cockpit**.
+2. Scrolle zur Karte **Track-Revenue-Zuweisungen**.
+3. Wähle im Feld **Release- / Track-Titel** den gewünschten Release. Wenn du einen bekannten Release aus dem Dropdown wählst, werden die Eigentümer-Zeilen **automatisch vorbelegt** — mit allen beteiligten Künstlern (Haupt- und Featuring-Künstler) zu gleichen Anteilen.
+4. Passe die Künstler und Prozentsätze in den Eigentümer-Zeilen nach Bedarf an.
+5. Klicke auf **Beteiligten hinzufügen**, um weitere Eigentümer-Zeilen anzuhängen.
 6. Beachte den **Prozentzahl-Indikator** — er wird grün, sobald die Summe genau 100% ergibt.
 7. Klicke auf **Zuweisung hinzufügen** (nur aktiv, wenn die Summe 100% beträgt und ein Release-Titel gesetzt ist).
 
 **Zuweisung entfernen:** Fahre über den Eintrag und klicke auf das Papierkorb-Symbol.
 
-> **Hinweis:** Die Revenue-Aufteilung erfolgt auf Pipeline-Ebene, vor Label-Split und Kosten. Jeder Miteigentümer-Anteil unterliegt dann unabhängig seinen konfigurierten Split-Fees und Kostenregeln. Die Anzeige in der Listenansicht zeigt die Anteile: z. B. `„Künstler A 60% / Künstler B 40%"`.
+> **Hinweis:** Der Panel „Track-Revenue-Zuweisungen" befindet sich im **Process Cockpit**, nach der Karte „Ignorierte Einträge".
+> Die Revenue-Aufteilung erfolgt auf Pipeline-Ebene, vor Label-Split und Kosten. Jeder Miteigentümer-Anteil unterliegt dann unabhängig seinen konfigurierten Split-Fees und Kostenregeln. Die Anzeige in der Listenansicht zeigt die Anteile: z. B. `„Künstler A 60% / Künstler B 40%"`.
 
 ---
 
