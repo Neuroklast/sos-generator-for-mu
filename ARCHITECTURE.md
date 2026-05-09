@@ -201,7 +201,8 @@ Per-artist settings always win over label-wide defaults. Per-release overrides w
 - Each bucket (`darkmerch`, `physical`, `believe`, `bandcamp`) has an independent fixed rate.
 - A bucket split is **only active when explicitly set** (`!= null`). When absent, the bucket falls through to the normal main chain.
 - When active, the bucket split **bypasses the main chain entirely**.
-- The **only override** for an active bucket split is an explicit per-artist `sourceOverride` for that specific source. Per-artist base and type percentages do not apply.
+- **Physical bucket exception:** an explicit per-artist `physicalPercentage` (configured in Split Fees) overrides an active Physical bucket split. This allows a label-wide physical default to be set in General Settings while still honouring artist-specific physical deals. The priority for the physical bucket is: (1) per-artist shopify/printful source override, (2) per-artist `physicalPercentage`, (3) `sourceSplits.physical` bucket split, (4) main chain fallback.
+- For all other buckets (darkmerch, believe, bandcamp), the **only override** for an active bucket split is an explicit per-artist `sourceOverride` for that specific source. Per-artist base and type percentages do not apply.
 - Implementation: computed inline per bucket before the payout formula, not routed through `resolveSplitPercentageWithSourceOverride`.
 
 ### Consequences
@@ -211,10 +212,11 @@ Per-artist settings always win over label-wide defaults. Per-release overrides w
 - `useSplitFeeSync` can auto-create per-artist entries without silently overriding bucket policies.
 - The two systems are independently understandable and testable.
 - Per-artist source overrides remain the correct escape hatch for individual exceptions to a bucket policy.
+- For the physical bucket specifically, a per-artist `physicalPercentage` also overrides the bucket split, giving per-artist physical deals full priority over the label-wide physical rate.
 
 **Negative / Trade-offs:**
 - `sourceSplits.believe` and `sourceSplits.bandcamp` currently apply to the aggregated digital bucket as a whole. If different rates per digital source are needed, the digital bucket computation must be split per source (future work).
-- Bucket split activation is binary (set / not set). There is no intermediate priority level between "global bucket" and "per-artist source override" for bucket-based revenue.
+- Bucket split activation is binary (set / not set). There is no intermediate priority level between "global bucket" and "per-artist source override" for bucket-based revenue — except for the physical bucket where `physicalPercentage` provides such an intermediate level.
 
 ---
 

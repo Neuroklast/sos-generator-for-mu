@@ -794,11 +794,24 @@ export function processTransactionsWithCompilations(
     const physicalBucketPerArtistOverride = splitFee?.sourceOverrides?.find(
       o => o.source === 'shopify' || o.source === 'printful'
     )
-    const physicalSplitPct = config.sourceSplits?.physical != null
-      ? clampSplitPercentage(physicalBucketPerArtistOverride?.percentage ?? config.sourceSplits.physical)
-      : resolveSplitPercentageWithSourceOverride(
-          splitFee, null, true, defaultBase, config.defaultSplitPercentagePhysical
-        )
+    const physicalSplitPct = (() => {
+      // 1. Per-artist source override (highest priority)
+      if (physicalBucketPerArtistOverride != null) {
+        return clampSplitPercentage(physicalBucketPerArtistOverride.percentage)
+      }
+      // 2. Per-artist physical percentage beats the bucket split when explicitly set
+      if (splitFee?.physicalPercentage != null) {
+        return clampSplitPercentage(splitFee.physicalPercentage)
+      }
+      // 3. Bucket split (General Settings Physical Split %)
+      if (config.sourceSplits?.physical != null) {
+        return clampSplitPercentage(config.sourceSplits.physical)
+      }
+      // 4. Main chain fallback
+      return resolveSplitPercentageWithSourceOverride(
+        splitFee, null, true, defaultBase, config.defaultSplitPercentagePhysical
+      )
+    })()
 
     // Darkmerch bucket
     const darkmerchPerArtistOverride = splitFee?.sourceOverrides?.find(o => o.source === 'darkmerch')
