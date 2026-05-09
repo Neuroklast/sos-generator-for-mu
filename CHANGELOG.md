@@ -18,8 +18,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **docs/BENUTZERHANDBUCH.md** — Same sections updated in German.
 
 ### Fixed
-
-### Fixed
 - **Featured tracks now appear in release dropdown** when a featuring artist is selected as an owner in Track Revenue Assignments. The CSV Processor Worker now computes a `releaseTitlesByArtistIncFeaturing` map that includes releases where the artist appears as a featured artist (parsed via `extractFeaturedArtistsDetailed`). In `App.tsx` this is merged with the roster-based map into `releaseTitlesByArtistFull`, which is passed to both `TrackRevenueAssignmentManager` and `IgnoredEntriesManager`.
 - **Track title no longer cleared** when selecting an owner artist after having already chosen a release title in Track Revenue Assignments. The `handleOwnerArtistChange` callback no longer calls `setTrackTitle('')` — the user-first-title workflow makes this automatic clear unnecessary.
 
