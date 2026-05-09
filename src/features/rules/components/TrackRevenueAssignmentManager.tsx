@@ -80,8 +80,16 @@ export function TrackRevenueAssignmentManager({
     return allReleases
   }, [owners, releaseTitlesByArtist, allReleases])
 
+  /**
+   * Only rows with a non-empty artist count toward the percentage sum.
+   * This prevents the submit-with-partial-sum bug where an empty-artist row
+   * could inflate the apparent total to 100% while being silently dropped on
+   * submission.
+   */
   const percentageSum = useMemo(
-    () => owners.reduce((sum, o) => sum + o.percentage, 0),
+    () => owners
+      .filter(o => o.artist.trim() !== '')
+      .reduce((sum, o) => sum + o.percentage, 0),
     [owners]
   )
   const isSumValid = percentageSum === 100
