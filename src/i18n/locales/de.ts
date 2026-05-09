@@ -260,6 +260,10 @@ export const de: TranslationKeys = {
     // Ignored entries
     entryIgnored: '"{{artist}}"{{release}} ignoriert',
     entryRemovedFromIgnoreList: 'Eintrag aus Ignorierliste entfernt',
+
+    // Track revenue assignments
+    trackRevenueAssignmentAdded: '"{{trackTitle}}" → {{ownerArtist}} zugewiesen',
+    trackRevenueAssignmentRemoved: 'Track-Zuweisung entfernt',
     
     // Period detection
     periodAutoDetected: 'Abrechnungszeitraum automatisch aus CSV-Daten erkannt',
@@ -338,6 +342,20 @@ export const de: TranslationKeys = {
     artist: 'Künstler',
     releaseTitle: 'Release-Titel (optional)',
     noIgnoredEntriesYet: 'Noch keine ignorierten Einträge',
+  },
+
+  // ── Track Revenue Assignment Manager ───────────────────────────────────────
+  trackRevenueAssignment: {
+    title: 'Track-Revenue-Zuweisungen',
+    description: 'Revenue eines Tracks wird ausschließlich einem Künstler zugewiesen — der Track erscheint nicht mehr im Statement anderer Künstler',
+    trackTitlePlaceholder: 'Track- / Release-Titel (oder Teilstring)',
+    ownerArtistPlaceholder: 'Berechtigter Künstler',
+    addEntry: 'Zuweisung hinzufügen',
+    noEntriesYet: 'Noch keine Track-Zuweisungen',
+    noEntriesHint: 'Revenue passender Tracks wird ausschließlich dem berechtigten Künstler zugerechnet.',
+    hint: 'Groß-/Kleinschreibung wird ignoriert; Teilstring-Abgleich gegen Release- und Track-Titel. Die erste passende Regel gewinnt.',
+    trackTitleRequired: 'Track-Titel ist erforderlich',
+    ownerArtistRequired: 'Berechtigter Künstler ist erforderlich',
   },
 
   // ── Label Artist Manager ────────────────────────────────────────────────────

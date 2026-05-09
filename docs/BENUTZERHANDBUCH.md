@@ -24,6 +24,7 @@
    - 7.1 [Ausgaben & Vorschüsse (Expenses)](#71-ausgaben--vorschüsse-expenses)
    - 7.2 [Manuelle Einnahmen](#72-manuelle-einnahmen)
    - 7.3 [Ignorierte Einträge](#73-ignorierte-einträge)
+   - 7.4 [Track-Revenue-Zuweisungen](#74-track-revenue-zuweisungen)
 8. [Dashboard](#8-dashboard)
 9. [Process Cockpit](#9-process-cockpit)
 10. [Analytics](#10-analytics)
@@ -457,6 +458,29 @@ Einzelne Künstler oder spezifische Releases können vollständig von der Abrech
 4. Speichere.
 
 Ignorierte Einträge erscheinen in einer separaten Liste unter **Ignored Entries** und können jederzeit wieder aktiviert werden.
+
+---
+
+### 7.4 Track-Revenue-Zuweisungen
+
+Mit **Track-Revenue-Zuweisungen** kannst du die gesamte Revenue eines bestimmten Tracks oder Releases ausschließlich einem einzigen Künstler zuweisen. Das ist besonders nützlich für Kollaborations-Tracks (z. B. ein Featured-Artist-Track, der vollständig dem Hauptkünstler zugerechnet werden soll) oder für Releases, bei denen die CSV einen kombinierten Künstlernamen enthält.
+
+**Funktionsweise:**
+- Du definierst einen **Track-Titel (Teilstring, Groß-/Kleinschreibung egal)** und den **berechtigten Künstler**.
+- Jede Transaktion, deren `release_title` oder `track_title` den Teilstring enthält, wird dem berechtigten Künstler zugeordnet – bevor der Roster-Filter oder die Split-Berechnung greift.
+- Der Track erscheint **ausschließlich** im Statement und im PDF des berechtigten Künstlers. Im Statement aller anderen Künstler ist er vollständig unsichtbar.
+- Bei mehreren passenden Regeln gewinnt die erste.
+
+**Zuweisung hinzufügen:**
+1. Gehe zu **Einstellungen → Export & Regeln**.
+2. Scrolle zu **Track-Revenue-Zuweisungen**.
+3. Trage im Feld **Track-/Release-Titel** einen Suchbegriff ein oder wähle einen Release aus dem Dropdown aus. Das Dropdown wird aus allen Releases der aktuell geladenen CSV-Daten befüllt; freie Texteingabe ist ebenfalls möglich.
+4. Wähle oder tippe im Feld **Berechtigter Künstler** den gewünschten Künstler.
+5. Klicke auf **Zuweisung hinzufügen**.
+
+**Zuweisung entfernen:** Fahre über den Eintrag und klicke auf das Papierkorb-Symbol.
+
+> **Hinweis:** Diese Funktion wirkt auf Pipeline-Ebene. Das PDF des berechtigten Künstlers enthält die vollständige Revenue des zugewiesenen Tracks; das PDF aller anderen Künstler enthält ihn nicht.
 
 ---
 

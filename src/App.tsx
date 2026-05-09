@@ -34,6 +34,7 @@ import type {
   GuestPayoutRule,
   LabelArtist,
   IgnoredEntry,
+  TrackRevenueAssignment,
   AppDefaults,
   PdfExportSettings,
   EmailConfig,
@@ -121,6 +122,7 @@ function App() {
   const [excludePhysical, setExcludePhysical] = useKV<boolean>('exclude-physical', false)
   const [labelArtists, setLabelArtists] = useKV<LabelArtist[]>('label-artists', [])
   const [ignoredEntries, setIgnoredEntries] = useKV<IgnoredEntry[]>('ignored-entries', [])
+  const [trackRevenueAssignments, setTrackRevenueAssignments] = useKV<TrackRevenueAssignment[]>('track-revenue-assignments', [])
   // isLoaded flags prevent the auto-period effect from running before IndexedDB
   // has confirmed whether a saved period exists (Bug 5 fix).
   const [periodStart, setPeriodStart, , periodStartLoaded] = useKV<string>('period-start', '')
@@ -196,6 +198,7 @@ function App() {
   const stableCsvAliases = useMemo(() => csvAliases ?? [], [csvAliases])
   const stableLabelArtists = useMemo(() => labelArtists ?? [], [labelArtists])
   const stableIgnoredEntries = useMemo(() => ignoredEntries ?? [], [ignoredEntries])
+  const stableTrackRevenueAssignments = useMemo(() => trackRevenueAssignments ?? [], [trackRevenueAssignments])
   const rawStart = periodStart ?? ''
   const rawEnd = periodEnd ?? ''
   const safePeriodStart = VALID_DATE_RE.test(rawStart) ? rawStart : ''
@@ -228,6 +231,7 @@ function App() {
       csvAliases: stableCsvAliases,
       labelArtists: stableLabelArtists,
       ignoredEntries: stableIgnoredEntries,
+      trackRevenueAssignments: stableTrackRevenueAssignments,
       distributionFeePercentage: appDefaults?.distributionFeePercentage ?? 0,
       distributionFeeDigital: appDefaults?.distributionFeeDigital,
       distributionFeePhysical: appDefaults?.distributionFeePhysical,
@@ -620,8 +624,9 @@ function App() {
       if (backup.labelInfo) setLabelInfo(backup.labelInfo)
       setLabelArtists(backup.labelArtists ?? [])
       setIgnoredEntries(backup.ignoredEntries ?? [])
+      setTrackRevenueAssignments(backup.trackRevenueAssignments ?? [])
     },
-    [setCompilationFilters, setArtistMappings, setSplitFees, setManualRevenues, setCsvAliases, setLabelInfo, setLabelArtists, setIgnoredEntries]
+    [setCompilationFilters, setArtistMappings, setSplitFees, setManualRevenues, setCsvAliases, setLabelInfo, setLabelArtists, setIgnoredEntries, setTrackRevenueAssignments]
   )
 
   const handleAddLabelArtist = useCallback(
@@ -686,6 +691,29 @@ function App() {
       toast.info(t('toast.entryRemovedFromIgnoreList'))
     },
     [ignoredEntries, setIgnoredEntries, pushUndo, t]
+  )
+
+  const handleAddTrackRevenueAssignment = useCallback(
+    (entry: Omit<TrackRevenueAssignment, 'id'>) => {
+      const snapshot = trackRevenueAssignments ?? []
+      setTrackRevenueAssignments(current => [
+        ...(current ?? []),
+        { ...entry, id: crypto.randomUUID() },
+      ])
+      pushUndo({ description: `Add track assignment "${entry.trackTitle}"`, undo: () => setTrackRevenueAssignments(snapshot) })
+      toast.success(t('toast.trackRevenueAssignmentAdded', { trackTitle: entry.trackTitle, ownerArtist: entry.ownerArtist }))
+    },
+    [trackRevenueAssignments, setTrackRevenueAssignments, pushUndo, t]
+  )
+
+  const handleRemoveTrackRevenueAssignment = useCallback(
+    (id: string) => {
+      const snapshot = trackRevenueAssignments ?? []
+      setTrackRevenueAssignments(current => (current ?? []).filter(r => r.id !== id))
+      pushUndo({ description: 'Remove track revenue assignment', undo: () => setTrackRevenueAssignments(snapshot) })
+      toast.info(t('toast.trackRevenueAssignmentRemoved'))
+    },
+    [trackRevenueAssignments, setTrackRevenueAssignments, pushUndo, t]
   )
 
   // ── Global Ctrl+Z / Cmd+Z undo handler ──────────────────────────────────────
@@ -1169,6 +1197,9 @@ function App() {
                   uniqueArtists={uniqueArtists}
                   handleAddIgnoredEntry={handleAddIgnoredEntry}
                   handleRemoveIgnoredEntry={handleRemoveIgnoredEntry}
+                  trackRevenueAssignments={stableTrackRevenueAssignments}
+                  handleAddTrackRevenueAssignment={handleAddTrackRevenueAssignment}
+                  handleRemoveTrackRevenueAssignment={handleRemoveTrackRevenueAssignment}
                   clearConfirmOpen={clearConfirmOpen}
                   setClearConfirmOpen={setClearConfirmOpen}
                   clearAllStorageConfirmOpen={clearAllStorageConfirmOpen}

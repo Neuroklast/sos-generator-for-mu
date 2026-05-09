@@ -19,6 +19,7 @@ import type {
   FilteredCompilation,
   LabelArtist,
   IgnoredEntry,
+  TrackRevenueAssignment,
 } from '@/lib/types'
 import type { WorkerRequest, WorkerResponse, WorkerProcessConfig, WorkerResult } from '@/workers/csv-processor.worker'
 
@@ -50,6 +51,11 @@ interface CSVProcessorConfig {
   defaultSplitPercentagePhysical?: number
   /** Global per-source split percentage overrides; see DataProcessorConfig.sourceSplits. */
   sourceSplits?: { believe?: number; bandcamp?: number; darkmerch?: number; physical?: number }
+  /**
+   * Rules that re-attribute all revenue from a matching track/release to a
+   * single owner artist.
+   */
+  trackRevenueAssignments?: TrackRevenueAssignment[]
 }
 
 const EMPTY_RESULT: WorkerResult = {
@@ -171,6 +177,7 @@ export function useCSVProcessor(
     String(config.defaultSplitPercentageDigital ?? ''),
     String(config.defaultSplitPercentagePhysical ?? ''),
     JSON.stringify(config.sourceSplits ?? {}),
+    config.trackRevenueAssignments?.map(r => `${r.id}:${r.trackTitle}:${r.ownerArtist}`).join(',') ?? '',
   ].join('|')
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -192,7 +199,8 @@ export function useCSVProcessor(
     defaultSplitPercentageDigital: config.defaultSplitPercentageDigital,
     defaultSplitPercentagePhysical: config.defaultSplitPercentagePhysical,
     sourceSplits: config.sourceSplits,
-  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical, config.defaultSplitPercentage, config.defaultSplitPercentageDigital, config.defaultSplitPercentagePhysical, config.sourceSplits])
+    trackRevenueAssignments: config.trackRevenueAssignments,
+  }), [config.compilationFilters, config.artistMappings, config.splitFees, config.manualRevenues, config.expenses, config.excludePhysical, exchangeRates, config.labelArtists, config.ignoredEntries, config.distributionFeePercentage, config.distributionFeeDigital, config.distributionFeePhysical, config.defaultSplitPercentage, config.defaultSplitPercentageDigital, config.defaultSplitPercentagePhysical, config.sourceSplits, config.trackRevenueAssignments])
 
   const sendProcess = useCallback(() => {
     const cfg = latestConfigRef.current ?? buildConfig()

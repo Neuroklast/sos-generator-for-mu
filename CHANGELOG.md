@@ -7,6 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Track Revenue Assignments** — new rule type in Settings → Export & Rules.
+  Allows routing all revenue from a specific track or release exclusively to one
+  designated owner artist. Any transaction whose `release_title` or `track_title`
+  contains the configured substring (case-insensitive) is re-attributed to the
+  owner artist before the roster filter runs. The track therefore appears only in
+  the owner's statement (and PDF) and is invisible in every other artist's report.
+  Rules are persisted via IndexedDB, included in workspace backup/restore, and
+  support undo. The track-title input offers a dropdown of all known releases
+  (populated from processed data) as well as free-form text entry.
+
 ### Fixed
 - **Bandcamp: revenue now correctly uses the "net amount" column.**
   Previously the parser used the "balance of revenue share (EUR)" column which
