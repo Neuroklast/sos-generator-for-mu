@@ -1060,4 +1060,60 @@ describe('trackRevenueAssignments', () => {
     const artistA = result.find(r => r.artist === 'ArtistA')
     expect(artistA?.grossRevenue).toBeCloseTo(70)
   })
+
+  it('splits revenue proportionally among multiple owners', () => {
+    const txs = [
+      makeTx({ original_artist: 'Artist A', release_title: 'Collab EP', net_revenue: 100 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{
+        id: '1',
+        trackTitle: 'Collab EP',
+        owners: [
+          { artist: 'Artist A', percentage: 60 },
+          { artist: 'Artist B', percentage: 40 },
+        ],
+      }],
+    })
+    const artistA = result.find(r => r.artist === 'Artist A')
+    const artistB = result.find(r => r.artist === 'Artist B')
+    expect(artistA?.grossRevenue).toBeCloseTo(60)
+    expect(artistB?.grossRevenue).toBeCloseTo(40)
+  })
+
+  it('falls back to ownerArtist when owners is absent (backward-compat)', () => {
+    const txs = [
+      makeTx({ original_artist: 'ArtistX', release_title: 'Legacy Album', net_revenue: 80 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{ id: '1', trackTitle: 'Legacy Album', ownerArtist: 'ArtistY' }],
+    })
+    const artistY = result.find(r => r.artist === 'ArtistY')
+    expect(artistY?.grossRevenue).toBeCloseTo(80)
+  })
+
+  it('three-way split sums to full revenue', () => {
+    const txs = [
+      makeTx({ original_artist: 'Various', release_title: 'Three Way', net_revenue: 300 }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      trackRevenueAssignments: [{
+        id: '1',
+        trackTitle: 'Three Way',
+        owners: [
+          { artist: 'Artist A', percentage: 50 },
+          { artist: 'Artist B', percentage: 30 },
+          { artist: 'Artist C', percentage: 20 },
+        ],
+      }],
+    })
+    const total = result.reduce((s, r) => s + r.grossRevenue, 0)
+    expect(total).toBeCloseTo(300)
+    expect(result.find(r => r.artist === 'Artist A')?.grossRevenue).toBeCloseTo(150)
+    expect(result.find(r => r.artist === 'Artist B')?.grossRevenue).toBeCloseTo(90)
+    expect(result.find(r => r.artist === 'Artist C')?.grossRevenue).toBeCloseTo(60)
+  })
 })

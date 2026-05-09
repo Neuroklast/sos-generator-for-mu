@@ -56,7 +56,6 @@ const makeAssignment = (overrides: Partial<TrackRevenueAssignment> = {}): TrackR
   ownerArtist: 'Artist A',
   ...overrides,
 })
-
 describe('TrackRevenueAssignmentManager', () => {
   const onAdd = vi.fn()
   const onRemove = vi.fn()
@@ -155,7 +154,7 @@ describe('TrackRevenueAssignmentManager', () => {
     expect((releaseInput as HTMLInputElement).value).toBe('')
   })
 
-  test('calls onAdd with the entered values and resets fields', async () => {
+  test('calls onAdd with owners array and resets fields', async () => {
     const user = userEvent.setup()
     render(
       <TrackRevenueAssignmentManager
@@ -177,7 +176,10 @@ describe('TrackRevenueAssignmentManager', () => {
 
     await user.click(screen.getByRole('button', { name: /add assignment/i }))
 
-    expect(onAdd).toHaveBeenCalledWith({ trackTitle: 'Album Two', ownerArtist: 'Artist A' })
+    expect(onAdd).toHaveBeenCalledWith({
+      trackTitle: 'Album Two',
+      owners: [{ artist: 'Artist A', percentage: 100 }],
+    })
 
     // Fields should be cleared
     expect((artistInput as HTMLInputElement).value).toBe('')
@@ -211,6 +213,28 @@ describe('TrackRevenueAssignmentManager', () => {
     )
     expect(screen.getByText('Album One')).toBeTruthy()
     expect(screen.getByText('Artist A')).toBeTruthy()
+  })
+
+  test('renders multi-owner entry with proportional share labels', () => {
+    const assignments: TrackRevenueAssignment[] = [{
+      id: 'b1',
+      trackTitle: 'Collab EP',
+      owners: [
+        { artist: 'Artist A', percentage: 60 },
+        { artist: 'Artist B', percentage: 40 },
+      ],
+    }]
+    render(
+      <TrackRevenueAssignmentManager
+        assignments={assignments}
+        releaseTitlesByArtist={RELEASE_TITLES_BY_ARTIST}
+        artists={ARTISTS}
+        onAdd={onAdd}
+        onRemove={onRemove}
+      />
+    )
+    expect(screen.getByText('Collab EP')).toBeTruthy()
+    expect(screen.getByText('Artist A 60% / Artist B 40%')).toBeTruthy()
   })
 
   test('calls onRemove when the delete button is clicked', async () => {

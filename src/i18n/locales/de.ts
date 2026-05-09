@@ -362,6 +362,12 @@ export const de: TranslationKeys = {
     hint: 'Groß-/Kleinschreibung wird ignoriert; Teilstring-Abgleich gegen Release- und Track-Titel. Die erste passende Regel gewinnt.',
     trackTitleRequired: 'Track-Titel ist erforderlich',
     ownerArtistRequired: 'Berechtigter Künstler ist erforderlich',
+    addOwner: 'Beteiligten hinzufügen',
+    ownerPercentage: 'Anteil %',
+    percentageSumValid: '100% — bereit',
+    percentageSumInvalid: 'Muss 100% ergeben',
+    removeOwner: 'Beteiligten entfernen',
+    multiOwnerHint: 'Revenue wird vor dem Label-Split und Kosten aufgeteilt.',
   },
 
   // ── Label Artist Manager ────────────────────────────────────────────────────

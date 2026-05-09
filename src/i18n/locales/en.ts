@@ -360,6 +360,12 @@ export const en = {
     hint: 'Case-insensitive substring match against release and track title. First matching rule wins.',
     trackTitleRequired: 'Track title is required',
     ownerArtistRequired: 'Owner artist is required',
+    addOwner: 'Add owner',
+    ownerPercentage: 'Share %',
+    percentageSumValid: '100% — ready',
+    percentageSumInvalid: 'Must sum to 100%',
+    removeOwner: 'Remove owner',
+    multiOwnerHint: 'Revenue is split before the label split and expenses are applied.',
   },
 
   // ── Label Artist Manager ────────────────────────────────────────────────────

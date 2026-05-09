@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Multi-artist release revenue split**: `TrackRevenueAssignment` now supports an `owners` array, allowing release revenue to be distributed proportionally among multiple co-owner artists before the label split and expenses are applied. Existing single-owner assignments continue to work unchanged (backward-compatible).
 - **Historical monthly exchange rates for accurate EUR conversion.**
   The Vercel Edge Function (`api/exchange-rates.ts`) now accepts optional `start`
   and `end` query parameters (format `YYYY-MM`). When provided, it fetches the
