@@ -187,6 +187,7 @@ function buildReleaseTitlesByArtistIncFeaturing(
   for (const tx of transactions) {
     const releaseTitle = tx.release_title
     if (!releaseTitle) continue
+    if (!tx.original_artist) continue
 
     const { primary, featured } = extractFeaturedArtistsDetailed(tx.original_artist)
     const allArtists = primary ? [primary, ...featured] : featured
