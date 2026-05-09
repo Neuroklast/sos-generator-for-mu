@@ -7,6 +7,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Historical monthly exchange rates for accurate EUR conversion.**
+  The Vercel Edge Function (`api/exchange-rates.ts`) now accepts optional `start`
+  and `end` query parameters (format `YYYY-MM`). When provided, it fetches the
+  full daily time series from the Frankfurter API (backed by ECB reference rates)
+  and aggregates the trading-day rates into **monthly averages** — the standard
+  accounting method for retrospective royalty statements. Historical data is
+  cached at the CDN edge for 24 hours (unchanged historical data never needs
+  re-fetching).
+
+  Once the billing period is detected from the uploaded CSV files, the application
+  automatically fetches the corresponding historical rates. Each Bandcamp
+  transaction is then converted to EUR using the ECB monthly average rate for the
+  month in which the sale occurred, rather than a single current rate. Non-Bandcamp
+  sources (Believe, Shopify, Darkmerch) already report in EUR and are unaffected.
+  Flat FALLBACK_RATES are used for any month the API cannot supply (e.g. offline
+  or partially completed month), ensuring processing always completes.
+
 ### Changed
 - **Route-level code splitting for all nine views.**
   All view components (`DashboardView`, `IngestView`, `ProcessCockpitView`,

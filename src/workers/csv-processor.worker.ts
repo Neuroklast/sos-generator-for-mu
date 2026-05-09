@@ -59,7 +59,7 @@ import type {
   IgnoredEntry,
   TrackRevenueAssignment,
 } from '@/lib/types'
-import type { ExchangeRates } from '@/lib/currency'
+import type { ExchangeRates, HistoricalRates } from '@/lib/currency'
 
 // ── Message type definitions ──────────────────────────────────────────────────
 
@@ -81,6 +81,12 @@ export interface WorkerProcessConfig {
   excludePhysical: boolean
   /** ECB exchange rates (1 EUR = N units of foreign currency). */
   exchangeRates: ExchangeRates
+  /**
+   * Historical monthly average exchange rates keyed by "YYYY-MM".
+   * When provided, each Bandcamp transaction is converted at the ECB average
+   * rate for its own `sales_month` rather than a single current rate.
+   */
+  historicalExchangeRates?: HistoricalRates
   /** Label artist roster — when non-empty only these artists appear in results. */
   labelArtists: LabelArtist[]
   /** Entries explicitly ignored in the statement of sales. */

@@ -6,6 +6,76 @@ following the ADR (Architecture Decision Record) pattern:
 
 ---
 
+## ADR-006 · Historical Monthly Exchange Rates for EUR Conversion
+
+**Date:** 2026-05-09
+
+### Context
+
+Bandcamp exports revenue in the currency of each sale (USD, GBP, etc.). The
+application must convert these amounts to EUR for consistent aggregation and
+artist payout calculations. Previously, a single *current* exchange rate was
+fetched from the Frankfurter API on page load and applied uniformly to every
+transaction regardless of when it occurred.
+
+For retrospective royalty statements covering months or an entire year, using
+a current rate introduces systematic error: if the EUR/USD rate changed
+significantly over the period, every month's revenue is mispriced by the same
+factor. Standard accounting practice mandates using the ECB reference rate for
+the month in which a transaction actually occurred.
+
+### Decision
+
+1. **Edge Function (`api/exchange-rates.ts`)**: Extended to accept optional
+   `start` and `end` query parameters (format `YYYY-MM`). When both are
+   provided, the function fetches the full daily time series from the
+   Frankfurter time-series endpoint (`start_date..end_date?from=EUR`),
+   aggregates all trading-day rates within each calendar month to their
+   arithmetic mean, and returns a `{ base, rates: { "YYYY-MM": { ... } } }`
+   object. Historical data is cached at the CDN edge for 24 hours. The
+   no-parameter path retains the original `/latest` behaviour unchanged.
+
+2. **`currency.ts`**: A new `HistoricalRates = Record<string, ExchangeRates>`
+   type and a new exported function `fetchHistoricalExchangeRates(start, end)`
+   were added alongside the existing `fetchExchangeRates()` function. A private
+   `buildFallbackHistoricalRates` helper fills any month the API does not return
+   (e.g. incomplete current month) with the static `FALLBACK_RATES`, ensuring
+   callers always receive a complete map.
+
+3. **`DataProcessorConfig` / `WorkerProcessConfig`**: A new optional field
+   `historicalExchangeRates?: HistoricalRates` was added to both config shapes.
+   The data processor prefers `historicalExchangeRates[t.sales_month]` over the
+   flat `exchangeRates` fallback when converting Bandcamp transactions.
+
+4. **`useCSVProcessor`**: A new effect watches `workerResult.periodStart` and
+   `workerResult.periodEnd`. When the worker finishes processing and a valid
+   billing period is detected, the hook automatically fetches historical rates
+   for that period and triggers a lightweight re-process. The manual
+   "Refresh exchange rates" action refreshes both flat and historical rates in
+   parallel.
+
+### Consequences
+
+**Positive:**
+- Each Bandcamp transaction is converted at the official ECB monthly average
+  rate for its own sales month — the standard method for retrospective royalty
+  accounting.
+- A single Frankfurter API call covers the whole billing period (one request
+  for up to 12 months), rather than one request per month.
+- Historical data is edge-cached for 24 hours, keeping upstream request volume
+  negligible.
+- The existing flat-rate path is fully preserved as a fallback and for scenarios
+  where no period is detected (e.g. only manual revenues).
+
+**Negative / Trade-offs:**
+- An extra re-processing pass occurs after historical rates are fetched (~500 ms
+  worker round-trip for typical datasets). This is a one-time cost after file
+  upload and is invisible to the user behind the existing loading indicators.
+- If the billing period spans many years the Frankfurter time-series response
+  can be large. The 15-second timeout and edge-cache mitigate this.
+
+---
+
 ## ADR-005 · Route-Level Code Splitting (React.lazy + Suspense)
 
 **Date:** 2026-05-09

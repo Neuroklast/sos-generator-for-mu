@@ -189,6 +189,33 @@ Der eingebaute Parser handhabt:
 - **Gequotete Header** — Spaltenüberschriften mit Anführungszeichen
 - **Dezimaltrennzeichen** — Punkt und Komma werden erkannt
 
+### Wechselkurshandhabung
+
+NeuroStat verwendet die **Frankfurter API** (basierend auf den Referenzkursen der
+Europäischen Zentralbank) für alle Währungsumrechnungen. Bandcamp ist die einzige
+Quelle, die Einnahmen in Nicht-EUR-Währungen (USD, GBP usw.) ausweist.
+
+**Historische Monatsdurchschnittskurse**
+
+Sobald der Abrechnungszeitraum aus den hochgeladenen CSV-Dateien erkannt wird,
+lädt die Anwendung automatisch den offiziellen EZB-Monatsdurchschnittskurs für
+jeden Monat des Zeitraums. Jede Bandcamp-Transaktion wird anschließend zu dem
+amtlichen Durchschnittskurs des Monats in EUR umgerechnet, in dem der Verkauf
+stattgefunden hat.
+
+Dieses Vorgehen entspricht der buchhalterischen Standardmethode für rückwirkende
+Abrechnungen: Die EZB veröffentlicht Kurse an jedem Handelstag, und der
+Monatsdurchschnitt ergibt den anerkannten **monatlichen Referenzkurs**.
+
+Wenn die Frankfurter API nicht verfügbar ist (z. B. offline oder für unvollständige
+Monate), werden automatisch Fallback-Näherungskurse verwendet und eine Warnung
+angezeigt.
+
+Der Abruf erfolgt automatisch nach der Dateiverarbeitung und erfordert keine
+Benutzeraktion. Die Schaltfläche **Wechselkurse aktualisieren** in der Ingest-Ansicht
+lädt sowohl die aktuellen Kurse als auch die historischen Monatsdurchschnitte für
+den aktiven Abrechnungszeitraum neu.
+
 ---
 
 ## 6. Einstellungen (Settings)

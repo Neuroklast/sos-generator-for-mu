@@ -17,7 +17,7 @@ import type {
   TrackRevenueAssignment,
 } from './types'
 import { convertToEur } from './currency'
-import type { ExchangeRates } from './currency'
+import type { ExchangeRates, HistoricalRates } from './currency'
 
 export interface ProcessedArtistData {
   artist: string
@@ -78,6 +78,13 @@ export interface DataProcessorConfig {
   /** Exchange rates map (1 EUR = N units of foreign currency). Used to convert
    *  non-EUR Bandcamp transactions to EUR at processing time. */
   exchangeRates?: ExchangeRates
+  /**
+   * Historical monthly average exchange rates keyed by "YYYY-MM".
+   * When provided, each transaction is converted using the ECB average rate for
+   * its own `sales_month`, giving more accurate EUR figures for retrospective
+   * statements.  Falls back to `exchangeRates` for any month not present here.
+   */
+  historicalExchangeRates?: HistoricalRates
   /**
    * When non-empty, only transactions whose resolved main artist appears in this
    * list are included. Co-artists not in the roster are silently dropped (their
@@ -607,6 +614,7 @@ export function processTransactionsWithCompilations(
   const artistData: ProcessedArtistData[] = []
 
   const rates = config.exchangeRates ?? {}
+  const historicalRates = config.historicalExchangeRates ?? {}
 
   for (const [lowerKey, artistTransactions] of artistGroups.entries()) {
     const artist = canonicalArtistNames.get(lowerKey) ?? lowerKey
@@ -615,9 +623,12 @@ export function processTransactionsWithCompilations(
     let totalQuantity = 0
 
     // Create EUR-normalised versions of the transactions for breakdown functions.
+    // When historical monthly rates are available, use the rate for the
+    // transaction's own sales_month; fall back to the flat `rates` map otherwise.
     const eurTransactions = artistTransactions.map(t => {
+      const applicableRates = (t.sales_month && historicalRates[t.sales_month]) ? historicalRates[t.sales_month] : rates
       const revenueEur = t.source === 'bandcamp' && t.currency !== 'EUR'
-        ? convertToEur(t.net_revenue, t.currency, rates)
+        ? convertToEur(t.net_revenue, t.currency, applicableRates)
         : t.net_revenue
       return { ...t, net_revenue: revenueEur }
     })

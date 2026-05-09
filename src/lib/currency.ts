@@ -8,7 +8,15 @@
  *   eur_amount = foreign_amount / rates[currency]
  */
 
+/** Flat exchange-rate map: currency code → units per 1 EUR. */
 export type ExchangeRates = Record<string, number>
+
+/**
+ * Historical monthly exchange rates: month key ("YYYY-MM") → flat rate map.
+ * Returned by `fetchHistoricalExchangeRates` when a billing period is known.
+ * Each month entry contains the ECB monthly average (mean of all trading days).
+ */
+export type HistoricalRates = Record<string, ExchangeRates>
 
 /**
  * Static fallback rates used when the Frankfurter API is unavailable.
@@ -42,6 +50,35 @@ const FALLBACK_RATES: ExchangeRates = {
 }
 
 /**
+ * Builds a `HistoricalRates` object filled with `FALLBACK_RATES` for every
+ * month key between `periodStart` and `periodEnd` (inclusive, "YYYY-MM").
+ * Used as a last-resort fallback when the Frankfurter time-series API fails.
+ *
+ * @param periodStart - First month in "YYYY-MM" format.
+ * @param periodEnd   - Last month in "YYYY-MM" format.
+ */
+function buildFallbackHistoricalRates(periodStart: string, periodEnd: string): HistoricalRates {
+  const result: HistoricalRates = {}
+  const [startYear, startMonth] = periodStart.split('-').map(Number)
+  const [endYear, endMonth] = periodEnd.split('-').map(Number)
+
+  let year = startYear
+  let month = startMonth
+
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    const key = `${year}-${String(month).padStart(2, '0')}`
+    result[key] = FALLBACK_RATES
+    month++
+    if (month > 12) {
+      month = 1
+      year++
+    }
+  }
+
+  return result
+}
+
+/**
  * Fetches current exchange rates via the /api/exchange-rates proxy.
  *
  * The proxy (Vercel Edge Function in production, Vite dev-proxy locally)
@@ -69,6 +106,65 @@ export async function fetchExchangeRates(): Promise<ExchangeRates> {
   } catch (err) {
     console.warn('[currency] Failed to fetch exchange rates:', err instanceof Error ? err.message : err, '— using fallback rates')
     return FALLBACK_RATES
+  }
+}
+
+/**
+ * Fetches historical monthly average exchange rates for a billing period.
+ *
+ * Calls the `/api/exchange-rates?start=YYYY-MM&end=YYYY-MM` endpoint, which
+ * proxies the Frankfurter time-series API and returns pre-aggregated monthly
+ * averages (mean of all ECB trading days within each calendar month).
+ *
+ * Using monthly averages is the standard accounting method for retrospective
+ * royalty statements: each transaction is converted at the ECB average rate
+ * for the month in which the sale occurred.
+ *
+ * Falls back to static `FALLBACK_RATES` for every month in the period if the
+ * upstream request fails, so processing always completes even offline.
+ *
+ * @param periodStart - First month of the billing period, format "YYYY-MM".
+ * @param periodEnd   - Last month of the billing period, format "YYYY-MM".
+ * @returns A map of "YYYY-MM" → flat rate map (1 EUR = N units of currency).
+ */
+export async function fetchHistoricalExchangeRates(
+  periodStart: string,
+  periodEnd: string,
+): Promise<HistoricalRates> {
+  try {
+    const response = await fetch(
+      `/api/exchange-rates?start=${encodeURIComponent(periodStart)}&end=${encodeURIComponent(periodEnd)}`,
+      { signal: AbortSignal.timeout(15000) },
+    )
+    if (!response.ok) {
+      console.warn(
+        `[currency] Historical exchange-rate API returned ${response.status} — using fallback rates`,
+      )
+      return buildFallbackHistoricalRates(periodStart, periodEnd)
+    }
+    const data = await response.json() as { base: string; rates: Record<string, Record<string, number>> }
+    if (!data?.rates || typeof data.rates !== 'object') {
+      console.warn('[currency] Unexpected historical exchange-rate response shape — using fallback rates')
+      return buildFallbackHistoricalRates(periodStart, periodEnd)
+    }
+
+    // Fill any months in the requested range that the API may not have returned
+    // (e.g. the current incomplete month) with FALLBACK_RATES so callers never
+    // encounter a missing month key.
+    const complete = buildFallbackHistoricalRates(periodStart, periodEnd)
+    for (const [month, rates] of Object.entries(data.rates)) {
+      if (typeof rates === 'object' && rates !== null) {
+        complete[month] = rates as ExchangeRates
+      }
+    }
+    return complete
+  } catch (err) {
+    console.warn(
+      '[currency] Failed to fetch historical exchange rates:',
+      err instanceof Error ? err.message : err,
+      '— using fallback rates',
+    )
+    return buildFallbackHistoricalRates(periodStart, periodEnd)
   }
 }
 
