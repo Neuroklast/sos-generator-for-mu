@@ -626,8 +626,9 @@ export function processTransactionsWithCompilations(
     // When historical monthly rates are available, use the rate for the
     // transaction's own sales_month; fall back to the flat `rates` map otherwise.
     const eurTransactions = artistTransactions.map(t => {
+      const applicableRates = (t.sales_month && historicalRates[t.sales_month]) ? historicalRates[t.sales_month] : rates
       const revenueEur = t.source === 'bandcamp' && t.currency !== 'EUR'
-        ? convertToEur(t.net_revenue, t.currency, (t.sales_month && historicalRates[t.sales_month]) ? historicalRates[t.sales_month] : rates)
+        ? convertToEur(t.net_revenue, t.currency, applicableRates)
         : t.net_revenue
       return { ...t, net_revenue: revenueEur }
     })

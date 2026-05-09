@@ -108,7 +108,7 @@ export default async function handler(request: Request): Promise<Response> {
         const count = monthlyCounts[monthKey]
         monthlyRates[monthKey] = {}
         for (const [currency, total] of Object.entries(totals)) {
-          monthlyRates[monthKey][currency] = Number((total / count).toFixed(4))
+          monthlyRates[monthKey][currency] = Math.round((total / count) * 10000) / 10000
         }
       }
 

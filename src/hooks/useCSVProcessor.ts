@@ -147,7 +147,6 @@ export function useCSVProcessor(
       .finally(() => {
         setExchangeRatesLoading(false)
       })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detectedStart, detectedEnd])
 
   // ── Manual refresh of exchange rates ─────────────────────────────────────────
