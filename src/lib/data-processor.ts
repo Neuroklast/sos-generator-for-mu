@@ -813,15 +813,19 @@ export function processTransactionsWithCompilations(
 
     // Believe bucket
     const believeSourceOverride = splitFee?.sourceOverrides?.find(o => o.source === 'believe')
-    const believeSplitPct = config.sourceSplits?.believe != null
-      ? clampSplitPercentage(believeSourceOverride?.percentage ?? config.sourceSplits.believe)
-      : mainChainDigitalSplitPct
+    const believeSplitPct = believeSourceOverride != null
+      ? clampSplitPercentage(believeSourceOverride.percentage)
+      : config.sourceSplits?.believe != null
+        ? clampSplitPercentage(config.sourceSplits.believe)
+        : mainChainDigitalSplitPct
 
     // Bandcamp bucket
     const bandcampSourceOverride = splitFee?.sourceOverrides?.find(o => o.source === 'bandcamp')
-    const bandcampSplitPct = config.sourceSplits?.bandcamp != null
-      ? clampSplitPercentage(bandcampSourceOverride?.percentage ?? config.sourceSplits.bandcamp)
-      : mainChainDigitalSplitPct
+    const bandcampSplitPct = bandcampSourceOverride != null
+      ? clampSplitPercentage(bandcampSourceOverride.percentage)
+      : config.sourceSplits?.bandcamp != null
+        ? clampSplitPercentage(config.sourceSplits.bandcamp)
+        : mainChainDigitalSplitPct
 
     // Other digital sources (no source-specific bucket; uses digital main chain)
     const otherDigitalSplitPct = mainChainDigitalSplitPct
