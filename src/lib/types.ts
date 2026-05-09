@@ -672,6 +672,12 @@ export interface SafeProcessedArtistData {
   physicalReleasesRevenue: number
   /** Digital revenue after label distribution fee deduction (split basis for digital). */
   digitalRevenueAfterFee: number
+  /** Believe digital revenue after label distribution fee deduction. */
+  believeDigitalRevenueAfterFee: number
+  /** Bandcamp digital revenue after label distribution fee deduction. */
+  bandcampDigitalRevenueAfterFee: number
+  /** Other digital revenue (not Believe, not Bandcamp) after label distribution fee deduction. */
+  otherDigitalRevenueAfterFee: number
   /** Physical releases revenue after label distribution fee deduction. */
   physicalReleasesRevenueAfterFee: number
   /** Darkmerch revenue after label distribution fee deduction. */

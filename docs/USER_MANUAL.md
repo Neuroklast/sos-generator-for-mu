@@ -666,6 +666,20 @@ Before exporting, you can configure which sections to include in the PDF using t
 - **Countries** — Country breakdown
 - **Monthly** — Monthly revenue development
 
+**Digital split display in exports:**
+- PDF waterfall uses source-aware digital split math after distribution fee deduction:
+  - Believe after-fee revenue × Believe split %
+  - Bandcamp after-fee revenue × Bandcamp split %
+  - Other digital after-fee revenue × Other Digital split %
+- The digital split label stays compact:
+  - If active digital sources use the same split: `× Digital Split (60%)`
+  - If an active source differs: e.g. `× Digital Split (60%, Bandcamp 50%)`
+  - If multiple active sources differ, the PDF names them explicitly (auto-wrap safe).
+- Excel **Summary** can show separate digital split rows:
+  - `Artist Split – Believe Digital (%)`
+  - `Artist Split – Bandcamp Digital (%)`
+  - `Artist Split – Other Digital (%)`
+
 ### 11.3 Bulk Export (Download All)
 
 **Download All** downloads all artist statements as a ZIP file in a single step.

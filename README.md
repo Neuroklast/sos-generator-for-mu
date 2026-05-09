@@ -45,6 +45,7 @@ A professional web application for music labels to process royalty reports from 
 - **Per-Artist VAT Rates** — Override global VAT rate per artist; zero-rate EU non-German artists automatically.
 - **Email Cover Letter** — Template-driven cover letter (with `{{ARTIST}}`, `{{AMOUNT}}`, `{{PERIOD}}` placeholders) prepended as first PDF page.
 - **PDF Export** — Per-artist branded statements: label logo (right-third header), NeuroStat watermark (bottom-left, 50 % opacity).
+- **Source-aware Digital Split Export** — PDF waterfall and Excel summary respect separate Believe/Bandcamp/Other digital split rates (after-fee bucket calculation).
 - **Excel Export** — Multi-sheet workbook: Summary, Releases, Platforms, Countries, Monthly.
 - **Bulk ZIP Export** — Download all artist PDFs + Excel files in one ZIP with progress tracking.
 - **Upload History** — Full audit log of every uploaded file (rows parsed, artists detected).

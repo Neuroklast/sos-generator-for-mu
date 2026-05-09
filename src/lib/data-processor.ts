@@ -55,6 +55,12 @@ export interface ProcessedArtistData {
   physicalReleasesRevenue: number
   /** Digital revenue after label distribution fee deduction. */
   digitalRevenueAfterFee: number
+  /** Believe digital revenue after label distribution fee deduction. */
+  believeDigitalRevenueAfterFee: number
+  /** Bandcamp digital revenue after label distribution fee deduction. */
+  bandcampDigitalRevenueAfterFee: number
+  /** Other digital revenue (not Believe, not Bandcamp) after label distribution fee deduction. */
+  otherDigitalRevenueAfterFee: number
   /** Physical releases revenue after label distribution fee deduction. */
   physicalReleasesRevenueAfterFee: number
   /** Darkmerch revenue after label distribution fee deduction. */
@@ -980,6 +986,9 @@ export function processTransactionsWithCompilations(
       distributionFeeDeducted,
       physicalReleasesRevenue,
       digitalRevenueAfterFee: digitalAfterFee,
+      believeDigitalRevenueAfterFee: believeDigitalAfterFee,
+      bandcampDigitalRevenueAfterFee: bandcampDigitalAfterFee,
+      otherDigitalRevenueAfterFee: otherDigitalAfterFee,
       physicalReleasesRevenueAfterFee: physicalReleasesAfterFee,
       darkmerchRevenueAfterFee: darkmerchAfterFee,
       digitalSplitPercentage: digitalSplitPct,

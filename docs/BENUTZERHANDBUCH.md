@@ -669,6 +669,20 @@ Vor dem Export kannst du in der **PDF-Exporteinstellungen**-Leiste festlegen, we
 - **Countries** — Länder-Aufschlüsselung
 - **Monthly** — Monatliche Umsatzentwicklung
 
+**Anzeige des digitalen Splits im Export:**
+- Das PDF-Wasserfall-Statement nutzt eine quellenbasierte Digital-Split-Berechnung nach Abzug der Vertriebsgebühr:
+  - Believe-Umsatz nach Fee × Believe-Split %
+  - Bandcamp-Umsatz nach Fee × Bandcamp-Split %
+  - Sonstiger Digital-Umsatz nach Fee × Other-Digital-Split %
+- Das Split-Label bleibt kompakt:
+  - Wenn aktive digitale Quellen denselben Split nutzen: `× Digital Split (60%)`
+  - Bei einer abweichenden aktiven Quelle: z. B. `× Digital Split (60%, Bandcamp 50%)`
+  - Wenn mehrere aktive Quellen abweichen, werden sie im PDF explizit genannt (mit Auto-Wrap).
+- Die Excel-**Summary** kann separate Digital-Split-Zeilen anzeigen:
+  - `Artist Split – Believe Digital (%)`
+  - `Artist Split – Bandcamp Digital (%)`
+  - `Artist Split – Other Digital (%)`
+
 ### 11.3 Massen-Export (Download All)
 
 Mit **Download All** werden in einem Schritt alle Künstler-Statements als ZIP-Datei heruntergeladen.
