@@ -277,13 +277,24 @@ Konfiguriert unter **Settings → Defaults → Source Split Rates**. Jeder Bucke
 
 **Regeln wenn ein Bucket-Split GESETZT ist:**
 - Die Hauptkette wird für diesen Bucket **vollständig umgangen**.
-- Künstler-Basis-% und Typ-% (Digital/Physisch) werden **nicht** angewendet.
+- Künstler-Basis-% und Typ-% (Digital/Physisch) werden **nicht** angewendet — **außer beim Physical-Bucket** (siehe unten).
 - Der einzige Weg, einen Bucket-Split für einen einzelnen Künstler zu überschreiben, ist ein **Künstler-spezifischer Source-Override** für genau diese Quelle.
+
+**Priorität im Physical-Bucket (wenn `sourceSplits.physical` gesetzt ist):**
+
+| Priorität | Einstellung | Gewinnt wenn … |
+|-----------|-------------|----------------|
+| 1 (höchste) | Künstler-spezifischer Source-Override (shopify / printful) | Immer |
+| 2 | **Künstler-spezifische Physical %** (Split Fees → Künstler) | Explizit beim Künstler gesetzt |
+| 3 | General Settings Physical Split % | Kein künstler-spezifischer Physical-%-Wert gesetzt |
+| 4 | Hauptketten-Fallback | Nichts anderes konfiguriert |
+
+> Wenn ein Künstler eine explizite **Physical %** in den Split Fees (Blackbook) konfiguriert hat, hat dieser Wert Vorrang vor der General Settings Physical Split %. Der General-Settings-Wert gilt nur, wenn beim Künstler kein expliziter Physical-Prozentsatz gesetzt ist.
 
 **Regeln wenn ein Bucket-Split NICHT gesetzt ist:**
 - Der Bucket verwendet die normale Hauptkette (System A) — Künstler-Einstellungen gelten wie gewohnt.
 
-> **Typischer Anwendungsfall:** Darkmerch auf 100 % setzen → Künstler behalten alle Merchandise-Einnahmen, unabhängig von ihrem allgemeinen Splitvertrag. Physical auf 15 % setzen → Label behält 85 % der physischen Verkäufe als Label-Richtlinie.
+> **Typischer Anwendungsfall:** Darkmerch auf 100 % setzen → Künstler behalten alle Merchandise-Einnahmen, unabhängig von ihrem allgemeinen Splitvertrag. Physical auf 15 % setzen → Label behält 85 % der physischen Verkäufe als Label-Richtlinie, aber einzelne Künstler können ihren eigenen Physical-Satz durch die **Physical %**-Einstellung in Split Fees behalten.
 
 ---
 
@@ -882,8 +893,9 @@ Die Spalte `package` bestimmt, ob eine Bandcamp-Transaktion ein digitaler Downlo
 
 **Fall A — Bucket-Split ist gesetzt (z. B. Darkmerch 100 %, Physical 15 %):**
 - Gehe zu **Settings → Defaults → Source Split Rates**.
-- Wenn dort ein Wert für den entsprechenden Bucket (Darkmerch, Physical, Believe, Bandcamp) konfiguriert ist, gilt diese Rate direkt — die Hauptkette und Künstler-Einstellungen werden **umgangen**.
-- Um einen Bucket-Split für einen einzelnen Künstler zu überschreiben, füge einen **Source-Override** für diesen Künstler unter Settings → Split Fees hinzu (kein Basis-/Digital-/Physisch-Prozentsatz — diese wirken sich nicht auf Bucket-Splits aus).
+- Wenn dort ein Wert für den entsprechenden Bucket (Darkmerch, Physical, Believe, Bandcamp) konfiguriert ist, gilt diese Rate direkt — die Hauptkette und Künstler-Basis-% werden **umgangen**.
+- **Ausnahme beim Physical-Bucket:** Wenn der Künstler eine explizite **Physical %** in den Split Fees gesetzt hat, hat dieser Wert Vorrang vor der General Settings Physical Split %. Nur ein Source-Override (shopify / printful) schlägt ihn noch.
+- Um einen Bucket-Split für einen einzelnen Künstler zu überschreiben: Bei Darkmerch/Believe/Bandcamp füge einen **Source-Override** unter Settings → Split Fees hinzu. Bei Physical kannst du auch direkt die **Physical %** des Künstlers in Split Fees setzen.
 
 **Fall B — Kein Bucket-Split konfiguriert:**
 - Die Hauptkette gilt: Default Split % → Digital/Physisch Split % → Künstler-Basis → Künstler-Typ → Release.
@@ -891,9 +903,10 @@ Die Spalte `package` bestimmt, ob eine Bandcamp-Transaktion ein digitaler Downlo
 
 **Schnell-Checkliste:**
 1. Ist ein Bucket-Split konfiguriert? (**Settings → Defaults → Source Split Rates**)
-2. Wenn ja: Hat der Künstler einen **Source-Override** für diesen Bucket? (Settings → Split Fees → Source-Overrides)
-3. Wenn kein Bucket-Split: Ist der Künstler-Split-Fee korrekt konfiguriert?
-4. Gibt es Ausgaben/Vorschüsse, die die Auszahlung reduzieren?
+2. Wenn ja und es ist der **Physical**-Bucket: Hat der Künstler eine **Physical %** in Split Fees gesetzt? Wenn ja, hat diese Vorrang vor der General Settings Physical Split %.
+3. Wenn ja (kein Physical-Bucket): Hat der Künstler einen **Source-Override** für diesen Bucket? (Settings → Split Fees → Source-Overrides)
+4. Wenn kein Bucket-Split: Ist der Künstler-Split-Fee korrekt konfiguriert?
+5. Gibt es Ausgaben/Vorschüsse, die die Auszahlung reduzieren?
 
 ---
 

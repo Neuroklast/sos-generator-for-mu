@@ -810,6 +810,55 @@ describe('per-source split overrides', () => {
     expect(result[0].darkmerchSplitPercentage).toBe(80)
   })
 
+  // ── Physical bucket: per-artist physicalPercentage beats sourceSplits.physical ──
+
+  it('per-artist physicalPercentage overrides sourceSplits.physical when both are set', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'shopify' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{ artist: 'BLACKBOOK', percentage: 50, physicalPercentage: 40 }],
+      sourceSplits: { physical: 15 },
+    })
+    // per-artist physicalPercentage (40) wins over bucket split (15)
+    expect(result[0].physicalSplitPercentage).toBe(40)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.40)
+  })
+
+  it('sourceSplits.physical applies when artist has no physicalPercentage', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'shopify' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{ artist: 'BLACKBOOK', percentage: 50 }],
+      sourceSplits: { physical: 15 },
+    })
+    // no per-artist physicalPercentage → bucket split (15) applies
+    expect(result[0].physicalSplitPercentage).toBe(15)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.15)
+  })
+
+  it('per-artist source override (shopify) beats both physicalPercentage and sourceSplits.physical', () => {
+    const txs = [
+      makeTx({ original_artist: 'BLACKBOOK', net_revenue: 100, is_physical: true, source: 'shopify' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{
+        artist: 'BLACKBOOK',
+        percentage: 50,
+        physicalPercentage: 40,
+        sourceOverrides: [{ source: 'shopify', percentage: 70 }],
+      }],
+      sourceSplits: { physical: 15 },
+    })
+    // source override (70) beats physicalPercentage (40) and bucket split (15)
+    expect(result[0].physicalSplitPercentage).toBe(70)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.70)
+  })
+
   it('all three bucket splits apply simultaneously when set', () => {
     const txs = [
       makeTx({ original_artist: 'BLACKBOOK', net_revenue: 200, is_physical: false, source: 'believe' }),
