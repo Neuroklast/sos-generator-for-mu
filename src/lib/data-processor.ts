@@ -532,8 +532,8 @@ export function processTransactionsWithCompilations(
         const trkLower = (t.track_title ?? '').toLowerCase()
         const match = trackAssignments.find(
           a => a.trackTitle.trim() !== '' && (
-            relLower.includes(a.trackTitle.toLowerCase()) ||
-            trkLower.includes(a.trackTitle.toLowerCase())
+            relLower.includes(a.trackTitle.trim().toLowerCase()) ||
+            trkLower.includes(a.trackTitle.trim().toLowerCase())
           )
         )
         return match ? { ...t, main_artist: match.ownerArtist } : t
