@@ -59,8 +59,12 @@ export interface ProcessedArtistData {
   physicalReleasesRevenueAfterFee: number
   /** Darkmerch revenue after label distribution fee deduction. */
   darkmerchRevenueAfterFee: number
-  /** Split percentage (0–100) actually applied to digital revenue. */
+  /** Split percentage (0–100) actually applied to digital revenue (representative fallback for display). */
   digitalSplitPercentage: number
+  /** Split percentage (0–100) actually applied to Believe digital revenue. */
+  believeSplitPercentage: number
+  /** Split percentage (0–100) actually applied to Bandcamp revenue. */
+  bandcampSplitPercentage: number
   /** Split percentage (0–100) actually applied to physical releases revenue. */
   physicalSplitPercentage: number
   /** Split percentage (0–100) actually applied to Darkmerch/merchandise revenue. */
@@ -682,6 +686,10 @@ export function processTransactionsWithCompilations(
     let digitalRevenue = 0
     let physicalRevenue = 0
     let totalQuantity = 0
+    // Digital sub-buckets: tracked separately for per-source split application
+    let believeDigitalRevenue = 0
+    let bandcampDigitalRevenue = 0
+    let otherDigitalRevenue = 0
 
     // Create EUR-normalised versions of the transactions for breakdown functions.
     // When historical monthly rates are available, use the rate for the
@@ -700,6 +708,13 @@ export function processTransactionsWithCompilations(
         physicalRevenue += t.net_revenue
       } else {
         digitalRevenue += t.net_revenue
+        if (t.source === 'believe') {
+          believeDigitalRevenue += t.net_revenue
+        } else if (t.source === 'bandcamp') {
+          bandcampDigitalRevenue += t.net_revenue
+        } else {
+          otherDigitalRevenue += t.net_revenue
+        }
       }
     }
 
@@ -754,6 +769,9 @@ export function processTransactionsWithCompilations(
 
     // Revenue after fee deduction per bucket
     const digitalAfterFee = digitalRevenue - digitalFeeDeducted
+    const believeDigitalAfterFee = believeDigitalRevenue - believeDigitalRevenue * digitalFeeRate
+    const bandcampDigitalAfterFee = bandcampDigitalRevenue - bandcampDigitalRevenue * digitalFeeRate
+    const otherDigitalAfterFee = otherDigitalRevenue - otherDigitalRevenue * digitalFeeRate
     const physicalReleasesAfterFee = physicalReleasesRevenue - physicalReleasesFeeDeducted
     const darkmerchAfterFee = darkmerchTxRevenue - darkmerchFeeDeducted
 
@@ -779,16 +797,36 @@ export function processTransactionsWithCompilations(
     //    even for artists whose base was auto-assigned. Only an explicit per-artist
     //    digitalPercentage / physicalPercentage field can override the label type policy.
 
-    // Digital bucket
-    const digitalBucketSplit = config.sourceSplits?.believe ?? config.sourceSplits?.bandcamp
-    const digitalBucketPerArtistOverride = splitFee?.sourceOverrides?.find(
-      o => o.source === 'believe' || o.source === 'bandcamp'
+    // Digital bucket — resolved per source
+    // Priority per source: perArtistSourceOverride > sourceSplits.{source} > digital main chain
+    //
+    // The main chain is computed once and reused for any source that has no bucket split.
+    const mainChainDigitalSplitPct = resolveSplitPercentageWithSourceOverride(
+      splitFee, null, false, defaultBase, config.defaultSplitPercentageDigital
     )
-    const digitalSplitPct = digitalBucketSplit != null
-      ? clampSplitPercentage(digitalBucketPerArtistOverride?.percentage ?? digitalBucketSplit)
-      : resolveSplitPercentageWithSourceOverride(
-          splitFee, null, false, defaultBase, config.defaultSplitPercentageDigital
-        )
+
+    // Believe bucket
+    const believeSourceOverride = splitFee?.sourceOverrides?.find(o => o.source === 'believe')
+    const believeSplitPct = config.sourceSplits?.believe != null
+      ? clampSplitPercentage(believeSourceOverride?.percentage ?? config.sourceSplits.believe)
+      : mainChainDigitalSplitPct
+
+    // Bandcamp bucket
+    const bandcampSourceOverride = splitFee?.sourceOverrides?.find(o => o.source === 'bandcamp')
+    const bandcampSplitPct = config.sourceSplits?.bandcamp != null
+      ? clampSplitPercentage(bandcampSourceOverride?.percentage ?? config.sourceSplits.bandcamp)
+      : mainChainDigitalSplitPct
+
+    // Other digital sources (no source-specific bucket; uses digital main chain)
+    const otherDigitalSplitPct = mainChainDigitalSplitPct
+
+    // Representative digital split for backward-compat display:
+    // prefer believeSplitPct when the believe bucket is active, then bandcamp, then main chain.
+    const digitalSplitPct = config.sourceSplits?.believe != null
+      ? believeSplitPct
+      : config.sourceSplits?.bandcamp != null
+        ? bandcampSplitPct
+        : otherDigitalSplitPct
 
     // Physical releases bucket
     const physicalBucketPerArtistOverride = splitFee?.sourceOverrides?.find(
@@ -852,7 +890,9 @@ export function processTransactionsWithCompilations(
 
       let perReleasePayout = 0
       for (const [releaseKey, releaseTxs] of releaseGroups.entries()) {
-        let releaseDigital = 0
+        let releaseBelieveDigital = 0
+        let releaseBandcampDigital = 0
+        let releaseOtherDigital = 0
         let releasePhysicalReleases = 0
         let releaseDarkmerch = 0
         for (const t of releaseTxs) {
@@ -860,20 +900,34 @@ export function processTransactionsWithCompilations(
             releaseDarkmerch += t.net_revenue
           } else if (t.is_physical) {
             releasePhysicalReleases += t.net_revenue
+          } else if (t.source === 'believe') {
+            releaseBelieveDigital += t.net_revenue
+          } else if (t.source === 'bandcamp') {
+            releaseBandcampDigital += t.net_revenue
           } else {
-            releaseDigital += t.net_revenue
+            releaseOtherDigital += t.net_revenue
           }
         }
 
-        const releaseDigitalAfterFee = releaseDigital - releaseDigital * digitalFeeRate
+        const releaseBelieveDigitalAfterFee = releaseBelieveDigital - releaseBelieveDigital * digitalFeeRate
+        const releaseBandcampDigitalAfterFee = releaseBandcampDigital - releaseBandcampDigital * digitalFeeRate
+        const releaseOtherDigitalAfterFee = releaseOtherDigital - releaseOtherDigital * digitalFeeRate
         const releasePhysicalAfterFee = releasePhysicalReleases - releasePhysicalReleases * physicalFeeRate
         const releaseDarkmerchAfterFee = releaseDarkmerch - releaseDarkmerch * physicalFeeRate
 
         const matchedOverride = findReleaseOverride(releaseOverrides, releaseKey)
 
-        const effectiveDigitalPct = matchedOverride != null
+        // When a release override is active, all digital sub-buckets share the same
+        // override percentage (release overrides do not distinguish between sources).
+        const effectiveBelievePct = matchedOverride != null
           ? clampSplitPercentage(matchedOverride.percentage)
-          : digitalSplitPct
+          : believeSplitPct
+        const effectiveBandcampPct = matchedOverride != null
+          ? clampSplitPercentage(matchedOverride.percentage)
+          : bandcampSplitPct
+        const effectiveOtherDigitalPct = matchedOverride != null
+          ? clampSplitPercentage(matchedOverride.percentage)
+          : otherDigitalSplitPct
         const effectivePhysicalPct = matchedOverride != null
           ? clampSplitPercentage(matchedOverride.physicalPercentage ?? matchedOverride.percentage)
           : physicalSplitPct
@@ -885,7 +939,9 @@ export function processTransactionsWithCompilations(
           : darkmerchSplitPct
 
         perReleasePayout +=
-          releaseDigitalAfterFee * (effectiveDigitalPct / 100) +
+          releaseBelieveDigitalAfterFee * (effectiveBelievePct / 100) +
+          releaseBandcampDigitalAfterFee * (effectiveBandcampPct / 100) +
+          releaseOtherDigitalAfterFee * (effectiveOtherDigitalPct / 100) +
           releasePhysicalAfterFee * (effectivePhysicalPct / 100) +
           releaseDarkmerchAfterFee * (effectiveDarkmerchPct / 100)
       }
@@ -894,7 +950,9 @@ export function processTransactionsWithCompilations(
     } else {
       // Standard path (no release overrides)
       finalPayout =
-        digitalAfterFee * (digitalSplitPct / 100) +
+        believeDigitalAfterFee * (believeSplitPct / 100) +
+          bandcampDigitalAfterFee * (bandcampSplitPct / 100) +
+          otherDigitalAfterFee * (otherDigitalSplitPct / 100) +
           physicalReleasesAfterFee * (physicalSplitPct / 100) +
           darkmerchAfterFee * (darkmerchSplitPct / 100) -
           totalExpenses +
@@ -925,6 +983,8 @@ export function processTransactionsWithCompilations(
       physicalReleasesRevenueAfterFee: physicalReleasesAfterFee,
       darkmerchRevenueAfterFee: darkmerchAfterFee,
       digitalSplitPercentage: digitalSplitPct,
+      believeSplitPercentage: believeSplitPct,
+      bandcampSplitPercentage: bandcampSplitPct,
       physicalSplitPercentage: physicalSplitPct,
       darkmerchSplitPercentage: darkmerchSplitPct,
       platformBreakdown: buildPlatformBreakdown(eurTransactions),

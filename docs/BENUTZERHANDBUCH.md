@@ -278,7 +278,8 @@ Konfiguriert unter **Settings → Defaults → Source Split Rates**. Jeder Bucke
 **Regeln wenn ein Bucket-Split GESETZT ist:**
 - Die Hauptkette wird für diesen Bucket **vollständig umgangen**.
 - Künstler-Basis-% und Typ-% (Digital/Physisch) werden **nicht** angewendet — **außer beim Physical-Bucket** (siehe unten).
-- Der einzige Weg, einen Bucket-Split für einen einzelnen Künstler zu überschreiben, ist ein **Künstler-spezifischer Source-Override** für genau diese Quelle.
+- Der einzige Weg, einen Bucket-Split für einen einzelnen Künstler zu überschreiben, ist ein **Künstler-spezifischer Source-Override** für genau diese Quelle (z. B. ein `believe` Source-Override).
+- **Believe und Bandcamp sind unabhängige Buckets:** `sourceSplits.believe` gilt nur für digitale Einnahmen aus Believe-Transaktionen; `sourceSplits.bandcamp` gilt nur für digitale Einnahmen aus Bandcamp-Transaktionen. Die Einstellung eines Buckets hat keinen Einfluss auf den anderen — beide können unterschiedliche Raten haben. Digitale Einnahmen aus anderen Quellen verwenden stets die Hauptkette.
 
 **Priorität im Physical-Bucket (wenn `sourceSplits.physical` gesetzt ist):**
 
@@ -404,8 +405,8 @@ Diese sind **unabhängig** von der Hauptkette. Siehe [Abschnitt 6.1 — System B
 
 | Einstellung | Beschreibung |
 |-------------|--------------|
-| **Believe Split %** | Festrate für alle Believe-Einnahmen. Leer lassen → Hauptkette gilt. |
-| **Bandcamp Split %** | Festrate für alle Bandcamp-Einnahmen. Leer lassen → Hauptkette gilt. |
+| **Believe Split %** | Festrate nur für Believe-Digitaleinnahmen. Leer lassen → Hauptkette gilt. |
+| **Bandcamp Split %** | Festrate nur für Bandcamp-Digitaleinnahmen. Leer lassen → Hauptkette gilt. Beide können auf unterschiedliche Werte gesetzt werden; sie werden unabhängig voneinander angewendet. |
 | **Physical Split %** | Festrate für physische Releases. Leer lassen → Hauptkette gilt. |
 | **Darkmerch Split %** | Festrate für Merchandise-Einnahmen. Leer lassen → Hauptkette gilt. |
 
