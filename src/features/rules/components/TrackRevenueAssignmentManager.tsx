@@ -1,18 +1,22 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18next from 'i18next'
 import { ArrowsSplit, Plus, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { SearchableCombobox } from '@/components/ui/combobox'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { TrackRevenueAssignment } from '@/lib/types'
 
 interface TrackRevenueAssignmentManagerProps {
   assignments: TrackRevenueAssignment[]
-  /** All known release titles — used to populate the datalist for quick selection. */
-  availableReleases: string[]
-  /** All known artist names — used to populate the owner artist datalist. */
+  /**
+   * Map of artist name → release titles that belong to that artist
+   * (including collabs and features).  Used to populate the release dropdown
+   * and to restrict it to the selected artist's releases.
+   */
+  releaseTitlesByArtist: Record<string, string[]>
+  /** All known artist names — used to populate the owner artist dropdown. */
   artists: string[]
   onAdd: (entry: Omit<TrackRevenueAssignment, 'id'>) => void
   onRemove: (id: string) => void
@@ -20,7 +24,7 @@ interface TrackRevenueAssignmentManagerProps {
 
 export function TrackRevenueAssignmentManager({
   assignments,
-  availableReleases,
+  releaseTitlesByArtist,
   artists,
   onAdd,
   onRemove,
@@ -28,6 +32,30 @@ export function TrackRevenueAssignmentManager({
   const { t } = useTranslation()
   const [trackTitle, setTrackTitle] = useState('')
   const [ownerArtist, setOwnerArtist] = useState('')
+
+  /**
+   * All unique release titles across all artists — shown in the dropdown when
+   * no owner artist has been selected yet.
+   */
+  const allReleases = useMemo<string[]>(() => {
+    const seen = new Set<string>()
+    for (const titles of Object.values(releaseTitlesByArtist)) {
+      for (const title of titles) {
+        seen.add(title)
+      }
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b))
+  }, [releaseTitlesByArtist])
+
+  /**
+   * Releases visible in the track-title dropdown.
+   * Restricted to the selected artist's releases when an artist is chosen;
+   * falls back to the full list otherwise.
+   */
+  const releaseOptions = useMemo<string[]>(() => {
+    if (!ownerArtist.trim()) return allReleases
+    return releaseTitlesByArtist[ownerArtist] ?? allReleases
+  }, [ownerArtist, releaseTitlesByArtist, allReleases])
 
   const handleAdd = useCallback(() => {
     const title = trackTitle.trim()
@@ -65,35 +93,25 @@ export function TrackRevenueAssignmentManager({
       {/* Add form */}
       <div className="space-y-2 mb-5">
         <div className="flex gap-2">
+          {/* Owner artist — select first so that the release dropdown is pre-filtered */}
           <div className="flex-1">
-            <Input
-              list="tra-track-titles-list"
-              placeholder={t('trackRevenueAssignment.trackTitlePlaceholder')}
-              value={trackTitle}
-              onChange={e => setTrackTitle(e.target.value)}
-              className="h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
-            />
-            {/* Datalist provides dropdown suggestions from all known releases while
-                still allowing the user to type any custom substring freely. */}
-            <datalist id="tra-track-titles-list">
-              {availableReleases.map(r => (
-                <option key={r} value={r} />
-              ))}
-            </datalist>
-          </div>
-          <div className="flex-1">
-            <Input
-              list="tra-owner-artists-list"
-              placeholder={t('trackRevenueAssignment.ownerArtistPlaceholder')}
+            <SearchableCombobox
               value={ownerArtist}
-              onChange={e => setOwnerArtist(e.target.value)}
-              className="h-9 text-sm border-border/60 bg-background/50 focus:border-primary/60"
+              onChange={setOwnerArtist}
+              options={artists}
+              placeholder={t('trackRevenueAssignment.ownerArtistPlaceholder')}
+              emptyText={t('trackRevenueAssignment.noArtistFound')}
             />
-            <datalist id="tra-owner-artists-list">
-              {artists.map(a => (
-                <option key={a} value={a} />
-              ))}
-            </datalist>
+          </div>
+          {/* Track / release title — filtered by selected artist */}
+          <div className="flex-1">
+            <SearchableCombobox
+              value={trackTitle}
+              onChange={setTrackTitle}
+              options={releaseOptions}
+              placeholder={t('trackRevenueAssignment.trackTitlePlaceholder')}
+              emptyText={t('trackRevenueAssignment.noReleaseFound')}
+            />
           </div>
           <Button
             size="sm"

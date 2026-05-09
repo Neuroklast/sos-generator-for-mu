@@ -1195,6 +1195,7 @@ function App() {
                   onImport={handleWorkspaceImport}
                   onUpdateLabelInfo={setLabelInfo}
                   uniqueArtists={uniqueArtists}
+                  releaseTitlesByArtist={releaseTitlesByArtist}
                   handleAddIgnoredEntry={handleAddIgnoredEntry}
                   handleRemoveIgnoredEntry={handleRemoveIgnoredEntry}
                   trackRevenueAssignments={stableTrackRevenueAssignments}

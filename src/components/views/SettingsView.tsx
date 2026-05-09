@@ -59,6 +59,8 @@ interface SettingsViewProps {
 
   // ── Rules ────────────────────────────────────────────────────────────────
   uniqueArtists: string[]
+  /** Map of artist name → release titles — used to filter release dropdowns by artist. */
+  releaseTitlesByArtist: Record<string, string[]>
   handleAddIgnoredEntry: (entry: Omit<IgnoredEntry, 'id' | 'createdAt'>) => void
   handleRemoveIgnoredEntry: (id: string) => void
   trackRevenueAssignments: TrackRevenueAssignment[]
@@ -111,6 +113,7 @@ export function SettingsView({
   periodStart,
   periodEnd,
   uniqueArtists,
+  releaseTitlesByArtist,
   handleAddIgnoredEntry,
   handleRemoveIgnoredEntry,
   trackRevenueAssignments,
@@ -310,6 +313,7 @@ export function SettingsView({
           <IgnoredEntriesManager
             entries={ignoredEntries}
             artists={uniqueArtists}
+            releaseTitlesByArtist={releaseTitlesByArtist}
             onAdd={handleAddIgnoredEntry}
             onRemove={handleRemoveIgnoredEntry}
           />
@@ -318,7 +322,7 @@ export function SettingsView({
         <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl">
           <TrackRevenueAssignmentManager
             assignments={trackRevenueAssignments}
-            availableReleases={availableReleases}
+            releaseTitlesByArtist={releaseTitlesByArtist}
             artists={uniqueArtists}
             onAdd={handleAddTrackRevenueAssignment}
             onRemove={handleRemoveTrackRevenueAssignment}
