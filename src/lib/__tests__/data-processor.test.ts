@@ -735,6 +735,23 @@ describe('per-source split overrides', () => {
     expect(result[0].darkmerchSplitPercentage).toBe(100)
   })
 
+  it('exposes per-source digital after-fee revenues on output', () => {
+    const txs = [
+      makeTx({ original_artist: 'REAPER', net_revenue: 100, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'REAPER', net_revenue: 200, is_physical: false, source: 'bandcamp' }),
+      makeTx({ original_artist: 'REAPER', net_revenue: 50, is_physical: false, source: 'shopify' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      distributionFeeDigital: 10,
+      splitFees: [{ artist: 'REAPER', percentage: 100 }],
+      sourceSplits: { believe: 60, bandcamp: 50 },
+    })
+    expect(result[0].believeDigitalRevenueAfterFee).toBeCloseTo(90)
+    expect(result[0].bandcampDigitalRevenueAfterFee).toBeCloseTo(180)
+    expect(result[0].otherDigitalRevenueAfterFee).toBeCloseTo(45)
+  })
+
   // ── Bucket split regression tests ──────────────────────────────────────────
   // Bucket splits (sourceSplits) are a parallel system that activates ONLY when
   // the value is explicitly set. When NOT set, the normal main chain applies:

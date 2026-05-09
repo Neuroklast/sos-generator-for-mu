@@ -157,6 +157,41 @@ const NEGATIVE_PAYOUT_COLOR_RGB: [number, number, number] = [200, 0, 0]
  */
 const TOTAL_PAGES_PLACEHOLDER = '{total_pages}'
 
+type DigitalSourceSplit = {
+  label: 'Believe' | 'Bandcamp' | 'Other'
+  percentage: number
+  hasRevenue: boolean
+}
+
+function buildDigitalSplitLabel(
+  digitalFallbackPercentage: number,
+  sources: DigitalSourceSplit[]
+): string {
+  const activeSources = sources.filter(source => source.hasRevenue)
+  if (activeSources.length === 0) {
+    return `× Digital Split (${digitalFallbackPercentage}%)`
+  }
+
+  const uniquePercentages = new Set(activeSources.map(source => source.percentage))
+  if (uniquePercentages.size <= 1) {
+    return `× Digital Split (${activeSources[0].percentage}%)`
+  }
+
+  const activeOther = activeSources.find(source => source.label === 'Other')
+  if (activeOther) {
+    const deviationsFromOther = activeSources.filter(
+      source => source.label !== 'Other' && source.percentage !== activeOther.percentage
+    )
+    if (deviationsFromOther.length === 1) {
+      const deviation = deviationsFromOther[0]
+      return `× Digital Split (${activeOther.percentage}%, ${deviation.label} ${deviation.percentage}%)`
+    }
+  }
+
+  const explicitSources = activeSources.map(source => `${source.label} ${source.percentage}%`)
+  return `× Digital Split (${explicitSources.join(', ')})`
+}
+
 export async function generatePDF(
   artistData: SafeProcessedArtistData,
   labelInfo: LabelInfo,
@@ -409,17 +444,26 @@ function buildPDF(
   const hasStreamDownloadDetail = safeStreamRevenue > 0 || safeDownloadRevenue > 0
 
   // ── Per-bucket split application ────────────────────────────────────────────
-  const digitalAfterFeeDisplay = artistData.digitalRevenueAfterFee
+  const digitalAfterFeeDisplay = isFinite(artistData.digitalRevenueAfterFee) ? artistData.digitalRevenueAfterFee : 0
   const physRelAfterFeeDisplay = artistData.physicalReleasesRevenueAfterFee
   const darkmerchAfterFeeDisplay = artistData.darkmerchRevenueAfterFee
   const digitalSplitPct = artistData.digitalSplitPercentage
+  const believeSplitPct = artistData.believeSplitPercentage
+  const bandcampSplitPct = artistData.bandcampSplitPercentage
   const physSplitPct = artistData.physicalSplitPercentage
   const darkmerchSplitPct = artistData.darkmerchSplitPercentage
 
   const waterfallRows: string[][] = []
 
+  const believeAfterFee = isFinite(artistData.believeDigitalRevenueAfterFee) ? artistData.believeDigitalRevenueAfterFee : 0
+  const bandcampAfterFee = isFinite(artistData.bandcampDigitalRevenueAfterFee) ? artistData.bandcampDigitalRevenueAfterFee : 0
+  const otherDigitalAfterFee = isFinite(artistData.otherDigitalRevenueAfterFee) ? artistData.otherDigitalRevenueAfterFee : 0
+
   // ── Bucket share values (after-fee revenue × per-bucket split percentages) ──
-  const digitalShare = digitalAfterFeeDisplay * (digitalSplitPct / 100)
+  const digitalShare =
+    believeAfterFee * (believeSplitPct / 100) +
+    bandcampAfterFee * (bandcampSplitPct / 100) +
+    otherDigitalAfterFee * (digitalSplitPct / 100)
   const physRelShare = physRelAfterFeeDisplay * (physSplitPct / 100)
   const darkmerchShare = darkmerchAfterFeeDisplay * (darkmerchSplitPct / 100)
   const artistShare = digitalShare + physRelShare + darkmerchShare
@@ -440,8 +484,14 @@ function buildPDF(
   }
 
   // Show digital split once after all digital sub-buckets (omit when 100% or no after-fee revenue)
-  if (digitalAfterFeeDisplay > 0 && digitalSplitPct < 100) {
-    waterfallRows.push([`× Digital Split (${digitalSplitPct}%)`, formatCurrency(digitalShare)])
+  const digitalSources: DigitalSourceSplit[] = [
+    { label: 'Believe', percentage: believeSplitPct, hasRevenue: believeAfterFee > 0 },
+    { label: 'Bandcamp', percentage: bandcampSplitPct, hasRevenue: bandcampAfterFee > 0 },
+    { label: 'Other', percentage: digitalSplitPct, hasRevenue: otherDigitalAfterFee > 0 },
+  ]
+  const hasReducedDigitalSplit = digitalSources.some(source => source.hasRevenue && source.percentage < 100)
+  if (digitalAfterFeeDisplay > 0 && hasReducedDigitalSplit) {
+    waterfallRows.push([buildDigitalSplitLabel(digitalSplitPct, digitalSources), formatCurrency(digitalShare)])
   }
 
   // ── Physical releases ──────────────────────────────────────────────────────
@@ -808,6 +858,20 @@ function buildExcel(
   settings?: Partial<PdfExportSettings>
 ): Blob {
   const workbook = XLSX.utils.book_new()
+  const digitalFallbackSplit = artistData.digitalSplitPercentage
+  const includeBelieveDigitalSplit =
+    artistData.believeSplitPercentage !== digitalFallbackSplit || artistData.believeRevenue > 0
+  const includeBandcampDigitalSplit =
+    artistData.bandcampSplitPercentage !== digitalFallbackSplit || artistData.bandcampRevenue > 0
+
+  const digitalSplitRows: Array<[string, number]> = []
+  if (includeBelieveDigitalSplit) {
+    digitalSplitRows.push(['Artist Split – Believe Digital (%)', artistData.believeSplitPercentage])
+  }
+  if (includeBandcampDigitalSplit) {
+    digitalSplitRows.push(['Artist Split – Bandcamp Digital (%)', artistData.bandcampSplitPercentage])
+  }
+  digitalSplitRows.push(['Artist Split – Other Digital (%)', digitalFallbackSplit])
 
   const summaryData = [
     ['Statement of Sales'],
@@ -828,7 +892,7 @@ function buildExcel(
     ['Physical Revenue', artistData.totalPhysicalRevenue],
     ['Manual Revenue', artistData.manualRevenue],
     ['Gross Revenue', artistData.grossRevenue],
-    ['Artist Split – Digital (%)', artistData.digitalSplitPercentage],
+    ...digitalSplitRows,
     ['Artist Split – Physical Releases (%)', artistData.physicalSplitPercentage],
     ['Artist Split – Merchandise/Darkmerch (%)', artistData.darkmerchSplitPercentage],
     ['Final Payout', artistData.finalPayout],
