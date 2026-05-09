@@ -794,7 +794,116 @@ describe('per-source split overrides', () => {
       sourceSplits: { believe: 60 },
     })
     expect(result[0].digitalSplitPercentage).toBe(60)
+    expect(result[0].believeSplitPercentage).toBe(60)
     expect(result[0].finalPayout).toBeCloseTo(200 * 0.6)
+  })
+
+  // ── Bug regression: believe and bandcamp were collapsed into one digitalBucketSplit ──
+  // Previously `digitalBucketSplit = sourceSplits.believe ?? sourceSplits.bandcamp` caused
+  // the believe rate to be applied to ALL digital revenue, including Bandcamp transactions.
+
+  it('believe and bandcamp each use their own split when both sourceSplits are set', () => {
+    const txs = [
+      makeTx({ original_artist: 'REAPER', net_revenue: 100, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'REAPER', net_revenue: 200, is_physical: false, source: 'bandcamp' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{ artist: 'REAPER', percentage: 70 }],
+      sourceSplits: { believe: 60, bandcamp: 50 },
+    })
+    expect(result[0].believeSplitPercentage).toBe(60)
+    expect(result[0].bandcampSplitPercentage).toBe(50)
+    // Believe: 100 × 60% = 60; Bandcamp: 200 × 50% = 100; total = 160
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.6 + 200 * 0.5)
+  })
+
+  it('when only sourceSplits.believe is set, bandcamp falls through to main chain', () => {
+    const txs = [
+      makeTx({ original_artist: 'REAPER', net_revenue: 100, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'REAPER', net_revenue: 200, is_physical: false, source: 'bandcamp' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{ artist: 'REAPER', percentage: 70 }],
+      sourceSplits: { believe: 60 }, // no bandcamp override
+    })
+    expect(result[0].believeSplitPercentage).toBe(60)
+    // bandcamp falls through: per-artist base 70 applies
+    expect(result[0].bandcampSplitPercentage).toBe(70)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.6 + 200 * 0.7)
+  })
+
+  it('when only sourceSplits.bandcamp is set, believe falls through to main chain', () => {
+    const txs = [
+      makeTx({ original_artist: 'REAPER', net_revenue: 100, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'REAPER', net_revenue: 200, is_physical: false, source: 'bandcamp' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{ artist: 'REAPER', percentage: 70 }],
+      sourceSplits: { bandcamp: 50 }, // no believe override
+    })
+    // believe falls through: per-artist base 70 applies
+    expect(result[0].believeSplitPercentage).toBe(70)
+    expect(result[0].bandcampSplitPercentage).toBe(50)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.7 + 200 * 0.5)
+  })
+
+  it('per-artist sourceOverride for believe overrides sourceSplits.believe independently', () => {
+    const txs = [
+      makeTx({ original_artist: 'REAPER', net_revenue: 100, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'REAPER', net_revenue: 200, is_physical: false, source: 'bandcamp' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{
+        artist: 'REAPER',
+        percentage: 70,
+        sourceOverrides: [{ source: 'believe', percentage: 80 }],
+      }],
+      sourceSplits: { believe: 60, bandcamp: 50 },
+    })
+    // believe: sourceOverride (80) beats bucket split (60)
+    expect(result[0].believeSplitPercentage).toBe(80)
+    // bandcamp: bucket split (50) unchanged
+    expect(result[0].bandcampSplitPercentage).toBe(50)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.8 + 200 * 0.5)
+  })
+
+  it('per-artist sourceOverride for bandcamp overrides sourceSplits.bandcamp independently', () => {
+    const txs = [
+      makeTx({ original_artist: 'REAPER', net_revenue: 100, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'REAPER', net_revenue: 200, is_physical: false, source: 'bandcamp' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{
+        artist: 'REAPER',
+        percentage: 70,
+        sourceOverrides: [{ source: 'bandcamp', percentage: 90 }],
+      }],
+      sourceSplits: { believe: 60, bandcamp: 50 },
+    })
+    // believe: bucket split (60) unchanged
+    expect(result[0].believeSplitPercentage).toBe(60)
+    // bandcamp: sourceOverride (90) beats bucket split (50)
+    expect(result[0].bandcampSplitPercentage).toBe(90)
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.6 + 200 * 0.9)
+  })
+
+  it('believe+bandcamp splits apply correctly in release-override path', () => {
+    const txs = [
+      makeTx({ original_artist: 'REAPER', release_title: 'EP', net_revenue: 100, is_physical: false, source: 'believe' }),
+      makeTx({ original_artist: 'REAPER', release_title: 'EP', net_revenue: 200, is_physical: false, source: 'bandcamp' }),
+    ]
+    const result = processTransactions(txs, {
+      ...emptyConfig,
+      splitFees: [{ artist: 'REAPER', percentage: 70, releaseOverrides: [] }],
+      sourceSplits: { believe: 60, bandcamp: 50 },
+    })
+    // No matched release override → use source-specific splits
+    expect(result[0].finalPayout).toBeCloseTo(100 * 0.6 + 200 * 0.5)
   })
 
   it('per-artist sourceOverride can still override an active bucket split', () => {

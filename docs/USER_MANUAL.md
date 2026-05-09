@@ -275,7 +275,8 @@ Configured under **Settings → Defaults → Source Split Rates**. Each bucket s
 **Rules when a bucket split IS set:**
 - The main chain is **bypassed entirely** for that bucket.
 - Per-artist base % and type % (digital/physical) do **not** apply — **except for the physical bucket** (see below).
-- The only way to override a bucket split for a specific artist is with a **per-artist source override** for that exact source (e.g. a shopify source override).
+- The only way to override a bucket split for a specific artist is with a **per-artist source override** for that exact source (e.g. a `believe` source override).
+- **Believe and Bandcamp are independent buckets:** `sourceSplits.believe` applies only to digital revenue from Believe transactions; `sourceSplits.bandcamp` applies only to digital revenue from Bandcamp transactions. Setting one does not affect the other — they can differ freely. Digital revenue from other sources always uses the main chain.
 
 **Physical bucket priority (when `sourceSplits.physical` is set):**
 
@@ -401,8 +402,8 @@ These are **independent** of the main chain. See [Section 6.1 — System B](#sys
 
 | Setting | Description |
 |---------|-------------|
-| **Believe Split %** | Fixed rate for all Believe revenue. Leave empty → main chain applies. |
-| **Bandcamp Split %** | Fixed rate for all Bandcamp revenue. Leave empty → main chain applies. |
+| **Believe Split %** | Fixed rate for Believe digital revenue only. Leave empty → main chain applies. |
+| **Bandcamp Split %** | Fixed rate for Bandcamp digital revenue only. Leave empty → main chain applies. Both can be set to different values; they are applied independently. |
 | **Physical Split %** | Fixed rate for physical releases. Leave empty → main chain applies. |
 | **Darkmerch Split %** | Fixed rate for merchandise revenue. Leave empty → main chain applies. |
 

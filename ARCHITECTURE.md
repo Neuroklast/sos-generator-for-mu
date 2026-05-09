@@ -203,6 +203,7 @@ Per-artist settings always win over label-wide defaults. Per-release overrides w
 - When active, the bucket split **bypasses the main chain entirely**.
 - **Physical bucket exception:** an explicit per-artist `physicalPercentage` (configured in Split Fees) overrides an active Physical bucket split. This allows a label-wide physical default to be set in General Settings while still honouring artist-specific physical deals. The priority for the physical bucket is: (1) per-artist shopify/printful source override, (2) per-artist `physicalPercentage`, (3) `sourceSplits.physical` bucket split, (4) main chain fallback.
 - For all other buckets (darkmerch, believe, bandcamp), the **only override** for an active bucket split is an explicit per-artist `sourceOverride` for that specific source. Per-artist base and type percentages do not apply.
+- **Believe and Bandcamp each have an independent bucket:** `sourceSplits.believe` applies only to digital revenue from Believe transactions, and `sourceSplits.bandcamp` applies only to digital revenue from Bandcamp transactions. Other digital sources (not believe, not bandcamp) always use the main digital chain. A per-artist `sourceOverride` for `believe` or `bandcamp` overrides its respective bucket split independently.
 - Implementation: computed inline per bucket before the payout formula, not routed through `resolveSplitPercentageWithSourceOverride`.
 
 ### Consequences
@@ -215,7 +216,6 @@ Per-artist settings always win over label-wide defaults. Per-release overrides w
 - For the physical bucket specifically, a per-artist `physicalPercentage` also overrides the bucket split, giving per-artist physical deals full priority over the label-wide physical rate.
 
 **Negative / Trade-offs:**
-- `sourceSplits.believe` and `sourceSplits.bandcamp` currently apply to the aggregated digital bucket as a whole. If different rates per digital source are needed, the digital bucket computation must be split per source (future work).
 - Bucket split activation is binary (set / not set). There is no intermediate priority level between "global bucket" and "per-artist source override" for bucket-based revenue — except for the physical bucket where `physicalPercentage` provides such an intermediate level.
 
 ---
