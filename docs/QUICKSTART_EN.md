@@ -6,11 +6,19 @@
 
 ## 1. Installation & Launch
 
-### Prerequisites
+### Option A — One-click deploy to Vercel (recommended for non-developers)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FNeuroklast%2Fsos-generator-for-mu&project-name=neurostat&repository-name=sos-generator-for-mu)
+
+Click the button above, sign in to Vercel (free account), and your own hosted instance will be live in under a minute. No environment variables are required.
+
+### Option B — Local development server
+
+#### Prerequisites
 - Node.js 20 or later
 - npm 10 or later
 
-### Start the local development server
+#### Start the local development server
 
 ```bash
 git clone https://github.com/Neuroklast/sos-generator-for-mu.git
