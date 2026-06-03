@@ -6,11 +6,19 @@
 
 ## 1. Installation & Start
 
-### Voraussetzungen
+### Option A — Ein-Klick-Deployment auf Vercel (empfohlen für Nicht-Entwickler)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FNeuroklast%2Fsos-generator-for-mu&project-name=neurostat&repository-name=sos-generator-for-mu)
+
+Klicke den Button oben, melde dich bei Vercel an (kostenloser Account), und deine eigene gehostete Instanz ist in unter einer Minute live. Es sind keine Umgebungsvariablen erforderlich.
+
+### Option B — Lokale Entwicklungsinstanz starten
+
+#### Voraussetzungen
 - Node.js 20 oder neuer
 - npm 10 oder neuer
 
-### Lokale Entwicklungsinstanz starten
+#### Lokale Entwicklungsinstanz starten
 
 ```bash
 git clone https://github.com/Neuroklast/sos-generator-for-mu.git

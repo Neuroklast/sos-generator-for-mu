@@ -101,6 +101,12 @@ npm run preview
 
 ### Deploy to Vercel
 
+**One-click deployment:**
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FNeuroklast%2Fsos-generator-for-mu&project-name=neurostat&repository-name=sos-generator-for-mu)
+
+Or using the Vercel CLI:
+
 ```bash
 npx vercel --prod
 ```

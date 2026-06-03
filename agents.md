@@ -51,6 +51,32 @@ This file contains mandatory instructions for every AI agent (GitHub Copilot Cod
 
 ---
 
+## Build, Test & Lint Commands
+
+Always run these before and after making code changes:
+
+| Command | Purpose |
+|---------|---------|
+| `npm run build` | Production build (tsc + vite). Must pass with no errors. |
+| `npm test` | Run all unit tests (vitest). Must pass. |
+| `npx eslint <changed files>` | Lint only changed files (repo-wide `npm run lint` has pre-existing baseline failures). |
+
+> **Note:** `npm run build` and `npm test` are verified working. Repo-wide `npm run lint` has pre-existing failures unrelated to feature work — use targeted `npx eslint <changed files>` instead.
+
+---
+
+## Repository Conventions
+
+- **TypeScript strict mode** is enabled. All new code must be fully typed.
+- **Split engine priority** (highest → lowest): per-artist source override → per-artist type override → per-artist base → global source split → global type default → global base.
+- **Worker safety:** strip `transactions` from `ProcessedArtistData` before posting from the worker via destructuring.
+- **Revenue columns:** Bandcamp uses `net amount` (net_revenue). Never use `balance of revenue share (EUR)` (collection-society running balance).
+- **Date format:** `sales_month` must always be a valid `YYYY-MM` string or empty string `''`. Never use `'Unknown'`.
+- **Exchange rates:** Historical monthly ECB rates are fetched via `/api/exchange-rates?start=YYYY-MM&end=YYYY-MM`.
+- **KV persistence:** `useLocalKV` is the IndexedDB hook; it is a drop-in swap for Vercel KV when needed.
+
+---
+
 ## Checklist Template
 
 Copy and paste this into your session plan / PR description:
@@ -77,3 +103,4 @@ NeuroStat is a **FinTech-grade** royalty reporting tool used by real music label
 - Legal and tax compliance errors if German VAT text guidance is wrong
 
 **Documentation is not optional. It is part of the definition of done.**
+
