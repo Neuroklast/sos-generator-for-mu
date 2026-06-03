@@ -449,7 +449,7 @@ export function LabelArtistManager({
                       if (onImportLabelArtistsCSV) {
                         onImportLabelArtistsCSV(parsed)
                         if (warnings.length > 0) {
-                          toast.warning(`Imported ${parsed.length} artists. UUID warnings:\n${warnings.join('\n')}`)
+                          toast.warning(`Imported ${parsed.length} artists. Invalid UUIDs: ${warnings.join(', ')}`)
                         } else {
                           toast.success(i18next.t('toast.artistsImportedFromCSV', { count: parsed.length }))
                         }

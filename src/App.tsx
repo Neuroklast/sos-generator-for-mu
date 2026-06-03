@@ -751,13 +751,16 @@ function App() {
   const handleImportLabelArtistsCSV = useCallback(
     (artists: Omit<LabelArtist, 'id'>[]) => {
       setLabelArtists(current => {
-        const existing = current ?? []
-        const result = [...existing]
+        const result = [...(current ?? [])]
         for (const imported of artists) {
           const idx = result.findIndex(a => a.name.toLowerCase() === imported.name.toLowerCase())
+          // Only include fields that are explicitly defined (not undefined) in the imported row
+          const definedFields = Object.fromEntries(
+            Object.entries(imported).filter(([, v]) => v !== undefined)
+          ) as Partial<Omit<LabelArtist, 'id'>>
           if (idx >= 0) {
-            // Upsert: merge imported fields onto existing artist, preserving id
-            result[idx] = { ...result[idx], ...imported }
+            // Upsert: merge defined imported fields onto existing artist, preserving id
+            result[idx] = { ...result[idx], ...definedFields }
           } else {
             result.push({ ...imported, id: crypto.randomUUID() })
           }

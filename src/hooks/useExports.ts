@@ -88,7 +88,8 @@ export function useExports(
         if (shouldUpload && artistInfo?.artistId) {
           const period = periodStart || String(new Date().getFullYear())
           const filename = `${createSafeFilename(artist)}_statement.pdf`
-          const validPeriod = isValidPeriod(period) ? period : String(new Date().getFullYear())
+          // If period doesn't match expected format (YYYY-MM or Q{N}-YYYY), fall back to current year
+          const validPeriod = isValidPeriod(period) ? period : `Q1-${new Date().getFullYear()}`
 
           toast.loading('Uploading statement to portal…', { id: 'sos-upload' })
 
@@ -97,7 +98,7 @@ export function useExports(
               artistId: artistInfo.artistId,
               filename,
               period: validPeriod,
-              amountEur: artistInfo ? undefined : undefined,
+              amountEur: artistData.finalPayout,
             },
             blob,
             sosWebhookUrl,
