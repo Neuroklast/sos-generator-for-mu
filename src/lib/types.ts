@@ -29,6 +29,12 @@ export interface LabelArtist {
    * a BIC when both accounts are in SEPA countries (IBAN-only since 2016).
    */
   bic?: string
+  /**
+   * UUID of the corresponding artist record in the darkTunes portal database
+   * (darktunes-website.artists table). Required for automatic statement uploads
+   * via the portal webhook integration.
+   */
+  artistId?: string
 }
 
 /**

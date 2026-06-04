@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18next from 'i18next'
-import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil, Bank, SortAscending } from '@phosphor-icons/react'
+import { Users, Plus, Trash, Download, CaretDown, CaretUp, EnvelopeSimple, IdentificationCard, NotePencil, Bank, SortAscending, LinkSimple } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -49,6 +49,7 @@ function ArtistDetailEditor({
       accountHolder: artist.accountHolder,
       iban: artist.iban,
       bic: artist.bic,
+      artistId: artist.artistId,
       ...partial,
     })
 
@@ -214,6 +215,28 @@ function ArtistDetailEditor({
             />
           </div>
         </div>
+
+        {/* ── darkTunes Portal Link ──────────────────────────── */}
+        <div className="mt-1 pt-2 border-t border-white/8 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+            <LinkSimple size={10} weight="bold" />
+            darkTunes Portal
+          </p>
+          <div className="space-y-1">
+            <Label htmlFor={`artist-artistid-${artist.id}`} className="text-xs flex items-center gap-1 text-muted-foreground">
+              Artist UUID (from darktunes-website.artists)
+            </Label>
+            <Input
+              id={`artist-artistid-${artist.id}`}
+              type="text"
+              value={artist.artistId ?? ''}
+              onChange={e => patch({ artistId: e.target.value.trim() || undefined })}
+              placeholder="e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+              className="h-8 text-xs font-mono"
+            />
+            <p className="text-[10px] text-muted-foreground">Used to upload statements to the portal automatically.</p>
+          </div>
+        </div>
       </div>
     </motion.div>
   )
@@ -263,7 +286,7 @@ export function LabelArtistManager({
       toast.error(i18next.t('toast.noArtistsToExport'))
       return
     }
-    const CSV_FIELDS = ['name', 'email', 'vatNumber', 'isEuNonGerman', 'notes', 'accountHolder', 'iban', 'bic'] as const
+    const CSV_FIELDS = ['name', 'email', 'vatNumber', 'isEuNonGerman', 'notes', 'accountHolder', 'iban', 'bic', 'artistId'] as const
     const header = CSV_FIELDS.join(',')
     const rows = artists.map(a => {
       const fields = [
@@ -275,6 +298,7 @@ export function LabelArtistManager({
         `"${(a.accountHolder ?? '').replace(/"/g, '""')}"`,
         `"${(a.iban ?? '').replace(/"/g, '""')}"`,
         `"${(a.bic ?? '').replace(/"/g, '""')}"`,
+        `"${(a.artistId ?? '').replace(/"/g, '""')}"`,
       ]
       return fields.join(',')
     })
@@ -373,27 +397,62 @@ export function LabelArtistManager({
                     const rows = results.data
                     if (rows.length === 0) return
 
-                    const dataRows = rows[0]?.[0]?.toLowerCase().startsWith('name') ? rows.slice(1) : rows
+                    // Detect header row and build column index map
+                    const firstRow = rows[0] ?? []
+                    const hasHeader = firstRow[0]?.toLowerCase().startsWith('name')
+                    const headerRow = hasHeader ? firstRow.map(h => h.trim().toLowerCase()) : null
+                    const dataRows = hasHeader ? rows.slice(1) : rows
+
+                    // Header-aware column positions
+                    const colIdx = (name: string, fallback: number): number =>
+                      headerRow ? (headerRow.indexOf(name) >= 0 ? headerRow.indexOf(name) : -1) : fallback
+
+                    const nameCol = colIdx('name', 0)
+                    const emailCol = colIdx('email', 1)
+                    const vatCol = colIdx('vatnumber', 2)
+                    const euCol = colIdx('iseunongerman', 3)
+                    const notesCol = colIdx('notes', 4)
+                    const acctCol = colIdx('accountholder', 5)
+                    const ibanCol = colIdx('iban', 6)
+                    const bicCol = colIdx('bic', 7)
+                    const artistIdCol = colIdx('artistid', -1)
+
+                    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+                    const warnings: string[] = []
 
                     const parsed = dataRows.flatMap(cols => {
-                      const name = cols[0]?.trim()
+                      const name = nameCol >= 0 ? cols[nameCol]?.trim() : cols[0]?.trim()
                       if (!name) return []
+                      const rawArtistId = artistIdCol >= 0 ? cols[artistIdCol]?.trim() : undefined
+                      let artistId: string | undefined
+                      if (rawArtistId) {
+                        if (UUID_RE.test(rawArtistId)) {
+                          artistId = rawArtistId
+                        } else {
+                          warnings.push(`"${name}": invalid UUID format "${rawArtistId}"`)
+                        }
+                      }
                       return [{
                         name,
-                        email: cols[1]?.trim() || undefined,
-                        vatNumber: cols[2]?.trim() || undefined,
-                        isEuNonGerman: cols[3]?.trim() === 'true',
-                        notes: cols[4]?.trim() || undefined,
-                        accountHolder: cols[5]?.trim() || undefined,
-                        iban: cols[6]?.trim() || undefined,
-                        bic: cols[7]?.trim() || undefined,
+                        email: emailCol >= 0 ? cols[emailCol]?.trim() || undefined : undefined,
+                        vatNumber: vatCol >= 0 ? cols[vatCol]?.trim() || undefined : undefined,
+                        isEuNonGerman: euCol >= 0 ? cols[euCol]?.trim() === 'true' : false,
+                        notes: notesCol >= 0 ? cols[notesCol]?.trim() || undefined : undefined,
+                        accountHolder: acctCol >= 0 ? cols[acctCol]?.trim() || undefined : undefined,
+                        iban: ibanCol >= 0 ? cols[ibanCol]?.trim() || undefined : undefined,
+                        bic: bicCol >= 0 ? cols[bicCol]?.trim() || undefined : undefined,
+                        artistId,
                       }]
                     })
 
                     if (parsed.length > 0) {
                       if (onImportLabelArtistsCSV) {
                         onImportLabelArtistsCSV(parsed)
-                        toast.success(i18next.t('toast.artistsImportedFromCSV', { count: parsed.length }))
+                        if (warnings.length > 0) {
+                          toast.warning(`Imported ${parsed.length} artists. Invalid UUIDs: ${warnings.join(', ')}`)
+                        } else {
+                          toast.success(i18next.t('toast.artistsImportedFromCSV', { count: parsed.length }))
+                        }
                       } else {
                         toast.error(i18next.t('toast.importCSVViaUpload'))
                       }

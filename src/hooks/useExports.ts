@@ -7,6 +7,7 @@ import {
   generateZipOfAllStatements,
 } from '@/lib/export-utils'
 import { createSafeFilename } from '@/lib/utils'
+import { uploadStatementPdf, isValidArtistId, isValidPeriod } from '@/lib/sosWebhook'
 import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults, LabelArtist, EmailConfig, CompilationFilter } from '@/lib/types'
 
 /**
@@ -22,7 +23,10 @@ export function useExports(
   appDefaults?: Partial<AppDefaults>,
   labelArtists?: LabelArtist[],
   emailConfig?: Partial<EmailConfig>,
-  compilationFilters: CompilationFilter[] = []
+  compilationFilters: CompilationFilter[] = [],
+  sosWebhookUrl = '',
+  sosWebhookSecret = '',
+  autoUploadToPortal = true
 ) {
   const emailOptions = useMemo(
     () =>
@@ -72,15 +76,52 @@ export function useExports(
           artistInfo,
           compilationFilters
         )
-        downloadBlob(blob, `${createSafeFilename(artist)}_statement.pdf`)
-        toast.success(`PDF for "${artist}" downloaded`)
+
+        // Attempt webhook upload if configured and auto-upload is enabled
+        const shouldUpload =
+          autoUploadToPortal &&
+          sosWebhookUrl.trim() !== '' &&
+          sosWebhookSecret.trim() !== '' &&
+          artistInfo?.artistId != null &&
+          isValidArtistId(artistInfo.artistId)
+
+        if (shouldUpload && artistInfo?.artistId) {
+          const period = periodStart || String(new Date().getFullYear())
+          const filename = `${createSafeFilename(artist)}_statement.pdf`
+          // If period doesn't match expected format (YYYY-MM or Q{N}-YYYY), fall back to current year
+          const validPeriod = isValidPeriod(period) ? period : `Q1-${new Date().getFullYear()}`
+
+          toast.loading('Uploading statement to portal…', { id: 'sos-upload' })
+
+          const result = await uploadStatementPdf(
+            {
+              artistId: artistInfo.artistId,
+              filename,
+              period: validPeriod,
+              amountEur: artistData.finalPayout,
+            },
+            blob,
+            sosWebhookUrl,
+            sosWebhookSecret
+          )
+
+          if (result.success) {
+            toast.success('Statement uploaded! Artist will receive an email notification.', { id: 'sos-upload' })
+          } else {
+            toast.error(`Upload failed: ${result.error ?? 'Unknown error'}. PDF saved locally instead.`, { id: 'sos-upload' })
+            downloadBlob(blob, `${createSafeFilename(artist)}_statement.pdf`)
+          }
+        } else {
+          downloadBlob(blob, `${createSafeFilename(artist)}_statement.pdf`)
+          toast.success(`PDF for "${artist}" downloaded`)
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
         toast.error('PDF export failed', { description: message })
         console.error('PDF export error:', err)
       }
     },
-    [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, artistInfoMap, compilationFilters]
+    [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, artistInfoMap, compilationFilters, sosWebhookUrl, sosWebhookSecret, autoUploadToPortal]
   )
 
   const handleDownloadExcel = useCallback(

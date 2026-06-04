@@ -2,6 +2,8 @@ import { useTranslation, Trans } from 'react-i18next'
 import { Trash2, DatabaseZap } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { WorkspaceManager, type WorkspaceBackup } from '@/features/core/components/WorkspaceManager'
@@ -85,6 +87,12 @@ interface SettingsViewProps {
 
   // ── Guest payout rules (for workspace backup) ────────────────────────────
   guestPayoutRules: import('@/lib/types').GuestPayoutRule[]
+
+  // ── darkTunes Portal webhook ─────────────────────────────────────────────
+  sosWebhookUrl: string
+  setSosWebhookUrl: (url: string) => void
+  sosWebhookSecret: string
+  setSosWebhookSecret: (secret: string) => void
 }
 
 export function SettingsView({
@@ -129,6 +137,10 @@ export function SettingsView({
   onUpdateCsvProfile,
   onDeleteCsvProfile,
   guestPayoutRules,
+  sosWebhookUrl,
+  setSosWebhookUrl,
+  sosWebhookSecret,
+  setSosWebhookSecret,
 }: SettingsViewProps) {
   const { t } = useTranslation()
   return (
@@ -164,6 +176,46 @@ export function SettingsView({
           csvImportProfiles={csvImportProfiles}
           onImport={onImport}
         />
+
+        {/* darkTunes Portal Webhook */}
+        <Card className="p-8 border border-white/10 bg-card backdrop-blur-md rounded-2xl space-y-5">
+          <div className="space-y-1">
+            <h3 className="font-semibold text-foreground text-sm">darkTunes Portal – Statement Upload</h3>
+            <p className="text-xs text-muted-foreground">
+              Configure the webhook endpoint to automatically upload Statement-of-Sales PDFs to the darkTunes artist portal.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="sos-webhook-url" className="text-xs text-muted-foreground">
+                Webhook URL
+              </Label>
+              <Input
+                id="sos-webhook-url"
+                type="url"
+                value={sosWebhookUrl}
+                onChange={e => setSosWebhookUrl(e.target.value)}
+                placeholder="https://darktunes.com/api/webhooks/sos"
+                className="h-8 text-xs font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sos-webhook-secret" className="text-xs text-muted-foreground">
+                API Secret
+              </Label>
+              <Input
+                id="sos-webhook-secret"
+                type="password"
+                value={sosWebhookSecret}
+                onChange={e => setSosWebhookSecret(e.target.value)}
+                placeholder="Shared API key"
+                className="h-8 text-xs font-mono"
+                autoComplete="new-password"
+              />
+              <p className="text-[10px] text-muted-foreground">Stored locally in IndexedDB. Never sent to any third party.</p>
+            </div>
+          </div>
+        </Card>
 
         {/* Danger Zone */}
         <Card className="p-8 border border-red-500/20 bg-card backdrop-blur-md rounded-2xl">

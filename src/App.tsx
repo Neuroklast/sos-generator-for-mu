@@ -178,6 +178,10 @@ function App() {
   const [emailConfig, setEmailConfig] = useKV<EmailConfig>('email-config', DEFAULT_EMAIL_CONFIG)
   // CSV Import Profiles — pre-seeded with system defaults on first load.
   const [csvImportProfiles, setCsvImportProfiles] = useKV<CsvImportProfile[]>('csv-import-profiles', DEFAULT_CSV_PROFILES)
+  // darkTunes Portal webhook settings
+  const [sosWebhookUrl, setSosWebhookUrl] = useKV<string>('sos-webhook-url', 'https://darktunes.com/api/webhooks/sos')
+  const [sosWebhookSecret, setSosWebhookSecret] = useKV<string>('sos-webhook-secret', '')
+  const [autoUploadToPortal, setAutoUploadToPortal] = useKV<boolean>('auto-upload-to-portal', true)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [clearAllStorageConfirmOpen, setClearAllStorageConfirmOpen] = useState(false)
 
@@ -408,7 +412,10 @@ function App() {
     appDefaults ?? DEFAULT_APP_DEFAULTS,
     stableLabelArtists,
     emailConfig ?? DEFAULT_EMAIL_CONFIG,
-    stableCompilationFilters
+    stableCompilationFilters,
+    sosWebhookUrl ?? '',
+    sosWebhookSecret ?? '',
+    autoUploadToPortal ?? true
   )
 
   const handleAddCompilationFilter = useCallback(
@@ -744,12 +751,21 @@ function App() {
   const handleImportLabelArtistsCSV = useCallback(
     (artists: Omit<LabelArtist, 'id'>[]) => {
       setLabelArtists(current => {
-        const existing = current ?? []
-        const existingNames = new Set(existing.map(a => a.name.toLowerCase()))
-        const toAdd = artists
-          .filter(a => !existingNames.has(a.name.toLowerCase()))
-          .map(a => ({ ...a, id: crypto.randomUUID() }))
-        return [...existing, ...toAdd]
+        const result = [...(current ?? [])]
+        for (const imported of artists) {
+          const idx = result.findIndex(a => a.name.toLowerCase() === imported.name.toLowerCase())
+          // Only include fields that are explicitly defined (not undefined) in the imported row
+          const definedFields = Object.fromEntries(
+            Object.entries(imported).filter(([, v]) => v !== undefined)
+          ) as Partial<Omit<LabelArtist, 'id'>>
+          if (idx >= 0) {
+            // Upsert: merge defined imported fields onto existing artist, preserving id
+            result[idx] = { ...result[idx], ...definedFields }
+          } else {
+            result.push({ ...imported, id: crypto.randomUUID() })
+          }
+        }
+        return result
       })
     },
     [setLabelArtists]
@@ -1217,6 +1233,9 @@ function App() {
                   emailConfig={emailConfig ?? DEFAULT_EMAIL_CONFIG}
                   periodStart={safePeriodStart}
                   periodEnd={safePeriodEnd}
+                  autoUploadToPortal={autoUploadToPortal ?? true}
+                  setAutoUploadToPortal={setAutoUploadToPortal}
+                  sosWebhookConfigured={!!sosWebhookUrl && !!sosWebhookSecret}
                 />
               )}
 
@@ -1322,6 +1341,10 @@ function App() {
                   onUpdateCsvProfile={handleUpdateCsvProfile}
                   onDeleteCsvProfile={handleDeleteCsvProfile}
                   guestPayoutRules={guestPayoutRules ?? []}
+                  sosWebhookUrl={sosWebhookUrl ?? ''}
+                  setSosWebhookUrl={setSosWebhookUrl}
+                  sosWebhookSecret={sosWebhookSecret ?? ''}
+                  setSosWebhookSecret={setSosWebhookSecret}
                 />
               )}
 
