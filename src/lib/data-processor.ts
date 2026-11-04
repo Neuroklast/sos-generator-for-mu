@@ -173,6 +173,8 @@ export function isCompilation(
   filters: CompilationFilter[]
 ): boolean {
   for (const filter of filters) {
+    // Empty persisted filters must not exclude the entire catalogue.
+    if (!filter.identifier.trim()) continue
     switch (filter.type) {
       case 'ean':
         // Exact match to prevent a short code from matching unrelated releases.
@@ -519,8 +521,7 @@ export function processTransactionsWithCompilations(
   transactions: SalesTransaction[],
   config: DataProcessorConfig
 ): ProcessorResult {
-  // Identify compilation transactions for reporting purposes only.
-  // They still count toward artist revenue (Bug 3b fix).
+  // Track excluded compilation rows for the audit panel before removing them from artist settlement.
   const compilationTransactionIds = new Set<string>()
   for (const t of transactions) {
     if (isCompilation(t, config.compilationFilters)) {
@@ -528,7 +529,7 @@ export function processTransactionsWithCompilations(
     }
   }
 
-  // Build filtered compilation summary (informational panel only)
+  // Build the informational audit summary of excluded compilation transactions.
   const compilationMap = new Map<string, FilteredCompilation>()
   for (const t of transactions) {
     if (!compilationTransactionIds.has(t.id)) continue
@@ -563,10 +564,11 @@ export function processTransactionsWithCompilations(
     (a, b) => b.revenue - a.revenue
   )
 
-  // Apply physical exclusion to all transactions (compilations are still counted)
-  const workingTransactions = config.excludePhysical
+  // Excluded compilations must be absent from both artist totals and raw report tabs.
+  // Original distributor rows remain available in the input/audit data.
+  const workingTransactions = (config.excludePhysical
     ? transactions.filter(t => !t.is_physical)
-    : transactions
+    : transactions).filter(t => !compilationTransactionIds.has(t.id))
 
   // Resolve artist names via mappings
   const resolved = workingTransactions.map(t => ({
@@ -595,7 +597,23 @@ export function processTransactionsWithCompilations(
 
         if (!match) return [t]
 
-        const owners = resolveAssignmentOwners(match)
+        // Do not silently create or lose revenue when imported workspace rules
+        // contain an incomplete or overallocated multi-owner percentage list.
+        if (match.owners?.length) {
+          const sum = match.owners.reduce((total, owner) => total + owner.percentage, 0)
+          if (!match.owners.every(owner => Number.isFinite(owner.percentage) && owner.percentage >= 0 && owner.percentage <= 100)
+              || Math.abs(sum - 100) > 0.001) return [t]
+        }
+        const ownersByArtist = new Map<string, { artist: string; fraction: number }>()
+        for (const owner of resolveAssignmentOwners(match)) {
+          const key = owner.artist.trim().toLowerCase().replace(/\s+/g, '')
+          if (!key) continue
+          const existing = ownersByArtist.get(key)
+          if (existing) existing.fraction += owner.fraction
+          else ownersByArtist.set(key, { artist: owner.artist.trim(), fraction: owner.fraction })
+        }
+        const owners = [...ownersByArtist.values()]
+        if (owners.length === 0) return [t]
 
         // Single-owner fast path — simple re-attribution, no clone needed.
         // Only skip scaling when the sole owner holds the full 100% (fraction
@@ -603,18 +621,28 @@ export function processTransactionsWithCompilations(
         // a non-zero percentage), the remaining fraction may be < 1, so we
         // fall through to the multi-owner scaling path to honour that share.
         if (owners.length === 1 && owners[0].fraction === 1) {
-          return [{ ...t, main_artist: owners[0].artist }]
+          return [{ ...t, main_artist: owners[0].artist, assignment_owner_locked: true, assignment_allocation_percentage: 100 }]
         }
 
-        // Multi-owner path — clone transaction with scaled revenue per owner.
-        // ID is suffixed to guarantee uniqueness in downstream Maps.
-        return owners.map(owner => ({
-          ...t,
-          id: `${t.id}__split__${owner.artist}`,
-          main_artist: owner.artist,
-          net_revenue: t.net_revenue * owner.fraction,
-          quantity: Math.round(t.quantity * owner.fraction),
-        }))
+        // Allocate the integer remainder to the last owner so a complete
+        // ownership split does not create or drop streams through rounding.
+        const completeSplit = Math.abs(owners.reduce((sum, owner) => sum + owner.fraction, 0) - 1) < 0.00001
+        let allocatedQuantity = 0
+        return owners.map((owner, index) => {
+          const quantity = completeSplit && index === owners.length - 1
+            ? t.quantity - allocatedQuantity
+            : Math.round(t.quantity * owner.fraction)
+          allocatedQuantity += quantity
+          return {
+            ...t,
+            id: `${t.id}__split__${owner.artist}`,
+            main_artist: owner.artist,
+            assignment_owner_locked: true,
+            assignment_allocation_percentage: owner.fraction * 100,
+            net_revenue: t.net_revenue * owner.fraction,
+            quantity,
+          }
+        })
       })
 
   // ── Label artist roster filter ─────────────────────────────────────────────
@@ -632,6 +660,8 @@ export function processTransactionsWithCompilations(
         if (rosterNames.includes(t.main_artist.trim().toLowerCase())) {
           return [t]
         }
+        // An explicit 100% or proportional owner rule must not be undone by roster fallback.
+        if ('assignment_owner_locked' in t && t.assignment_owner_locked === true) return []
         // Try to find a label artist within the original_artist string
         // (handles "Neuroklast, mechanical vein" or "Neuroklast feat. X")
         const found = rosterNames.find(rn =>

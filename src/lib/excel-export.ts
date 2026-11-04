@@ -165,7 +165,17 @@ export function buildExcelBuffer(
       const index = Math.floor(offset / MAX_DATA_ROWS_PER_SHEET)
       const name = excelSafeSheetName(index === 0 ? sourceSheet.sheetName : `${sourceSheet.sheetName}_${index + 1}`)
       const rows = sourceSheet.rows.slice(offset, offset + MAX_DATA_ROWS_PER_SHEET)
-      const worksheet = XLSX.utils.aoa_to_sheet([sourceSheet.headers, ...rows])
+      // Convert only our own statement fields to numeric Excel cells, leaving
+      // distributor-supplied source values and leading-zero identifiers intact.
+      const numericColumns = new Set(sourceSheet.headers.flatMap((header, index) =>
+        ['Statement Allocation (%)', 'Statement Net Revenue (source currency)', 'Statement Quantity'].includes(header)
+          ? [index]
+          : [],
+      ))
+      const worksheet = XLSX.utils.aoa_to_sheet([
+        sourceSheet.headers,
+        ...rows.map(row => row.map((cell, index) => numericColumns.has(index) ? Number(cell) : cell)),
+      ])
       worksheet['!cols'] = sourceSheet.headers.map(header => ({ wch: Math.max(14, Math.min(36, header.length + 4)) }))
       if (worksheet['!ref']) worksheet['!autofilter'] = { ref: worksheet['!ref'] }
       XLSX.utils.book_append_sheet(workbook, worksheet, name)

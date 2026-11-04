@@ -29,6 +29,24 @@ describe('original report sheets', () => {
     expect(sheets.get('artist')?.[0]?.rows).toEqual([['Artist', '1/1/2026', '10']])
   })
 
+  it('preserves original source values while exposing proportional ownership revenue', () => {
+    const original = {
+      ...tx('shared', 'believe', 'Exstais', ['Artist Name', 'Net Revenue'], ['Exstais feat Agnis', '100']),
+      id: 'shared__split__Exstais',
+      net_revenue: 60,
+      quantity: 60,
+      assignment_allocation_percentage: 60,
+    }
+    const sheets = buildArtistRawSheets([{ artist: 'Exstais', transactions: [original] }])
+    expect(sheets.get('exstais')?.[0]?.headers).toEqual([
+      'Artist Name', 'Net Revenue', 'Statement Allocation (%)',
+      'Statement Net Revenue (source currency)', 'Statement Quantity',
+    ])
+    expect(sheets.get('exstais')?.[0]?.rows).toEqual([
+      ['Exstais feat Agnis', '100', '60', '60', '60'],
+    ])
+  })
+
   it('includes Darkmerch while preserving the reported source period', () => {
     const sheets = buildArtistRawSheets([{
       artist: 'Artist',
