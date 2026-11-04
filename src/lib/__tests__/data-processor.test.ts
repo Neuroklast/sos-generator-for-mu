@@ -9,6 +9,7 @@ import {
 } from '../data-processor'
 import type { DataProcessorConfig } from '../data-processor'
 import type { CompilationFilter, ArtistMapping, SplitFee, ManualRevenue } from '../types'
+import { buildArtistRawSheets } from '../raw-source-rows'
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
@@ -298,7 +299,7 @@ describe('per-type artist splits', () => {
 // ── processTransactionsWithCompilations ───────────────────────────────────────
 
 describe('processTransactionsWithCompilations', () => {
-  it('reports compilation transactions separately but still counts them in artist revenue', () => {
+  it('reports excluded compilations without charging them to artists', () => {
     const filter: CompilationFilter = { id: '1', label: 'Test', type: 'ean', identifier: 'COMP-EAN' }
     const txs = [
       makeTx({ original_artist: 'Omnimar', upc_ean: 'COMP-EAN', net_revenue: 10 }),
@@ -308,9 +309,51 @@ describe('processTransactionsWithCompilations', () => {
     // Compilation revenue is surfaced in the info panel …
     expect(result.filteredCompilations).toHaveLength(1)
     expect(result.filteredCompilations[0].revenue).toBeCloseTo(10)
-    // … but the artist still receives the full amount (Bug 3b fix).
+    // … and no compilation amount enters the artist statement or raw exports.
     const omnimar = result.artistData.find(a => a.artist === 'Omnimar')
-    expect(omnimar!.grossRevenue).toBeCloseTo(30)
+    expect(omnimar!.grossRevenue).toBeCloseTo(20)
+  })
+
+  it('omits excluded compilation rows from artist raw tabs', () => {
+    const headers = ['Artist Name', 'Track Title', 'Net Revenue']
+    const transactions = [
+      makeTx({ id: 'comp', upc_ean: 'COMP-EAN', net_revenue: 40, source_row_id: 'comp',
+        source_headers: headers, source_values: ['Omnimar', 'Compilation', '40'] }),
+      makeTx({ id: 'normal', upc_ean: 'NORMAL-EAN', net_revenue: 20, source_row_id: 'normal',
+        source_headers: headers, source_values: ['Omnimar', 'Normal Track', '20'] }),
+    ]
+    const { artistData } = processTransactionsWithCompilations(transactions, {
+      ...emptyConfig,
+      compilationFilters: [{ id: 'comp', type: 'ean', identifier: 'COMP-EAN', label: 'Comp' }],
+    })
+    expect(artistData[0]?.grossRevenue).toBe(20)
+    expect(buildArtistRawSheets(artistData).get('omnimar')?.[0]?.rows)
+      .toEqual([['Omnimar', 'Normal Track', '20']])
+  })
+
+  it('keeps a 100% track owner exclusive even when the featured artist is on the roster', () => {
+    const headers = ['Artist Name', 'Track Title', 'Net Revenue']
+    const transactions = [
+      makeTx({ id: 'satisfaction', original_artist: 'Exstais featuring Basila featuring Agnis',
+        main_artist: 'Agnis', release_title: 'Satisfaction', track_title: 'Satisfaction',
+        net_revenue: 250, source_row_id: 'satisfaction', source_headers: headers,
+        source_values: ['Exstais featuring Basila featuring Agnis', 'Satisfaction', '250'] }),
+      makeTx({ id: 'agnis-own', original_artist: 'Agnis', main_artist: 'Agnis',
+        release_title: 'Own Release', track_title: 'Own Track', net_revenue: 12,
+        source_row_id: 'agnis-own', source_headers: headers,
+        source_values: ['Agnis', 'Own Track', '12'] }),
+    ]
+    const { artistData } = processTransactionsWithCompilations(transactions, {
+      ...emptyConfig,
+      labelArtists: [{ id: 'exstais', name: 'Exstais' }, { id: 'agnis', name: 'Agnis' }],
+      trackRevenueAssignments: [{ id: 'satisfaction', trackTitle: 'Satisfaction',
+        owners: [{ artist: 'Exstais', percentage: 100 }, { artist: 'Agnis', percentage: 0 }] }],
+    })
+    expect(artistData.find(a => a.artist === 'Exstais')?.grossRevenue).toBe(250)
+    expect(artistData.find(a => a.artist === 'Agnis')?.grossRevenue).toBe(12)
+    const sheets = buildArtistRawSheets(artistData)
+    expect(sheets.get('agnis')?.[0]?.rows).toEqual([['Agnis', 'Own Track', '12']])
+    expect(sheets.get('exstais')?.[0]?.rows[0]?.[1]).toBe('Satisfaction')
   })
 
   it('returns empty filteredCompilations when no filters configured', () => {
