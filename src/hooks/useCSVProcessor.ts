@@ -395,7 +395,12 @@ export function useCSVProcessor(
     const requestId = ++nextExcelIdRef.current
     return new Promise<Blob>((resolve, reject) => {
       excelRequestsRef.current.set(requestId, { resolve, reject })
-      worker.postMessage({ type: 'build-excel', requestId, processRevision: workerResult.processRevision, artistData, labelInfo, periodStart, periodEnd, compilationFilters, settings } satisfies WorkerRequest)
+      try {
+        worker.postMessage({ type: 'build-excel', requestId, processRevision: workerResult.processRevision, artistData, labelInfo, periodStart, periodEnd, compilationFilters, settings } satisfies WorkerRequest)
+      } catch (err) {
+        excelRequestsRef.current.delete(requestId)
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
     })
   }, [workerResult.processRevision])
 

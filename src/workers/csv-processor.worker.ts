@@ -325,9 +325,8 @@ function runProcess(config: WorkerProcessConfig): void {
     // raw transactions in scope (they must not be sent to the main thread).
     const releaseTitlesByArtistIncFeaturing = buildReleaseTitlesByArtistIncFeaturing(allTransactions)
 
-    // Raw transaction arrays and the full ProcessedArtistData (with .transactions)
-    // are now only in local scope and will be garbage-collected once this
-    // function returns — they are NEVER sent to the main thread.
+    // Raw transactions remain accessible in the worker for future Excel exports.
+    // Only their aggregates are sent to the main thread.
     post({
       type: 'result',
       data: { processedData, processRevision, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData, releaseTitlesByArtistIncFeaturing },
