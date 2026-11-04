@@ -255,6 +255,7 @@ function App() {
   const {
     uniqueArtists,
     processedData,
+    requestExcel,
     artistTrees,
     collabTree,
     filteredCompilations,
@@ -415,7 +416,8 @@ function App() {
     stableCompilationFilters,
     sosWebhookUrl ?? '',
     sosWebhookSecret ?? '',
-    autoUploadToPortal ?? true
+    autoUploadToPortal ?? true,
+    requestExcel
   )
 
   const handleAddCompilationFilter = useCallback(

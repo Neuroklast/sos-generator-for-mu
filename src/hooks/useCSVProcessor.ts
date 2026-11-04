@@ -22,6 +22,7 @@ import type {
   TrackRevenueAssignment,
 } from '@/lib/types'
 import type { WorkerRequest, WorkerResponse, WorkerProcessConfig, WorkerResult } from '@/workers/csv-processor.worker'
+import type { ExcelExportRequest } from '@/lib/excel-export'
 
 interface CSVProcessorConfig {
   compilationFilters: CompilationFilter[]
@@ -95,6 +96,8 @@ export function useCSVProcessor(
   darkmerchFiles: UploadedFile[] = []
 ) {
   const workerRef = useRef<Worker | null>(null)
+  const nextExcelIdRef = useRef(0)
+  const excelRequestsRef = useRef(new Map<number, { resolve: (blob: Blob) => void; reject: (error: Error) => void }>())
   /** IDs of files that have been successfully sent to the worker for parsing. */
   const knownFileIdsRef = useRef(new Set<string>())
   /** Number of 'add-file' messages still awaiting 'parse-done' from the worker. */
@@ -264,6 +267,18 @@ export function useCSVProcessor(
           }
           break
 
+        case 'excel-done': {
+          const request = excelRequestsRef.current.get(msg.requestId)
+          excelRequestsRef.current.delete(msg.requestId)
+          request?.resolve(new Blob([msg.buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+          break
+        }
+        case 'excel-error': {
+          const request = excelRequestsRef.current.get(msg.requestId)
+          excelRequestsRef.current.delete(msg.requestId)
+          request?.reject(new Error(msg.message))
+          break
+        }
         case 'result':
           setWorkerResult(msg.data)
           setIsProcessing(false)
@@ -278,6 +293,8 @@ export function useCSVProcessor(
     }
 
     worker.onerror = (err) => {
+      for (const request of excelRequestsRef.current.values()) request.reject(new Error('Excel worker failed'))
+      excelRequestsRef.current.clear()
       console.error('CSV Worker uncaught error:', err)
       toast.error('Worker crashed', { description: err.message ?? 'Unknown error' })
       setIsProcessing(false)
@@ -285,6 +302,8 @@ export function useCSVProcessor(
 
     const knownFileIds = knownFileIdsRef.current
     return () => {
+      for (const request of excelRequestsRef.current.values()) request.reject(new Error('Excel worker terminated'))
+      excelRequestsRef.current.clear()
       worker.terminate()
       workerRef.current = null
       knownFileIds.clear()
@@ -369,6 +388,16 @@ export function useCSVProcessor(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configKey])
 
+  const requestExcel = useCallback<ExcelExportRequest>((artistData, labelInfo, periodStart, periodEnd, compilationFilters = [], settings) => {
+    const worker = workerRef.current
+    if (!worker) return Promise.reject(new Error('Excel worker is not ready'))
+    const requestId = ++nextExcelIdRef.current
+    return new Promise<Blob>((resolve, reject) => {
+      excelRequestsRef.current.set(requestId, { resolve, reject })
+      worker.postMessage({ type: 'build-excel', requestId, artistData, labelInfo, periodStart, periodEnd, compilationFilters, settings } satisfies WorkerRequest)
+    })
+  }, [])
+
   // ── Derived values ─────────────────────────────────────────────────────────────
 
   const revenues: ArtistRevenue[] = useMemo(
@@ -405,6 +434,7 @@ export function useCSVProcessor(
   )
 
   return {
+    requestExcel,
     isProcessing,
     exchangeRatesLoading,
     refreshExchangeRates,

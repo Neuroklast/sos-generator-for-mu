@@ -2,11 +2,11 @@ import { useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
   generatePDF,
-  generateExcel,
   downloadBlob,
   generateZipOfAllStatements,
 } from '@/lib/export-utils'
 import { createSafeFilename } from '@/lib/utils'
+import type { ExcelExportRequest } from '@/lib/excel-export'
 import { uploadStatementPdf, isValidArtistId, isValidPeriod } from '@/lib/sosWebhook'
 import type { SafeProcessedArtistData, LabelInfo, PdfExportSettings, AppDefaults, LabelArtist, EmailConfig, CompilationFilter } from '@/lib/types'
 
@@ -26,7 +26,8 @@ export function useExports(
   compilationFilters: CompilationFilter[] = [],
   sosWebhookUrl = '',
   sosWebhookSecret = '',
-  autoUploadToPortal = true
+  autoUploadToPortal = true,
+  requestExcel?: ExcelExportRequest
 ) {
   const emailOptions = useMemo(
     () =>
@@ -124,8 +125,13 @@ export function useExports(
     [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, artistInfoMap, compilationFilters, sosWebhookUrl, sosWebhookSecret, autoUploadToPortal]
   )
 
+  const buildExcelForArtist = useCallback(async (artistData: SafeProcessedArtistData): Promise<Blob> => {
+    if (!requestExcel) throw new Error('Excel worker is unavailable. Incomplete statements will not be generated.')
+    return requestExcel(artistData, labelInfo, periodStart || undefined, periodEnd || undefined, compilationFilters, pdfSettings)
+  }, [requestExcel, labelInfo, periodStart, periodEnd, compilationFilters, pdfSettings])
+
   const handleDownloadExcel = useCallback(
-    (artist: string) => {
+    async (artist: string) => {
       const artistData = processedData.find(d => d.artist === artist)
       if (!artistData) {
         toast.error(`No data found for artist "${artist}"`)
@@ -133,14 +139,7 @@ export function useExports(
       }
 
       try {
-        const blob = generateExcel(
-          artistData,
-          labelInfo,
-          periodStart || undefined,
-          periodEnd || undefined,
-          compilationFilters,
-          pdfSettings
-        )
+        const blob = await buildExcelForArtist(artistData)
         downloadBlob(blob, `${createSafeFilename(artist)}_statement.xlsx`)
         toast.success(`Excel for "${artist}" downloaded`)
       } catch (err) {
@@ -149,7 +148,7 @@ export function useExports(
         console.error('Excel export error:', err)
       }
     },
-    [processedData, labelInfo, periodStart, periodEnd, compilationFilters]
+    [processedData, buildExcelForArtist]
   )
 
   /**
@@ -183,7 +182,8 @@ export function useExports(
         labelArtists,
         appDefaults,
         emailConfig,
-        compilationFilters
+        compilationFilters,
+        buildExcelForArtist
       )
       downloadBlob(blob, 'artist_statements.zip')
       toast.success(`All ${total} statements downloaded`, { id: toastId })
@@ -192,7 +192,7 @@ export function useExports(
       toast.error('ZIP export failed', { id: toastId, description: message })
       console.error('ZIP export error:', err)
     }
-  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists, compilationFilters])
+  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists, compilationFilters, buildExcelForArtist])
 
   /**
    * Queued batch export for a specific subset of artists — same async queue
@@ -229,7 +229,8 @@ export function useExports(
         labelArtists,
         appDefaults,
         emailConfig,
-        compilationFilters
+        compilationFilters,
+        buildExcelForArtist
       )
       downloadBlob(blob, 'selected_artist_statements.zip')
       toast.success(`${total} selected statement${total !== 1 ? 's' : ''} downloaded`, { id: toastId })
@@ -238,7 +239,7 @@ export function useExports(
       toast.error('ZIP export failed', { id: toastId, description: message })
       console.error('ZIP export error:', err)
     }
-  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists, compilationFilters])
+  }, [processedData, labelInfo, periodStart, periodEnd, pdfSettings, emailOptions, labelArtists, compilationFilters, buildExcelForArtist])
 
   return { handleDownloadPDF, handleDownloadExcel, handleDownloadAll, handleDownloadSelected }
 }
