@@ -519,8 +519,7 @@ export function processTransactionsWithCompilations(
   transactions: SalesTransaction[],
   config: DataProcessorConfig
 ): ProcessorResult {
-  // Identify compilation transactions for reporting purposes only.
-  // They still count toward artist revenue (Bug 3b fix).
+  // Track excluded compilation rows for the audit panel before removing them from artist settlement.
   const compilationTransactionIds = new Set<string>()
   for (const t of transactions) {
     if (isCompilation(t, config.compilationFilters)) {
@@ -528,7 +527,7 @@ export function processTransactionsWithCompilations(
     }
   }
 
-  // Build filtered compilation summary (informational panel only)
+  // Build the informational audit summary of excluded compilation transactions.
   const compilationMap = new Map<string, FilteredCompilation>()
   for (const t of transactions) {
     if (!compilationTransactionIds.has(t.id)) continue
@@ -563,10 +562,11 @@ export function processTransactionsWithCompilations(
     (a, b) => b.revenue - a.revenue
   )
 
-  // Apply physical exclusion to all transactions (compilations are still counted)
-  const workingTransactions = config.excludePhysical
+  // Excluded compilations must be absent from both artist totals and raw report tabs.
+  // Original distributor rows remain available in the input/audit data.
+  const workingTransactions = (config.excludePhysical
     ? transactions.filter(t => !t.is_physical)
-    : transactions
+    : transactions).filter(t => !compilationTransactionIds.has(t.id))
 
   // Resolve artist names via mappings
   const resolved = workingTransactions.map(t => ({
@@ -603,7 +603,7 @@ export function processTransactionsWithCompilations(
         // a non-zero percentage), the remaining fraction may be < 1, so we
         // fall through to the multi-owner scaling path to honour that share.
         if (owners.length === 1 && owners[0].fraction === 1) {
-          return [{ ...t, main_artist: owners[0].artist }]
+          return [{ ...t, main_artist: owners[0].artist, assignment_owner_locked: true }]
         }
 
         // Multi-owner path — clone transaction with scaled revenue per owner.
@@ -612,6 +612,7 @@ export function processTransactionsWithCompilations(
           ...t,
           id: `${t.id}__split__${owner.artist}`,
           main_artist: owner.artist,
+          assignment_owner_locked: true,
           net_revenue: t.net_revenue * owner.fraction,
           quantity: Math.round(t.quantity * owner.fraction),
         }))
@@ -632,6 +633,8 @@ export function processTransactionsWithCompilations(
         if (rosterNames.includes(t.main_artist.trim().toLowerCase())) {
           return [t]
         }
+        // An explicit 100% or proportional owner rule must not be undone by roster fallback.
+        if ('assignment_owner_locked' in t && t.assignment_owner_locked === true) return []
         // Try to find a label artist within the original_artist string
         // (handles "Neuroklast, mechanical vein" or "Neuroklast feat. X")
         const found = rosterNames.find(rn =>
