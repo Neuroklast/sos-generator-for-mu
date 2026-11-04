@@ -60,6 +60,11 @@ export interface SalesTransaction {
    * Only meaningful when `is_physical` is `false`.
    */
   is_download?: boolean
+  /** Original line identity, stable across split clones. */
+  source_row_id?: string
+  /** Original distributor headers and values, held only by the worker. */
+  source_headers?: string[]
+  source_values?: string[]
 }
 
 export interface ParsedCSVData {

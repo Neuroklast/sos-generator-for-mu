@@ -13,6 +13,7 @@
  *   process      Reconcile e-commerce buffers, run processTransactionsWithCompilations
  *                + buildArtistTree + buildArtistCollabTree on all transactions,
  *                then post the aggregated result WITHOUT any raw transaction arrays.
+ *   build-excel  Generate a complete artist XLSX including original tabs in this worker.
  *   reset        Clear all stored data (e.g. when column aliases change).
  *
  * E-Commerce staging (Schritt 2)
@@ -45,9 +46,15 @@ import {
 } from '@/lib/data-processor'
 import { buildArtistCollabTree } from '@/lib/grouping'
 import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
+import type { ProcessedArtistData } from '@/lib/data-processor'
+import { buildArtistRawSheets, lookupArtistRawSheets, missingOriginalReportSources } from '@/lib/raw-source-rows'
+import { normalizeArtistNameKey } from '@/lib/artist-name-key'
+import { buildExcelBuffer } from '@/lib/excel-export'
 import { extractFeaturedArtistsDetailed } from '@/features/ingest/lib/csv-parser'
 import type {
   SafeProcessedArtistData,
+  LabelInfo,
+  PdfExportSettings,
   ArtistTreeNode,
   ArtistCollabNode,
   FilteredCompilation,
@@ -115,6 +122,8 @@ export interface WorkerProcessConfig {
 
 export interface WorkerResult {
   processedData: SafeProcessedArtistData[]
+  /** Monotonic worker processing revision used to reject stale exports. */
+  processRevision: number
   artistTrees: ArtistTreeNode[]
   collabTree: ArtistCollabNode[]
   filteredCompilations: FilteredCompilation[]
@@ -139,17 +148,23 @@ export type WorkerRequest =
   | { type: 'remove-file'; fileId: string }
   | { type: 'process'; config: WorkerProcessConfig }
   | { type: 'reset' }
+  | { type: 'build-excel'; requestId: number; processRevision: number; artistData: SafeProcessedArtistData; labelInfo: LabelInfo; periodStart?: string; periodEnd?: string; compilationFilters: CompilationFilter[]; settings?: Partial<PdfExportSettings> }
 
 export type WorkerResponse =
   | { type: 'parse-progress'; fileId: string; percentage: number }
   | { type: 'parse-done'; fileId: string; rowsParsed: number; rowsSkipped: number; uniqueArtistsCount: number }
   | { type: 'result'; data: WorkerResult }
   | { type: 'error'; message: string; fileId?: string }
+  | { type: 'excel-done'; requestId: number; buffer: ArrayBuffer }
+  | { type: 'excel-error'; requestId: number; message: string }
 
 // ── Internal worker state ──────────────────────────────────────────────────────
 
 /** Parsed transactions for believe / bandcamp files, keyed by file ID. */
 const fileTransactions = new Map<string, SalesTransaction[]>()
+/** Raw lines are retained in this worker after a completed process for subsequent Excel exports. */
+let lastProcessedArtistData: ProcessedArtistData[] = []
+let processRevision = 0
 
 /**
  * Raw Shopify order groups, keyed by file ID.
@@ -235,6 +250,8 @@ function getAllTransactions(): SalesTransaction[] {
 
 function runProcess(config: WorkerProcessConfig): void {
   try {
+    lastProcessedArtistData = []
+    processRevision += 1
     const allTransactions = getAllTransactions()
 
     if (allTransactions.length === 0) {
@@ -242,6 +259,7 @@ function runProcess(config: WorkerProcessConfig): void {
         type: 'result',
         data: {
           processedData: [],
+          processRevision,
           artistTrees: [],
           collabTree: [],
           filteredCompilations: [],
@@ -300,18 +318,18 @@ function runProcess(config: WorkerProcessConfig): void {
     // TypeScript structural compatibility ensures SafeProcessedArtistData
     // receives every field from ProcessedArtistData except `transactions`.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    lastProcessedArtistData = artistData
     const processedData: SafeProcessedArtistData[] = artistData.map(({ transactions: _transactions, ...safe }) => safe)
 
     // Build the featuring-aware release-titles map while we still have all
     // raw transactions in scope (they must not be sent to the main thread).
     const releaseTitlesByArtistIncFeaturing = buildReleaseTitlesByArtistIncFeaturing(allTransactions)
 
-    // Raw transaction arrays and the full ProcessedArtistData (with .transactions)
-    // are now only in local scope and will be garbage-collected once this
-    // function returns — they are NEVER sent to the main thread.
+    // Raw transactions remain accessible in the worker for future Excel exports.
+    // Only their aggregates are sent to the main thread.
     post({
       type: 'result',
-      data: { processedData, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData, releaseTitlesByArtistIncFeaturing },
+      data: { processedData, processRevision, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData, releaseTitlesByArtistIncFeaturing },
     })
   } catch (err) {
     post({
@@ -328,6 +346,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
 
   switch (msg.type) {
     case 'add-file': {
+      lastProcessedArtistData = []
       const { fileId, content, source, customAliases } = msg
       try {
         if (source === 'shopify') {
@@ -395,6 +414,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
     }
 
     case 'remove-file': {
+      lastProcessedArtistData = []
       fileTransactions.delete(msg.fileId)
       shopifyRawOrdersMap.delete(msg.fileId)
       printfulRawCostsMap.delete(msg.fileId)
@@ -407,9 +427,28 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
     }
 
     case 'reset': {
+      lastProcessedArtistData = []
       fileTransactions.clear()
       shopifyRawOrdersMap.clear()
       printfulRawCostsMap.clear()
+      break
+    }
+
+    case 'build-excel': {
+      try {
+        if (msg.processRevision !== processRevision) throw new Error('The statements were recalculated while this Excel export was requested. Retry the export.')
+        const match = lastProcessedArtistData.find(
+          item => normalizeArtistNameKey(item.artist) === normalizeArtistNameKey(msg.artistData.artist)
+        )
+        if (!match) throw new Error('Processed original reports are unavailable. Process the uploaded files again before exporting.')
+        const sheets = lookupArtistRawSheets(buildArtistRawSheets([match]), match.artist)
+        const missing = missingOriginalReportSources(match, sheets)
+        if (missing.length > 0) throw new Error(`Original report rows are missing for: ${missing.join(', ')}. Export aborted.`)
+        const buffer = buildExcelBuffer(msg.artistData, msg.labelInfo, msg.periodStart, msg.periodEnd, msg.compilationFilters, msg.settings, sheets)
+        self.postMessage({ type: 'excel-done', requestId: msg.requestId, buffer } satisfies WorkerResponse, [buffer])
+      } catch (err) {
+        post({ type: 'excel-error', requestId: msg.requestId, message: err instanceof Error ? err.message : String(err) })
+      }
       break
     }
   }

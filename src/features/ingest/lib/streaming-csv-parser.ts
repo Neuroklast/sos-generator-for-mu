@@ -248,6 +248,9 @@ function processChunk(
 
       transactions.push({
         id: `${parseTag}-${startIndex + i}`,
+        source_row_id: `${parseTag}-${startIndex + i}`,
+        source_headers: headers,
+        source_values: headers.map((_, index) => values[index] ?? ''),
         source,
         sales_month: salesMonth,
         platform,
