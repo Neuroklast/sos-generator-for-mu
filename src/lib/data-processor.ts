@@ -603,7 +603,7 @@ export function processTransactionsWithCompilations(
         // a non-zero percentage), the remaining fraction may be < 1, so we
         // fall through to the multi-owner scaling path to honour that share.
         if (owners.length === 1 && owners[0].fraction === 1) {
-          return [{ ...t, main_artist: owners[0].artist, assignment_owner_locked: true }]
+          return [{ ...t, main_artist: owners[0].artist, assignment_owner_locked: true, assignment_allocation_percentage: 100 }]
         }
 
         // Multi-owner path — clone transaction with scaled revenue per owner.
@@ -613,6 +613,7 @@ export function processTransactionsWithCompilations(
           id: `${t.id}__split__${owner.artist}`,
           main_artist: owner.artist,
           assignment_owner_locked: true,
+          assignment_allocation_percentage: owner.fraction * 100,
           net_revenue: t.net_revenue * owner.fraction,
           quantity: Math.round(t.quantity * owner.fraction),
         }))
