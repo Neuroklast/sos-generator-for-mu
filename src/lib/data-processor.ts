@@ -173,6 +173,8 @@ export function isCompilation(
   filters: CompilationFilter[]
 ): boolean {
   for (const filter of filters) {
+    // Empty persisted filters must not exclude the entire catalogue.
+    if (!filter.identifier.trim()) continue
     switch (filter.type) {
       case 'ean':
         // Exact match to prevent a short code from matching unrelated releases.
