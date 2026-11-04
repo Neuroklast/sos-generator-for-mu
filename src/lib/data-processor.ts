@@ -597,7 +597,23 @@ export function processTransactionsWithCompilations(
 
         if (!match) return [t]
 
-        const owners = resolveAssignmentOwners(match)
+        // Do not silently create or lose revenue when imported workspace rules
+        // contain an incomplete or overallocated multi-owner percentage list.
+        if (match.owners?.length) {
+          const sum = match.owners.reduce((total, owner) => total + owner.percentage, 0)
+          if (!match.owners.every(owner => Number.isFinite(owner.percentage) && owner.percentage >= 0 && owner.percentage <= 100)
+              || Math.abs(sum - 100) > 0.001) return [t]
+        }
+        const ownersByArtist = new Map<string, { artist: string; fraction: number }>()
+        for (const owner of resolveAssignmentOwners(match)) {
+          const key = owner.artist.trim().toLowerCase().replace(/\s+/g, '')
+          if (!key) continue
+          const existing = ownersByArtist.get(key)
+          if (existing) existing.fraction += owner.fraction
+          else ownersByArtist.set(key, { artist: owner.artist.trim(), fraction: owner.fraction })
+        }
+        const owners = [...ownersByArtist.values()]
+        if (owners.length === 0) return [t]
 
         // Single-owner fast path — simple re-attribution, no clone needed.
         // Only skip scaling when the sole owner holds the full 100% (fraction
