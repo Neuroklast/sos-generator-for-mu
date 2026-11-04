@@ -172,7 +172,13 @@ export function buildExcelBuffer(
     }
   }
 
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
+  // SheetJS versions can expose type:'array' as ArrayBuffer or Uint8Array.
+  // Transfer only an actual ArrayBuffer; typed-array views are not transferable.
+  const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer | Uint8Array
+  if (bytes instanceof ArrayBuffer) return bytes
+  const transferable = new Uint8Array(bytes.byteLength)
+  transferable.set(bytes)
+  return transferable.buffer
 }
 
 export type ExcelExportRequest = (
