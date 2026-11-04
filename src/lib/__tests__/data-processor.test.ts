@@ -375,6 +375,36 @@ describe('processTransactionsWithCompilations', () => {
     expect(artistData).toHaveLength(0)
   })
 
+  it('does not duplicate revenue when the same split owner is entered twice', () => {
+    const { artistData } = processTransactionsWithCompilations([
+      makeTx({ id: 'duplicate-owner', original_artist: 'Collaboration',
+        release_title: 'Duet', track_title: 'Duet', net_revenue: 100, quantity: 100 }),
+    ], { ...emptyConfig, trackRevenueAssignments: [{
+      id: 'duet', trackTitle: 'Duet', owners: [
+        { artist: 'Exstais', percentage: 40 },
+        { artist: ' Exstais ', percentage: 60 },
+      ],
+    }] })
+    expect(artistData).toHaveLength(1)
+    expect(artistData[0]?.grossRevenue).toBe(100)
+    expect(artistData[0]?.totalQuantity).toBe(100)
+  })
+
+  it('rejects incomplete multi-owner percentages without losing revenue', () => {
+    const { artistData } = processTransactionsWithCompilations([
+      makeTx({ original_artist: 'Original Artist', release_title: 'Duet',
+        track_title: 'Duet', net_revenue: 100 }),
+    ], { ...emptyConfig, trackRevenueAssignments: [{
+      id: 'duet', trackTitle: 'Duet', owners: [
+        { artist: 'Exstais', percentage: 70 },
+        { artist: 'Agnis', percentage: 20 },
+      ],
+    }] })
+    expect(artistData).toHaveLength(1)
+    expect(artistData[0]?.artist).toBe('Original Artist')
+    expect(artistData[0]?.grossRevenue).toBe(100)
+  })
+
   it('returns empty filteredCompilations when no filters configured', () => {
     const txs = [makeTx()]
     const result = processTransactionsWithCompilations(txs, emptyConfig)
