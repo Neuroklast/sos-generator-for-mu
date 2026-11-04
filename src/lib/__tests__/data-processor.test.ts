@@ -356,6 +356,19 @@ describe('processTransactionsWithCompilations', () => {
     expect(sheets.get('exstais')?.[0]?.rows[0]?.[1]).toBe('Satisfaction')
   })
 
+  it('does not pay a roster featuring artist when the assigned owner is outside the roster', () => {
+    const { artistData } = processTransactionsWithCompilations([
+      makeTx({ original_artist: 'Exstais feat Agnis', release_title: 'Satisfaction',
+        track_title: 'Satisfaction', net_revenue: 250 }),
+    ], {
+      ...emptyConfig,
+      labelArtists: [{ id: 'agnis', name: 'Agnis' }],
+      trackRevenueAssignments: [{ id: 'owner', trackTitle: 'Satisfaction',
+        owners: [{ artist: 'Exstais', percentage: 100 }] }],
+    })
+    expect(artistData).toHaveLength(0)
+  })
+
   it('returns empty filteredCompilations when no filters configured', () => {
     const txs = [makeTx()]
     const result = processTransactionsWithCompilations(txs, emptyConfig)
