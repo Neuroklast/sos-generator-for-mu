@@ -61,6 +61,7 @@ interface CSVProcessorConfig {
 
 const EMPTY_RESULT: WorkerResult = {
   processedData: [],
+  processRevision: 0,
   artistTrees: [],
   collabTree: [],
   filteredCompilations: [],
@@ -77,7 +78,7 @@ const EMPTY_RESULT: WorkerResult = {
  * Key properties of this design
  * ──────────────────────────────
  * • Raw SalesTransaction objects never enter main-thread React state.
- *   They live only inside the worker until discarded after aggregation.
+ *   They remain inside the worker for source-line Excel exports, never React state.
  * • The worker is a long-lived singleton; file content is sent once per file
  *   (on add) and config-only re-processing is cheap (no re-parse).
  * • `knownFileIdsRef` tracks which files have already been sent to the
@@ -394,9 +395,9 @@ export function useCSVProcessor(
     const requestId = ++nextExcelIdRef.current
     return new Promise<Blob>((resolve, reject) => {
       excelRequestsRef.current.set(requestId, { resolve, reject })
-      worker.postMessage({ type: 'build-excel', requestId, artistData, labelInfo, periodStart, periodEnd, compilationFilters, settings } satisfies WorkerRequest)
+      worker.postMessage({ type: 'build-excel', requestId, processRevision: workerResult.processRevision, artistData, labelInfo, periodStart, periodEnd, compilationFilters, settings } satisfies WorkerRequest)
     })
-  }, [])
+  }, [workerResult.processRevision])
 
   // ── Derived values ─────────────────────────────────────────────────────────────
 

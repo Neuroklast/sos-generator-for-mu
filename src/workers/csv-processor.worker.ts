@@ -13,6 +13,7 @@
  *   process      Reconcile e-commerce buffers, run processTransactionsWithCompilations
  *                + buildArtistTree + buildArtistCollabTree on all transactions,
  *                then post the aggregated result WITHOUT any raw transaction arrays.
+ *   build-excel  Generate a complete artist XLSX including original tabs in this worker.
  *   reset        Clear all stored data (e.g. when column aliases change).
  *
  * E-Commerce staging (Schritt 2)
@@ -121,6 +122,8 @@ export interface WorkerProcessConfig {
 
 export interface WorkerResult {
   processedData: SafeProcessedArtistData[]
+  /** Monotonic worker processing revision used to reject stale exports. */
+  processRevision: number
   artistTrees: ArtistTreeNode[]
   collabTree: ArtistCollabNode[]
   filteredCompilations: FilteredCompilation[]
@@ -145,7 +148,7 @@ export type WorkerRequest =
   | { type: 'remove-file'; fileId: string }
   | { type: 'process'; config: WorkerProcessConfig }
   | { type: 'reset' }
-  | { type: 'build-excel'; requestId: number; artistData: SafeProcessedArtistData; labelInfo: LabelInfo; periodStart?: string; periodEnd?: string; compilationFilters: CompilationFilter[]; settings?: Partial<PdfExportSettings> }
+  | { type: 'build-excel'; requestId: number; processRevision: number; artistData: SafeProcessedArtistData; labelInfo: LabelInfo; periodStart?: string; periodEnd?: string; compilationFilters: CompilationFilter[]; settings?: Partial<PdfExportSettings> }
 
 export type WorkerResponse =
   | { type: 'parse-progress'; fileId: string; percentage: number }
@@ -161,6 +164,7 @@ export type WorkerResponse =
 const fileTransactions = new Map<string, SalesTransaction[]>()
 /** Raw lines are retained in this worker after a completed process for subsequent Excel exports. */
 let lastProcessedArtistData: ProcessedArtistData[] = []
+let processRevision = 0
 
 /**
  * Raw Shopify order groups, keyed by file ID.
@@ -247,6 +251,7 @@ function getAllTransactions(): SalesTransaction[] {
 function runProcess(config: WorkerProcessConfig): void {
   try {
     lastProcessedArtistData = []
+    processRevision += 1
     const allTransactions = getAllTransactions()
 
     if (allTransactions.length === 0) {
@@ -254,6 +259,7 @@ function runProcess(config: WorkerProcessConfig): void {
         type: 'result',
         data: {
           processedData: [],
+          processRevision,
           artistTrees: [],
           collabTree: [],
           filteredCompilations: [],
@@ -324,7 +330,7 @@ function runProcess(config: WorkerProcessConfig): void {
     // function returns — they are NEVER sent to the main thread.
     post({
       type: 'result',
-      data: { processedData, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData, releaseTitlesByArtistIncFeaturing },
+      data: { processedData, processRevision, artistTrees, collabTree, filteredCompilations, uniqueArtists, periodStart, periodEnd, totalGrossAllData, releaseTitlesByArtistIncFeaturing },
     })
   } catch (err) {
     post({
@@ -431,6 +437,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
 
     case 'build-excel': {
       try {
+        if (msg.processRevision !== processRevision) throw new Error('The statements were recalculated while this Excel export was requested. Retry the export.')
         const match = lastProcessedArtistData.find(
           item => normalizeArtistNameKey(item.artist) === normalizeArtistNameKey(msg.artistData.artist)
         )
