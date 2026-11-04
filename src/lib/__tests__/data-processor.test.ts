@@ -50,6 +50,12 @@ describe('isCompilation', () => {
   const titleFilter: CompilationFilter = { id: '2', label: 'Various', type: 'title', identifier: 'Various' }
   const catalogFilter: CompilationFilter = { id: '3', label: 'VA Cat', type: 'catalog', identifier: 'VA-' }
 
+  it('ignores empty persisted title exclusions instead of removing every release', () => {
+    expect(isCompilation(makeTx(), [{
+      id: 'blank', type: 'title', identifier: ' ', label: 'Empty',
+    }])).toBe(false)
+  })
+
   it('returns false when no filters are configured', () => {
     expect(isCompilation(makeTx(), [])).toBe(false)
   })
