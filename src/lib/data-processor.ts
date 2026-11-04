@@ -624,17 +624,25 @@ export function processTransactionsWithCompilations(
           return [{ ...t, main_artist: owners[0].artist, assignment_owner_locked: true, assignment_allocation_percentage: 100 }]
         }
 
-        // Multi-owner path — clone transaction with scaled revenue per owner.
-        // ID is suffixed to guarantee uniqueness in downstream Maps.
-        return owners.map(owner => ({
-          ...t,
-          id: `${t.id}__split__${owner.artist}`,
-          main_artist: owner.artist,
-          assignment_owner_locked: true,
-          assignment_allocation_percentage: owner.fraction * 100,
-          net_revenue: t.net_revenue * owner.fraction,
-          quantity: Math.round(t.quantity * owner.fraction),
-        }))
+        // Allocate the integer remainder to the last owner so a complete
+        // ownership split does not create or drop streams through rounding.
+        const completeSplit = Math.abs(owners.reduce((sum, owner) => sum + owner.fraction, 0) - 1) < 0.00001
+        let allocatedQuantity = 0
+        return owners.map((owner, index) => {
+          const quantity = completeSplit && index === owners.length - 1
+            ? t.quantity - allocatedQuantity
+            : Math.round(t.quantity * owner.fraction)
+          allocatedQuantity += quantity
+          return {
+            ...t,
+            id: `${t.id}__split__${owner.artist}`,
+            main_artist: owner.artist,
+            assignment_owner_locked: true,
+            assignment_allocation_percentage: owner.fraction * 100,
+            net_revenue: t.net_revenue * owner.fraction,
+            quantity,
+          }
+        })
       })
 
   // ── Label artist roster filter ─────────────────────────────────────────────
