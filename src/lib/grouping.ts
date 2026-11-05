@@ -236,3 +236,33 @@ export function buildArtistCollabTree(
     }))
     .sort((a, b) => b.revenue - a.revenue)
 }
+
+
+/**
+ * Build the cockpit's collaboration totals from the same allocated and
+ * excluded transactions used by the statements and per-artist raw worksheets.
+ * Original distributor credits remain untouched in the source archive.
+ *
+ * A featuring credit is not a second payable ownership allocation. When the
+ * actual owner differs from the credited primary artist, the reporting-only
+ * transaction is credited to the allocated owner without creating a ghost
+ * entry for the original/featured artist.
+ */
+export function buildSettledArtistCollabTree(
+  artists: ReadonlyArray<{ transactions: SalesTransaction[] }>,
+): ArtistCollabNode[] {
+  const settled = artists.flatMap(artist => artist.transactions.map(tx => {
+    const { primary } = extractFeaturedArtistsDetailed(tx.original_artist)
+    const normalize = (name: string) => name.trim().toLowerCase().replace(/\s+/g, '')
+    return {
+      ...tx,
+      // A locked track owner is the only revenue beneficiary for this row.
+      // Featuring credits are metadata, not additional guest-payable revenue.
+      original_artist: !tx.assignment_owner_locked && primary &&
+        normalize(primary) === normalize(tx.main_artist)
+          ? tx.original_artist
+          : tx.main_artist,
+    }
+  }))
+  return buildArtistCollabTree(settled, [])
+}

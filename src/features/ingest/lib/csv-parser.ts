@@ -60,6 +60,10 @@ export interface SalesTransaction {
    * Only meaningful when `is_physical` is `false`.
    */
   is_download?: boolean
+  /** Internal only: the track's allocation rule already controls this row. */
+  assignment_owner_locked?: boolean
+  /** Internal only: percentage of the source row attributed to this statement. */
+  assignment_allocation_percentage?: number
   /** Original line identity, stable across split clones. */
   source_row_id?: string
   /** Original distributor headers and values, held only by the worker. */

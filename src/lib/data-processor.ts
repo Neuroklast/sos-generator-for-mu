@@ -588,12 +588,24 @@ export function processTransactionsWithCompilations(
     : resolved.flatMap(t => {
         const relLower = (t.release_title ?? '').toLowerCase()
         const trkLower = (t.track_title ?? '').toLowerCase()
-        const match = trackAssignments.find(
-          a =>
-            a.trackTitle.trim() !== '' &&
-            (relLower.includes(a.trackTitle.trim().toLowerCase()) ||
-              trkLower.includes(a.trackTitle.trim().toLowerCase()))
-        )
+        // Prefer an exact title, then the longest matching title. When a
+        // stored workspace contains duplicate rules for the same title, the
+        // newest one wins. Old .find() silently kept paying the oldest owner.
+        let match: TrackRevenueAssignment | undefined
+        let matchScore = -1
+        for (const rule of trackAssignments) {
+          const needle = rule.trackTitle.trim().toLowerCase().replace(/\s+/g, ' ')
+          if (!needle) continue
+          const release = relLower.replace(/\s+/g, ' ').trim()
+          const track = trkLower.replace(/\s+/g, ' ').trim()
+          if (!release.includes(needle) && !track.includes(needle)) continue
+          const isExact = release === needle || track === needle
+          const score = needle.length + (isExact ? 10000 : 0)
+          if (score >= matchScore) {
+            match = rule
+            matchScore = score
+          }
+        }
 
         if (!match) return [t]
 

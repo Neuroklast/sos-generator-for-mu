@@ -799,8 +799,13 @@ function App() {
   const handleAddTrackRevenueAssignment = useCallback(
     (entry: Omit<TrackRevenueAssignment, 'id'>) => {
       const snapshot = trackRevenueAssignments ?? []
+      // Replacing a rule for an existing title must replace the allocation,
+      // not append a conflicting older rule that still wins during processing.
       setTrackRevenueAssignments(current => [
-        ...(current ?? []),
+        ...(current ?? []).filter(rule =>
+          rule.trackTitle.trim().toLowerCase().replace(/\s+/g, ' ') !==
+          entry.trackTitle.trim().toLowerCase().replace(/\s+/g, ' ')
+        ),
         { ...entry, id: crypto.randomUUID() },
       ])
       pushUndo({ description: `Add track assignment "${entry.trackTitle}"`, undo: () => setTrackRevenueAssignments(snapshot) })

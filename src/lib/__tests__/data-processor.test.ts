@@ -340,10 +340,10 @@ describe('processTransactionsWithCompilations', () => {
   it('keeps a 100% track owner exclusive even when the featured artist is on the roster', () => {
     const headers = ['Artist Name', 'Track Title', 'Net Revenue']
     const transactions = [
-      makeTx({ id: 'satisfaction', original_artist: 'Exstais featuring Basila featuring Agnis',
+      makeTx({ id: 'satisfaction', original_artist: 'Extize featuring Basila featuring Agnis',
         main_artist: 'Agnis', release_title: 'Satisfaction', track_title: 'Satisfaction',
         net_revenue: 250, source_row_id: 'satisfaction', source_headers: headers,
-        source_values: ['Exstais featuring Basila featuring Agnis', 'Satisfaction', '250'] }),
+        source_values: ['Extize featuring Basila featuring Agnis', 'Satisfaction', '250'] }),
       makeTx({ id: 'agnis-own', original_artist: 'Agnis', main_artist: 'Agnis',
         release_title: 'Own Release', track_title: 'Own Track', net_revenue: 12,
         source_row_id: 'agnis-own', source_headers: headers,
@@ -351,26 +351,26 @@ describe('processTransactionsWithCompilations', () => {
     ]
     const { artistData } = processTransactionsWithCompilations(transactions, {
       ...emptyConfig,
-      labelArtists: [{ id: 'exstais', name: 'Exstais' }, { id: 'agnis', name: 'Agnis' }],
+      labelArtists: [{ id: 'extize', name: 'Extize' }, { id: 'agnis', name: 'Agnis' }],
       trackRevenueAssignments: [{ id: 'satisfaction', trackTitle: 'Satisfaction',
-        owners: [{ artist: 'Exstais', percentage: 100 }, { artist: 'Agnis', percentage: 0 }] }],
+        owners: [{ artist: 'Extize', percentage: 100 }, { artist: 'Agnis', percentage: 0 }] }],
     })
-    expect(artistData.find(a => a.artist === 'Exstais')?.grossRevenue).toBe(250)
+    expect(artistData.find(a => a.artist === 'Extize')?.grossRevenue).toBe(250)
     expect(artistData.find(a => a.artist === 'Agnis')?.grossRevenue).toBe(12)
     const sheets = buildArtistRawSheets(artistData)
     expect(sheets.get('agnis')?.[0]?.rows).toEqual([['Agnis', 'Own Track', '12']])
-    expect(sheets.get('exstais')?.[0]?.rows[0]?.[1]).toBe('Satisfaction')
+    expect(sheets.get('extize')?.[0]?.rows[0]?.[1]).toBe('Satisfaction')
   })
 
   it('does not pay a roster featuring artist when the assigned owner is outside the roster', () => {
     const { artistData } = processTransactionsWithCompilations([
-      makeTx({ original_artist: 'Exstais feat Agnis', release_title: 'Satisfaction',
+      makeTx({ original_artist: 'Extize feat Agnis', release_title: 'Satisfaction',
         track_title: 'Satisfaction', net_revenue: 250 }),
     ], {
       ...emptyConfig,
       labelArtists: [{ id: 'agnis', name: 'Agnis' }],
       trackRevenueAssignments: [{ id: 'owner', trackTitle: 'Satisfaction',
-        owners: [{ artist: 'Exstais', percentage: 100 }] }],
+        owners: [{ artist: 'Extize', percentage: 100 }] }],
     })
     expect(artistData).toHaveLength(0)
   })
@@ -381,8 +381,8 @@ describe('processTransactionsWithCompilations', () => {
         release_title: 'Duet', track_title: 'Duet', net_revenue: 100, quantity: 100 }),
     ], { ...emptyConfig, trackRevenueAssignments: [{
       id: 'duet', trackTitle: 'Duet', owners: [
-        { artist: 'Exstais', percentage: 40 },
-        { artist: ' Exstais ', percentage: 60 },
+        { artist: 'Extize', percentage: 40 },
+        { artist: ' Extize ', percentage: 60 },
       ],
     }] })
     expect(artistData).toHaveLength(1)
@@ -396,13 +396,79 @@ describe('processTransactionsWithCompilations', () => {
         track_title: 'Duet', net_revenue: 100 }),
     ], { ...emptyConfig, trackRevenueAssignments: [{
       id: 'duet', trackTitle: 'Duet', owners: [
-        { artist: 'Exstais', percentage: 70 },
+        { artist: 'Extize', percentage: 70 },
         { artist: 'Agnis', percentage: 20 },
       ],
     }] })
     expect(artistData).toHaveLength(1)
     expect(artistData[0]?.artist).toBe('Original Artist')
     expect(artistData[0]?.grossRevenue).toBe(100)
+  })
+
+  it('removes all Extize featuring rows from Agnis artist raw sheets under 100% ownership', () => {
+    const headers = ['Artist Name', 'Release title', 'Track title', 'Net Revenue']
+    const rows = [
+      makeTx({
+        id: 'feature-1', source_row_id: 'feature-1',
+        original_artist: 'Extize featuring Basila featuring Agnis',
+        release_title: 'Satisfaction', track_title: 'Satisfaction',
+        net_revenue: 250, source_headers: headers,
+        source_values: ['Extize featuring Basila featuring Agnis', 'Satisfaction', 'Satisfaction', '250'],
+      }),
+      makeTx({
+        id: 'feature-2', source_row_id: 'feature-2',
+        original_artist: 'Agnis',
+        release_title: 'Satisfaction', track_title: 'Satisfaction Extended',
+        net_revenue: 50, source_headers: headers,
+        source_values: ['Agnis', 'Satisfaction', 'Satisfaction Extended', '50'],
+      }),
+      makeTx({
+        id: 'own', source_row_id: 'own',
+        original_artist: 'Agnis',
+        release_title: 'Agnis Own Release', track_title: 'Own Song',
+        net_revenue: 12, source_headers: headers,
+        source_values: ['Agnis', 'Agnis Own Release', 'Own Song', '12'],
+      }),
+    ]
+    const result = processTransactionsWithCompilations(rows, {
+      ...emptyConfig,
+      labelArtists: [{ id: 'extize', name: 'Extize' }, { id: 'agnis', name: 'Agnis' }],
+      trackRevenueAssignments: [{
+        id: 'satisfaction', trackTitle: 'Satisfaction',
+        owners: [
+          { artist: 'Extize', percentage: 100 },
+          { artist: 'Agnis', percentage: 0 },
+        ],
+      }],
+    })
+    expect(result.artistData.find(a => a.artist === 'Extize')?.grossRevenue).toBe(300)
+    expect(result.artistData.find(a => a.artist === 'Agnis')?.grossRevenue).toBe(12)
+    const sheets = buildArtistRawSheets(result.artistData)
+    const extizeRows = sheets.get('extize')?.[0]?.rows ?? []
+    const agnisRows = sheets.get('agnis')?.[0]?.rows ?? []
+    expect(extizeRows).toHaveLength(2)
+    expect(agnisRows).toHaveLength(1)
+    expect(agnisRows[0][1]).toBe('Agnis Own Release')
+    expect(agnisRows.some(row => row.some(cell => cell.includes('Satisfaction')))).toBe(false)
+  })
+
+  it('takes the most recently configured exact rule when old duplicates were persisted', () => {
+    const rows = [makeTx({
+      original_artist: 'Extize feat Agnis', release_title: 'Satisfaction',
+      track_title: 'Satisfaction', net_revenue: 200,
+    })]
+    const result = processTransactionsWithCompilations(rows, {
+      ...emptyConfig,
+      trackRevenueAssignments: [
+        { id: 'stale', trackTitle: 'Satisfaction', ownerArtist: 'Agnis' },
+        { id: 'current', trackTitle: 'Satisfaction', owners: [
+          { artist: 'Extize', percentage: 100 },
+          { artist: 'Agnis', percentage: 0 },
+        ] },
+      ],
+    })
+    expect(result.artistData.find(a => a.artist === 'Extize')?.grossRevenue).toBe(200)
+    expect(result.artistData.some(a => a.artist === 'Agnis')).toBe(false)
   })
 
   it('returns empty filteredCompilations when no filters configured', () => {
