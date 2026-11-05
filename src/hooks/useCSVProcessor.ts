@@ -1,3 +1,4 @@
+import { processingConfigFingerprint } from '@/lib/processing-config-fingerprint'
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
 import i18next from 'i18next'
@@ -194,26 +195,9 @@ export function useCSVProcessor(
   const printfulKey = printfulFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
   const darkmerchKey = darkmerchFiles.map(f => `${f.id}:${f.data?.length ?? 0}`).join(',')
 
-  const configKey = [
-    config.compilationFilters.map(f => f.id).join(','),
-    config.artistMappings.map(m => m.id).join(','),
-    config.splitFees.map(s => `${s.artist}:${s.percentage}:${s.digitalPercentage ?? ''}:${s.physicalPercentage ?? ''}`).join(','),
-    config.manualRevenues.map(r => r.id).join(','),
-    config.expenses.map(e => `${e.id}:${e.amount}`).join(','),
-    String(config.excludePhysical),
-    Object.keys(exchangeRates).length > 0 ? 'rates' : 'no-rates',
-    historicalRates !== null ? `hist:${Object.keys(historicalRates).length}` : 'no-hist',
-    config.labelArtists.map(la => la.id).join(','),
-    config.ignoredEntries.map(ie => ie.id).join(','),
-    String(config.distributionFeePercentage),
-    String(config.distributionFeeDigital ?? ''),
-    String(config.distributionFeePhysical ?? ''),
-    String(config.defaultSplitPercentage ?? ''),
-    String(config.defaultSplitPercentageDigital ?? ''),
-    String(config.defaultSplitPercentagePhysical ?? ''),
-    JSON.stringify(config.sourceSplits ?? {}),
-    config.trackRevenueAssignments?.map(r => `${r.id}:${r.trackTitle}:${r.ownerArtist}`).join(',') ?? '',
-  ].join('|')
+  // Full values matter: changing an existing owner's percentage must trigger
+  // a new settlement and raw-data projection, even when rule IDs are unchanged.
+  const configKey = processingConfigFingerprint(config, exchangeRates, historicalRates)
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
