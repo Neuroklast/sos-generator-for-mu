@@ -44,7 +44,7 @@ import {
   processTransactionsWithCompilations,
   buildArtistTree,
 } from '@/lib/data-processor'
-import { buildArtistCollabTree } from '@/lib/grouping'
+import { buildSettledArtistCollabTree } from '@/lib/grouping'
 import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
 import type { ProcessedArtistData } from '@/lib/data-processor'
 import { buildArtistRawSheets, lookupArtistRawSheets, missingOriginalReportSources } from '@/lib/raw-source-rows'
@@ -306,10 +306,11 @@ function runProcess(config: WorkerProcessConfig): void {
     )
     // Pre-compute tree structures while we still have raw transactions in scope
     const artistTrees: ArtistTreeNode[] = buildArtistTree(artistData)
-    const collabTransactions = config.excludePhysical
-      ? allTransactions.filter(t => !t.is_physical)
-      : allTransactions
-    const collabTree: ArtistCollabNode[] = buildArtistCollabTree(collabTransactions, config.artistMappings)
+    // Cockpit revenue must respect compilation exclusions, track ownership,
+    // roster membership and ignored entries just like the exported statements.
+    // The previous view was built from all raw imports and kept showing
+    // excluded featured artists even after a 100% owner assignment.
+    const collabTree: ArtistCollabNode[] = buildSettledArtistCollabTree(artistData)
 
     const uniqueArtists = artistData.map(d => d.artist).sort()
 
