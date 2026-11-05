@@ -7,6 +7,7 @@ import {
   getAvailablePlatforms,
   getAvailableCountries,
   buildArtistCollabTree,
+  buildSettledArtistCollabTree,
 } from '../grouping'
 import type { FilterState, ArtistMapping } from '../grouping'
 import type { SalesTransaction } from '@/features/ingest/lib/csv-parser'
@@ -343,5 +344,42 @@ describe('buildArtistCollabTree', () => {
     const tx = makeTx({ original_artist: '', main_artist: 'Solo Artist', net_revenue: 3, quantity: 30 })
     const result = buildArtistCollabTree([tx], [])
     expect(result.find(n => n.primaryArtist === 'Solo Artist')).toBeDefined()
+  })
+})
+
+describe('settled SOS collaboration view', () => {
+  it('shows only allocated rows, not feature credits from excluded original imports', () => {
+    const owner = makeTx({
+      original_artist: 'Exstais featuring Basila featuring Agnis',
+      main_artist: 'Exstais',
+      release_title: 'Satisfaction',
+      track_title: 'Satisfaction',
+      net_revenue: 250,
+    })
+    const own = makeTx({
+      original_artist: 'Agnis',
+      main_artist: 'Agnis',
+      release_title: 'Own Release',
+      net_revenue: 12,
+    })
+    const result = buildSettledArtistCollabTree([
+      { transactions: [owner] },
+      { transactions: [own] },
+    ])
+    expect(result.find(node => node.primaryArtist === 'Exstais')?.revenue).toBe(250)
+    expect(result.find(node => node.primaryArtist === 'Agnis')?.revenue).toBe(12)
+    expect(result.find(node => node.primaryArtist === 'Agnis')?.collabEntries).toHaveLength(0)
+  })
+
+  it('honors resolved owner even if the original full credit names another primary artist', () => {
+    const transferred = makeTx({
+      original_artist: 'Exstais feat Agnis',
+      main_artist: 'Agnis',
+      net_revenue: 40,
+    })
+    const result = buildSettledArtistCollabTree([{ transactions: [transferred] }])
+    expect(result).toHaveLength(1)
+    expect(result[0].primaryArtist).toBe('Agnis')
+    expect(result[0].revenue).toBe(40)
   })
 })
