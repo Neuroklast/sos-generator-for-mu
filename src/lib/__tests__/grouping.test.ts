@@ -352,6 +352,7 @@ describe('settled SOS collaboration view', () => {
     const owner = makeTx({
       original_artist: 'Extize featuring Basila featuring Agnis',
       main_artist: 'Extize',
+      assignment_owner_locked: true,
       release_title: 'Satisfaction',
       track_title: 'Satisfaction',
       net_revenue: 250,
@@ -367,6 +368,7 @@ describe('settled SOS collaboration view', () => {
       { transactions: [own] },
     ])
     expect(result.find(node => node.primaryArtist === 'Extize')?.revenue).toBe(250)
+    expect(result.find(node => node.primaryArtist === 'Extize')?.collabEntries).toHaveLength(0)
     expect(result.find(node => node.primaryArtist === 'Agnis')?.revenue).toBe(12)
     expect(result.find(node => node.primaryArtist === 'Agnis')?.collabEntries).toHaveLength(0)
   })
