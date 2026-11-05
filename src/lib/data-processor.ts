@@ -594,10 +594,10 @@ export function processTransactionsWithCompilations(
         let match: TrackRevenueAssignment | undefined
         let matchScore = -1
         for (const rule of trackAssignments) {
-          const needle = rule.trackTitle.trim().toLowerCase().replace(/\\s+/g, ' ')
+          const needle = rule.trackTitle.trim().toLowerCase().replace(/\s+/g, ' ')
           if (!needle) continue
-          const release = relLower.replace(/\\s+/g, ' ').trim()
-          const track = trkLower.replace(/\\s+/g, ' ').trim()
+          const release = relLower.replace(/\s+/g, ' ').trim()
+          const track = trkLower.replace(/\s+/g, ' ').trim()
           if (!release.includes(needle) && !track.includes(needle)) continue
           const isExact = release === needle || track === needle
           const score = needle.length + (isExact ? 10000 : 0)
