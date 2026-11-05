@@ -256,8 +256,10 @@ export function buildSettledArtistCollabTree(
     const normalize = (name: string) => name.trim().toLowerCase().replace(/\s+/g, '')
     return {
       ...tx,
-      original_artist:
-        primary && normalize(primary) === normalize(tx.main_artist)
+      // A locked track owner is the only revenue beneficiary for this row.
+      // Featuring credits are metadata, not additional guest-payable revenue.
+      original_artist: !tx.assignment_owner_locked && primary &&
+        normalize(primary) === normalize(tx.main_artist)
           ? tx.original_artist
           : tx.main_artist,
     }
