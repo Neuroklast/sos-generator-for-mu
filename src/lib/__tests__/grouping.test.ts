@@ -350,8 +350,8 @@ describe('buildArtistCollabTree', () => {
 describe('settled SOS collaboration view', () => {
   it('shows only allocated rows, not feature credits from excluded original imports', () => {
     const owner = makeTx({
-      original_artist: 'Exstais featuring Basila featuring Agnis',
-      main_artist: 'Exstais',
+      original_artist: 'Extize featuring Basila featuring Agnis',
+      main_artist: 'Extize',
       release_title: 'Satisfaction',
       track_title: 'Satisfaction',
       net_revenue: 250,
@@ -366,14 +366,14 @@ describe('settled SOS collaboration view', () => {
       { transactions: [owner] },
       { transactions: [own] },
     ])
-    expect(result.find(node => node.primaryArtist === 'Exstais')?.revenue).toBe(250)
+    expect(result.find(node => node.primaryArtist === 'Extize')?.revenue).toBe(250)
     expect(result.find(node => node.primaryArtist === 'Agnis')?.revenue).toBe(12)
     expect(result.find(node => node.primaryArtist === 'Agnis')?.collabEntries).toHaveLength(0)
   })
 
   it('honors resolved owner even if the original full credit names another primary artist', () => {
     const transferred = makeTx({
-      original_artist: 'Exstais feat Agnis',
+      original_artist: 'Extize feat Agnis',
       main_artist: 'Agnis',
       net_revenue: 40,
     })
